@@ -1,0 +1,24 @@
+# .NET
+bin/
+obj/
+
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+
+# VS Code
+.vscode/
+
+# Visual Studio
+.vs/
+
+# Env files
+.env
+.env.*
+
+# Mac/Windows
+.DS_Store
+Thumbs.db
