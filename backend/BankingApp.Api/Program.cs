@@ -1,4 +1,5 @@
 using System.Text;
+using BankingApp.Api.Configuration;
 using BankingApp.Api.Middleware;
 using BankingApp.Application.Interfaces;
 using BankingApp.Infrastructure.Authentication;
@@ -7,6 +8,8 @@ using BankingApp.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+
+EnvFileLoader.Load();
 
 var builder = WebApplication.CreateBuilder(args);
 

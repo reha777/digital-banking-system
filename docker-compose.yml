@@ -3,8 +3,8 @@ services:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: banking-sqlserver
     environment:
-      ACCEPT_EULA: "Y"
-      SA_PASSWORD: "YourStrong!Pass123"
+      ACCEPT_EULA: ${ACCEPT_EULA}
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
     ports:
       - "1433:1433"
     volumes:
@@ -13,6 +13,9 @@ services:
   rabbitmq:
     image: rabbitmq:4-management
     container_name: banking-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
     ports:
       - "5672:5672"
       - "15672:15672"
