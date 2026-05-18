@@ -18,6 +18,7 @@ build/
 # Env files
 .env
 .env.*
+!.env.example
 
 # Mac/Windows
 .DS_Store
