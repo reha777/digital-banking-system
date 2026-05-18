@@ -21,6 +21,7 @@ namespace BankingApp.Infrastructure.Authentication
 
             var claims = new List<Claim>
             {
+                new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
                 new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
                 new(JwtRegisteredClaimNames.Email, user.Email),
                 new(ClaimTypes.NameIdentifier, user.Id.ToString()),

@@ -19,5 +19,7 @@ namespace BankingApp.Domain.Entities
         public DateTime CreatedAtUtc { get; set; }
 
         public ICollection<Account> Accounts { get; set; } = new List<Account>();
+
+        public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
     }
 }

@@ -28,5 +28,25 @@ namespace BankingApp.Api.Controllers
             var response = await authService.RegisterAsync(request, cancellationToken);
             return CreatedAtAction(nameof(Register), response);
         }
+
+        [AllowAnonymous]
+        [HttpPost("refresh")]
+        public async Task<ActionResult<AuthResponse>> Refresh(
+            RefreshTokenRequest request,
+            CancellationToken cancellationToken)
+        {
+            var response = await authService.RefreshAsync(request, cancellationToken);
+            return Ok(response);
+        }
+
+        [AllowAnonymous]
+        [HttpPost("logout")]
+        public async Task<IActionResult> Logout(
+            LogoutRequest request,
+            CancellationToken cancellationToken)
+        {
+            await authService.LogoutAsync(request, cancellationToken);
+            return NoContent();
+        }
     }
 }

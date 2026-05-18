@@ -17,8 +17,11 @@ class MobileDashboardScreen extends StatelessWidget {
         title: const Text('BankPick'),
         actions: [
           IconButton(
-            onPressed: () {
-              session.logout();
+            onPressed: () async {
+              await session.logout();
+              if (!context.mounted) {
+                return;
+              }
               Navigator.of(context).pushReplacement(
                 MaterialPageRoute<void>(
                   builder: (_) => LoginScreen(session: session),

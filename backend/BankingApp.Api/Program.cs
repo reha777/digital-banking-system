@@ -1,3 +1,5 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Text;
 using BankingApp.Api.Configuration;
 using BankingApp.Api.Middleware;
@@ -31,7 +33,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy(CorsPolicyName, policy =>
     {
         policy
-            .WithOrigins(allowedOrigins)
+            .SetIsOriginAllowed(origin => IsAllowedOrigin(origin, allowedOrigins, builder.Environment.IsDevelopment()))
             .AllowAnyHeader()
             .AllowAnyMethod();
     });
@@ -62,6 +64,30 @@ builder.Services
             ValidAudience = jwtOptions.Audience,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Key))
         };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                var tokenId = context.Principal?.FindFirstValue(JwtRegisteredClaimNames.Jti);
+                if (string.IsNullOrWhiteSpace(tokenId))
+                {
+                    context.Fail("Token id is missing.");
+                    return;
+                }
+
+                var dbContext = context.HttpContext.RequestServices.GetRequiredService<BankingAppDbContext>();
+                var isRevoked = await dbContext.AccessTokenRevocations
+                    .AnyAsync(revocation =>
+                        revocation.TokenId == tokenId &&
+                        revocation.ExpiresAtUtc > DateTime.UtcNow);
+
+                if (isRevoked)
+                {
+                    context.Fail("Token has been revoked.");
+                }
+            }
+        };
     });
 
 builder.Services.AddAuthorization();
@@ -88,3 +114,19 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+static bool IsAllowedOrigin(string origin, string[] allowedOrigins, bool isDevelopment)
+{
+    if (allowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase))
+    {
+        return true;
+    }
+
+    if (!isDevelopment || !Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+    {
+        return false;
+    }
+
+    return uri.Scheme is "http" or "https" &&
+        uri.Host is "localhost" or "127.0.0.1";
+}

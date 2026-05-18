@@ -17,8 +17,11 @@ class AdminDashboardScreen extends StatelessWidget {
         title: const Text('BankPick Admin'),
         actions: [
           IconButton(
-            onPressed: () {
-              session.logout();
+            onPressed: () async {
+              await session.logout();
+              if (!context.mounted) {
+                return;
+              }
               Navigator.of(context).pushReplacement(
                 MaterialPageRoute<void>(
                   builder: (_) => AdminLoginScreen(session: session),

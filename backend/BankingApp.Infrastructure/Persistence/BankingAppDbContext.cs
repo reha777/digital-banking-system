@@ -13,6 +13,10 @@ namespace BankingApp.Infrastructure.Persistence
 
         public DbSet<Transaction> Transactions => Set<Transaction>();
 
+        public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+
+        public DbSet<AccessTokenRevocation> AccessTokenRevocations => Set<AccessTokenRevocation>();
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -20,6 +24,8 @@ namespace BankingApp.Infrastructure.Persistence
             ConfigureUsers(modelBuilder);
             ConfigureAccounts(modelBuilder);
             ConfigureTransactions(modelBuilder);
+            ConfigureRefreshTokens(modelBuilder);
+            ConfigureAccessTokenRevocations(modelBuilder);
             SeedData(modelBuilder);
         }
 
@@ -65,6 +71,11 @@ namespace BankingApp.Infrastructure.Persistence
                     .WithOne(account => account.User)
                     .HasForeignKey(account => account.UserId)
                     .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasMany(user => user.RefreshTokens)
+                    .WithOne(refreshToken => refreshToken.User)
+                    .HasForeignKey(refreshToken => refreshToken.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
         }
 
@@ -135,6 +146,52 @@ namespace BankingApp.Infrastructure.Persistence
                     .IsRequired();
 
                 entity.HasIndex(transaction => transaction.ReferenceNumber)
+                    .IsUnique();
+            });
+        }
+
+        private static void ConfigureRefreshTokens(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<RefreshToken>(entity =>
+            {
+                entity.ToTable("RefreshTokens");
+
+                entity.HasKey(refreshToken => refreshToken.Id);
+
+                entity.Property(refreshToken => refreshToken.TokenHash)
+                    .HasMaxLength(128)
+                    .IsRequired();
+
+                entity.Property(refreshToken => refreshToken.ExpiresAtUtc)
+                    .IsRequired();
+
+                entity.Property(refreshToken => refreshToken.CreatedAtUtc)
+                    .IsRequired();
+
+                entity.HasIndex(refreshToken => refreshToken.TokenHash)
+                    .IsUnique();
+            });
+        }
+
+        private static void ConfigureAccessTokenRevocations(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<AccessTokenRevocation>(entity =>
+            {
+                entity.ToTable("AccessTokenRevocations");
+
+                entity.HasKey(revocation => revocation.Id);
+
+                entity.Property(revocation => revocation.TokenId)
+                    .HasMaxLength(100)
+                    .IsRequired();
+
+                entity.Property(revocation => revocation.ExpiresAtUtc)
+                    .IsRequired();
+
+                entity.Property(revocation => revocation.RevokedAtUtc)
+                    .IsRequired();
+
+                entity.HasIndex(revocation => revocation.TokenId)
                     .IsUnique();
             });
         }
