@@ -1,5 +1,6 @@
 using BankingApp.Domain.Entities;
 using BankingApp.Domain.Enums;
+using BankingApp.Domain.Constants;
 using Microsoft.EntityFrameworkCore;
 
 namespace BankingApp.Infrastructure.Persistence
@@ -40,6 +41,14 @@ namespace BankingApp.Infrastructure.Persistence
 
                 entity.Property(user => user.Email)
                     .HasMaxLength(256)
+                    .IsRequired();
+
+                entity.Property(user => user.PasswordHash)
+                    .HasMaxLength(500)
+                    .IsRequired();
+
+                entity.Property(user => user.Role)
+                    .HasMaxLength(50)
                     .IsRequired();
 
                 entity.Property(user => user.CreatedAtUtc)
@@ -134,13 +143,16 @@ namespace BankingApp.Infrastructure.Persistence
             var initialDepositId = Guid.Parse("b8e0dbf7-536f-4301-99c7-5b3a1e03f450");
             var savingsDepositId = Guid.Parse("fd261404-8751-4faa-bffa-cdf7ea592903");
             var createdAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            const string testPasswordHash = "PBKDF2-SHA256.100000.AQIDBAUGBwgJCgsMDQ4PEA==.1n/kUWC8lKsVwbzvVqx46PhnAJHTK4Pvs6t0RwMyEOQ=";
 
             modelBuilder.Entity<User>().HasData(new User
             {
                 Id = userId,
                 FirstName = "Demo",
                 LastName = "Customer",
-                Email = "demo.customer@bankingapp.local",
+                Email = "mobile@bankingapp.local",
+                PasswordHash = testPasswordHash,
+                Role = AppRoles.Customer,
                 CreatedAtUtc = createdAtUtc
             });
 
