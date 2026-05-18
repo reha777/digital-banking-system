@@ -4,6 +4,7 @@ import 'core/api_client.dart';
 import 'core/app_theme.dart';
 import 'features/auth/auth_session.dart';
 import 'features/auth/login_screen.dart';
+import 'features/dashboard/mobile_dashboard_screen.dart';
 import 'features/onboarding/onboarding_screen.dart';
 import 'features/onboarding/splash_screen.dart';
 
@@ -34,18 +35,22 @@ class _BankingMobileAppState extends State<BankingMobileApp> {
       darkTheme: AppTheme.dark,
       themeMode: ThemeMode.system,
       home: SplashScreen(
-        onFinished: () {
+        onFinished: () async {
+          await _session.initialize();
+
           _navigatorKey.currentState?.pushReplacement(
             MaterialPageRoute<void>(
-              builder: (_) => OnboardingScreen(
-                onFinished: () {
-                  _navigatorKey.currentState?.pushReplacement(
-                    MaterialPageRoute<void>(
-                      builder: (_) => LoginScreen(session: _session),
+              builder: (_) => _session.isAuthenticated
+                  ? MobileDashboardScreen(session: _session)
+                  : OnboardingScreen(
+                      onFinished: () {
+                        _navigatorKey.currentState?.pushReplacement(
+                          MaterialPageRoute<void>(
+                            builder: (_) => LoginScreen(session: _session),
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
             ),
           );
         },
