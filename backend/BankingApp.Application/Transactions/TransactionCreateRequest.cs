@@ -7,7 +7,6 @@ namespace BankingApp.Application.Transactions
         [Required]
         public Guid AccountId { get; set; }
 
-        [Range(typeof(decimal), "-999999999999.99", "999999999999.99")]
         public decimal Amount { get; set; }
 
         [Required]

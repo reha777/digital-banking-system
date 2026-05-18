@@ -93,6 +93,123 @@ namespace BankingApp.Infrastructure.Services
             return ToResponse(transaction);
         }
 
+        public async Task<MoneyTransferResponse> SendMoneyAsync(
+            MoneyTransferRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            if (currentUserService.IsAdmin)
+            {
+                throw new BusinessException("Admin korisnik ne moze slati novac u ime klijenta.");
+            }
+
+            if (request.Amount <= 0)
+            {
+                throw new BusinessException("Iznos za slanje mora biti veci od nule.");
+            }
+
+            var destinationAccountNumber = request.DestinationAccountNumber.Trim();
+            if (string.IsNullOrWhiteSpace(destinationAccountNumber))
+            {
+                throw new BusinessException("Racun primaoca je obavezan.");
+            }
+
+            var sourceAccount = await dbContext.Accounts
+                .FirstOrDefaultAsync(
+                    account =>
+                        account.Id == request.SourceAccountId &&
+                        account.UserId == currentUserService.UserId,
+                    cancellationToken);
+
+            if (sourceAccount is null)
+            {
+                throw new NotFoundException("Racun sa kojeg saljete novac nije pronadjen.");
+            }
+
+            var destinationAccount = await dbContext.Accounts
+                .FirstOrDefaultAsync(
+                    account => account.AccountNumber == destinationAccountNumber,
+                    cancellationToken);
+
+            if (destinationAccount is null)
+            {
+                throw new NotFoundException("Racun primaoca nije pronadjen.");
+            }
+
+            if (sourceAccount.Id == destinationAccount.Id)
+            {
+                throw new BusinessException("Novac nije moguce poslati na isti racun.");
+            }
+
+            if (sourceAccount.UserId == destinationAccount.UserId)
+            {
+                throw new BusinessException("Novac nije moguce poslati samom sebi.");
+            }
+
+            if (sourceAccount.Currency != destinationAccount.Currency)
+            {
+                throw new BusinessException("Transfer je moguc samo izmedju racuna iste valute.");
+            }
+
+            if (sourceAccount.Balance < request.Amount)
+            {
+                throw new BusinessException("Nedovoljno sredstava na racunu.");
+            }
+
+            var referenceNumber = CreateReferenceNumber();
+            var createdAtUtc = DateTime.UtcNow;
+            var description = string.IsNullOrWhiteSpace(request.Description)
+                ? $"Transfer to {destinationAccount.AccountNumber}"
+                : request.Description.Trim();
+
+            sourceAccount.Balance -= request.Amount;
+            destinationAccount.Balance += request.Amount;
+
+            var debitTransaction = new Transaction
+            {
+                Id = Guid.NewGuid(),
+                AccountId = sourceAccount.Id,
+                SourceAccountId = sourceAccount.Id,
+                DestinationAccountId = destinationAccount.Id,
+                ReferenceNumber = referenceNumber,
+                Amount = -request.Amount,
+                Description = description,
+                Status = TransactionStatus.Completed,
+                CreatedAtUtc = createdAtUtc
+            };
+
+            var creditTransaction = new Transaction
+            {
+                Id = Guid.NewGuid(),
+                AccountId = destinationAccount.Id,
+                SourceAccountId = sourceAccount.Id,
+                DestinationAccountId = destinationAccount.Id,
+                ReferenceNumber = referenceNumber,
+                Amount = request.Amount,
+                Description = $"Transfer from {sourceAccount.AccountNumber}",
+                Status = TransactionStatus.Completed,
+                CreatedAtUtc = createdAtUtc
+            };
+
+            dbContext.Transactions.AddRange(debitTransaction, creditTransaction);
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            debitTransaction.Account = sourceAccount;
+            creditTransaction.Account = destinationAccount;
+
+            return new MoneyTransferResponse
+            {
+                ReferenceNumber = referenceNumber,
+                Status = TransactionStatus.Completed,
+                Amount = request.Amount,
+                Currency = sourceAccount.Currency,
+                SourceAccount = ToTransferAccountResponse(sourceAccount),
+                DestinationAccount = ToTransferAccountResponse(destinationAccount),
+                DebitTransaction = ToResponse(debitTransaction, sourceAccount, destinationAccount),
+                CreditTransaction = ToResponse(creditTransaction, sourceAccount, destinationAccount),
+                CreatedAtUtc = createdAtUtc
+            };
+        }
+
         public async Task<TransactionResponse> UpdateAsync(
             Guid id,
             TransactionUpdateRequest request,
@@ -158,11 +275,35 @@ namespace BankingApp.Infrastructure.Services
                 Id = transaction.Id,
                 AccountId = transaction.AccountId,
                 AccountNumber = transaction.Account.AccountNumber,
+                SourceAccountId = transaction.SourceAccountId,
+                DestinationAccountId = transaction.DestinationAccountId,
                 ReferenceNumber = transaction.ReferenceNumber,
                 Amount = transaction.Amount,
                 Description = transaction.Description,
                 Status = transaction.Status,
                 CreatedAtUtc = transaction.CreatedAtUtc
+            };
+        }
+
+        private static TransactionResponse ToResponse(
+            Transaction transaction,
+            Account sourceAccount,
+            Account destinationAccount)
+        {
+            var response = ToResponse(transaction);
+            response.SourceAccountNumber = sourceAccount.AccountNumber;
+            response.DestinationAccountNumber = destinationAccount.AccountNumber;
+            return response;
+        }
+
+        private static TransferAccountResponse ToTransferAccountResponse(Account account)
+        {
+            return new TransferAccountResponse
+            {
+                Id = account.Id,
+                AccountNumber = account.AccountNumber,
+                Balance = account.Balance,
+                Currency = account.Currency
             };
         }
     }

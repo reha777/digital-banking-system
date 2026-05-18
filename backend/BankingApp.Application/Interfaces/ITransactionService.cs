@@ -11,6 +11,8 @@ namespace BankingApp.Application.Interfaces
 
         Task<TransactionResponse> CreateAsync(TransactionCreateRequest request, CancellationToken cancellationToken = default);
 
+        Task<MoneyTransferResponse> SendMoneyAsync(MoneyTransferRequest request, CancellationToken cancellationToken = default);
+
         Task<TransactionResponse> UpdateAsync(Guid id, TransactionUpdateRequest request, CancellationToken cancellationToken = default);
 
         Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);

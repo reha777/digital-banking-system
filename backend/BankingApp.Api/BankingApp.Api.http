@@ -18,13 +18,19 @@ Accept: application/json
 
 ###
 
+GET {{BankingApp.Api_HostAddress}}/api/accounts/balance
+Authorization: Bearer {{AccessToken}}
+Accept: application/json
+
+###
+
 POST {{BankingApp.Api_HostAddress}}/api/accounts
 Authorization: Bearer {{AccessToken}}
 Content-Type: application/json
 Accept: application/json
 
 {
-  "accountNumber": "BA-000002-CHECKING",
+  "accountNumber": "BA-000003-CHECKING",
   "accountType": 1,
   "openingBalance": 100,
   "currency": "USD"
@@ -38,6 +44,20 @@ Accept: application/json
 
 ###
 
+POST {{BankingApp.Api_HostAddress}}/api/transactions/send-money
+Authorization: Bearer {{AccessToken}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "sourceAccountId": "dbdd0766-a83e-4a7d-944c-af7d0373ff50",
+  "destinationAccountNumber": "BA-000002-CHECKING",
+  "amount": 36,
+  "description": "Mobile money transfer"
+}
+
+###
+
 POST {{BankingApp.Api_HostAddress}}/api/auth/register
 Content-Type: application/json
 Accept: application/json
@@ -46,6 +66,7 @@ Accept: application/json
   "firstName": "Test",
   "lastName": "Customer",
   "email": "test.customer@bankingapp.local",
+  "phoneNumber": "+38764111222",
   "password": "test123"
 }
 

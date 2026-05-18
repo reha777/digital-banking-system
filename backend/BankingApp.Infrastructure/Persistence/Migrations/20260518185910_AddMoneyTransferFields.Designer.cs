@@ -4,6 +4,7 @@ using BankingApp.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BankingApp.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(BankingAppDbContext))]
-    partial class BankingAppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260518185910_AddMoneyTransferFields")]
+    partial class AddMoneyTransferFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -110,16 +113,6 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                             CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Currency = "USD",
                             UserId = new Guid("9a99a021-b892-4f5a-bd98-36a5afbf0c79")
-                        },
-                        new
-                        {
-                            Id = new Guid("deed75d2-e898-4c2d-a7e3-2fa1152d7222"),
-                            AccountNumber = "BA-000002-CHECKING",
-                            AccountType = "Checking",
-                            Balance = 300.00m,
-                            CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Currency = "USD",
-                            UserId = new Guid("f5573a40-f822-45c4-a841-b6ab5d5a0c49")
                         });
                 });
 
@@ -292,17 +285,6 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                             PasswordHash = "PBKDF2-SHA256.100000.ERITFBUWFxgZGhscHR4fIA==.3+i0Vv41HWR1ofVLRyJthACrUOkA/W2oSnAkMKm57ak=",
                             PhoneNumber = "+38762222333",
                             Role = "Admin"
-                        },
-                        new
-                        {
-                            Id = new Guid("f5573a40-f822-45c4-a841-b6ab5d5a0c49"),
-                            CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Email = "recipient@bankingapp.local",
-                            FirstName = "Yamilet",
-                            LastName = "Recipient",
-                            PasswordHash = "PBKDF2-SHA256.100000.AQIDBAUGBwgJCgsMDQ4PEA==.1n/kUWC8lKsVwbzvVqx46PhnAJHTK4Pvs6t0RwMyEOQ=",
-                            PhoneNumber = "+38763333444",
-                            Role = "Customer"
                         });
                 });
 

@@ -65,9 +65,16 @@ flutter:
     - assets/images/onboarding_payment.png
     - assets/images/onboarding_secure.png
     - assets/images/onboarding_coins.png
+    - assets/images/cards/worldmap.png
     - assets/icons/auth/email.png
     - assets/icons/auth/password.png
     - assets/icons/auth/phone.png
+    - assets/icons/cards/chip.png
+    - assets/icons/cards/mastercard.png
+    - assets/icons/dashboard/topup.png
+    - assets/icons/dashboard/loan.png
+    - assets/icons/navigation/home.png
+    - assets/icons/navigation/my_cards.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
