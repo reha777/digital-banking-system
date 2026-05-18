@@ -10,6 +10,10 @@ namespace BankingApp.Domain.Entities
 
         public Account Account { get; set; } = null!;
 
+        public Guid? SourceAccountId { get; set; }
+
+        public Guid? DestinationAccountId { get; set; }
+
         public string ReferenceNumber { get; set; } = string.Empty;
 
         public decimal Amount { get; set; }

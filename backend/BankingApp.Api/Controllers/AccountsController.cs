@@ -20,6 +20,14 @@ namespace BankingApp.Api.Controllers
             return Ok(response);
         }
 
+        [HttpGet("balance")]
+        public async Task<ActionResult<AccountBalanceSummaryResponse>> GetBalance(
+            CancellationToken cancellationToken)
+        {
+            var response = await accountService.GetBalanceSummaryAsync(cancellationToken);
+            return Ok(response);
+        }
+
         [HttpGet("{id:guid}")]
         public async Task<ActionResult<AccountResponse>> GetById(Guid id, CancellationToken cancellationToken)
         {

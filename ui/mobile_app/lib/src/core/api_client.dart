@@ -1,14 +1,51 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class ApiClient {
-  static const String baseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:5026',
-  );
+  static const String _configuredBaseUrl = String.fromEnvironment('API_BASE_URL');
+
+  static String get baseUrl {
+    if (_configuredBaseUrl.isNotEmpty) {
+      return _configuredBaseUrl;
+    }
+
+    return kIsWeb ? 'http://localhost:5026' : 'http://10.0.2.2:5026';
+  }
 
   final http.Client _httpClient = http.Client();
+
+  Future<Map<String, dynamic>> getJson(
+    String path, {
+    String? token,
+  }) async {
+    final headers = <String, String>{
+      'Accept': 'application/json',
+    };
+
+    if (token != null) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+
+    final response = await _httpClient.get(
+      Uri.parse('$baseUrl$path'),
+      headers: headers,
+    );
+
+    final decoded = response.body.isEmpty
+        ? <String, dynamic>{}
+        : jsonDecode(response.body) as Map<String, dynamic>;
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException(
+        _extractErrorMessage(decoded),
+        response.statusCode,
+      );
+    }
+
+    return decoded;
+  }
 
   Future<Map<String, dynamic>> postJson(
     String path,

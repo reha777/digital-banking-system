@@ -53,6 +53,28 @@ namespace BankingApp.Infrastructure.Services
             };
         }
 
+        public async Task<AccountBalanceSummaryResponse> GetBalanceSummaryAsync(
+            CancellationToken cancellationToken = default)
+        {
+            var accounts = await ApplyOwnershipFilter(dbContext.Accounts.AsNoTracking())
+                .OrderBy(account => account.AccountNumber)
+                .ToListAsync(cancellationToken);
+
+            return new AccountBalanceSummaryResponse
+            {
+                Totals = accounts
+                    .GroupBy(account => account.Currency)
+                    .OrderBy(group => group.Key)
+                    .Select(group => new CurrencyBalanceResponse
+                    {
+                        Currency = group.Key,
+                        Balance = group.Sum(account => account.Balance)
+                    })
+                    .ToList(),
+                Accounts = accounts.Select(ToResponse).ToList()
+            };
+        }
+
         public async Task<AccountResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
             var account = await GetOwnedAccountAsync(id, cancellationToken);

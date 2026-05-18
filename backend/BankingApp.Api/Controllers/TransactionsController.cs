@@ -36,6 +36,15 @@ namespace BankingApp.Api.Controllers
             return CreatedAtAction(nameof(GetById), new { id = response.Id }, response);
         }
 
+        [HttpPost("send-money")]
+        public async Task<ActionResult<MoneyTransferResponse>> SendMoney(
+            MoneyTransferRequest request,
+            CancellationToken cancellationToken)
+        {
+            var response = await transactionService.SendMoneyAsync(request, cancellationToken);
+            return Ok(response);
+        }
+
         [HttpPut("{id:guid}")]
         public async Task<ActionResult<TransactionResponse>> Update(
             Guid id,
