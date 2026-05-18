@@ -17,6 +17,16 @@ namespace BankingApp.Api.Middleware
                 context.Response.StatusCode = StatusCodes.Status400BadRequest;
                 await context.Response.WriteAsJsonAsync(new { message = exception.Message });
             }
+            catch (NotFoundException exception)
+            {
+                context.Response.StatusCode = StatusCodes.Status404NotFound;
+                await context.Response.WriteAsJsonAsync(new { message = exception.Message });
+            }
+            catch (UnauthorizedAccessException exception)
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                await context.Response.WriteAsJsonAsync(new { message = exception.Message });
+            }
             catch (Exception exception)
             {
                 logger.LogError(exception, "Unhandled exception while processing request.");

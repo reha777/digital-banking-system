@@ -1,4 +1,5 @@
 @BankingApp.Api_HostAddress = http://localhost:5026
+@AccessToken = paste-token-here
 
 POST {{BankingApp.Api_HostAddress}}/api/auth/login
 Content-Type: application/json
@@ -8,6 +9,32 @@ Accept: application/json
   "email": "mobile@bankingapp.local",
   "password": "test"
 }
+
+###
+
+GET {{BankingApp.Api_HostAddress}}/api/accounts?page=1&pageSize=20
+Authorization: Bearer {{AccessToken}}
+Accept: application/json
+
+###
+
+POST {{BankingApp.Api_HostAddress}}/api/accounts
+Authorization: Bearer {{AccessToken}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "accountNumber": "BA-000002-CHECKING",
+  "accountType": 1,
+  "openingBalance": 100,
+  "currency": "USD"
+}
+
+###
+
+GET {{BankingApp.Api_HostAddress}}/api/transactions?page=1&pageSize=20
+Authorization: Bearer {{AccessToken}}
+Accept: application/json
 
 ###
 
