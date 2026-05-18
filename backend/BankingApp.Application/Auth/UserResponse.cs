@@ -1,6 +1,6 @@
-namespace BankingApp.Domain.Entities
+namespace BankingApp.Application.Auth
 {
-    public class User
+    public class UserResponse
     {
         public Guid Id { get; set; }
 
@@ -10,12 +10,6 @@ namespace BankingApp.Domain.Entities
 
         public string Email { get; set; } = string.Empty;
 
-        public string PasswordHash { get; set; } = string.Empty;
-
         public string Role { get; set; } = string.Empty;
-
-        public DateTime CreatedAtUtc { get; set; }
-
-        public ICollection<Account> Accounts { get; set; } = new List<Account>();
     }
 }
