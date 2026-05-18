@@ -4,6 +4,7 @@ using BankingApp.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BankingApp.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(BankingAppDbContext))]
-    partial class BankingAppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260518135601_SeedAdminUser")]
+    partial class SeedAdminUser
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -177,11 +180,6 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
-                    b.Property<string>("PhoneNumber")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("nvarchar(30)");
-
                     b.Property<string>("Role")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -203,7 +201,6 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                             FirstName = "Demo",
                             LastName = "Customer",
                             PasswordHash = "PBKDF2-SHA256.100000.AQIDBAUGBwgJCgsMDQ4PEA==.1n/kUWC8lKsVwbzvVqx46PhnAJHTK4Pvs6t0RwMyEOQ=",
-                            PhoneNumber = "+38761111222",
                             Role = "Customer"
                         },
                         new
@@ -214,7 +211,6 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                             FirstName = "Desktop",
                             LastName = "Admin",
                             PasswordHash = "PBKDF2-SHA256.100000.ERITFBUWFxgZGhscHR4fIA==.3+i0Vv41HWR1ofVLRyJthACrUOkA/W2oSnAkMKm57ak=",
-                            PhoneNumber = "+38762222333",
                             Role = "Admin"
                         });
                 });

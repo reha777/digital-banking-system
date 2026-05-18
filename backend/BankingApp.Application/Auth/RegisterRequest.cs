@@ -18,6 +18,11 @@ namespace BankingApp.Application.Auth
         public string Email { get; set; } = string.Empty;
 
         [Required]
+        [Phone]
+        [MaxLength(30)]
+        public string PhoneNumber { get; set; } = string.Empty;
+
+        [Required]
         [MinLength(6)]
         public string Password { get; set; } = string.Empty;
     }
