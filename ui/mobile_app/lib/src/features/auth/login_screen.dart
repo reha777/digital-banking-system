@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
 import '../../core/api_client.dart';
@@ -121,13 +119,11 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } on ApiException catch (exception) {
       setState(() => _errorMessage = exception.message);
-    } on SocketException {
+    } catch (_) {
       setState(
         () => _errorMessage =
             'API nije dostupan. Provjerite da backend radi i da je API_BASE_URL ispravan.',
       );
-    } catch (_) {
-      setState(() => _errorMessage = 'Doslo je do greske prilikom prijave.');
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);

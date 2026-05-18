@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 class ApiClient {
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:5026',
+    defaultValue: 'http://localhost:5026',
   );
 
   final http.Client _httpClient = http.Client();
@@ -35,10 +35,7 @@ class ApiClient {
         : jsonDecode(response.body) as Map<String, dynamic>;
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw ApiException(
-        _extractErrorMessage(decoded),
-        response.statusCode,
-      );
+      throw ApiException(_extractErrorMessage(decoded), response.statusCode);
     }
 
     return decoded;
@@ -66,12 +63,7 @@ class ApiClient {
       }
     }
 
-    final title = decoded['title']?.toString();
-    if (title != null && title.isNotEmpty) {
-      return title;
-    }
-
-    return 'Zahtjev nije uspjesno obradjen.';
+    return decoded['title']?.toString() ?? 'Zahtjev nije uspjesno obradjen.';
   }
 }
 
