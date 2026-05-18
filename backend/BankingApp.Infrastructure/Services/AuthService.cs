@@ -45,6 +45,7 @@ namespace BankingApp.Infrastructure.Services
                 FirstName = request.FirstName.Trim(),
                 LastName = request.LastName.Trim(),
                 Email = email,
+                PhoneNumber = request.PhoneNumber.Trim(),
                 PasswordHash = passwordHasher.Hash(request.Password),
                 Role = AppRoles.Customer,
                 CreatedAtUtc = DateTime.UtcNow
@@ -67,6 +68,7 @@ namespace BankingApp.Infrastructure.Services
                     FirstName = user.FirstName,
                     LastName = user.LastName,
                     Email = user.Email,
+                    PhoneNumber = user.PhoneNumber,
                     Role = user.Role
                 }
             };

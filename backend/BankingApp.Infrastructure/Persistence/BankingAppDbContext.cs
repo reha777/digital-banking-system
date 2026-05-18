@@ -43,6 +43,10 @@ namespace BankingApp.Infrastructure.Persistence
                     .HasMaxLength(256)
                     .IsRequired();
 
+                entity.Property(user => user.PhoneNumber)
+                    .HasMaxLength(30)
+                    .IsRequired();
+
                 entity.Property(user => user.PasswordHash)
                     .HasMaxLength(500)
                     .IsRequired();
@@ -138,23 +142,38 @@ namespace BankingApp.Infrastructure.Persistence
         private static void SeedData(ModelBuilder modelBuilder)
         {
             var userId = Guid.Parse("9a99a021-b892-4f5a-bd98-36a5afbf0c79");
+            var adminUserId = Guid.Parse("dd72f286-0cf8-44ad-81ea-d85c5964d29d");
             var checkingAccountId = Guid.Parse("dbdd0766-a83e-4a7d-944c-af7d0373ff50");
             var savingsAccountId = Guid.Parse("6e4ac9f4-28d0-4f6a-b8c4-c7937f9a5ae3");
             var initialDepositId = Guid.Parse("b8e0dbf7-536f-4301-99c7-5b3a1e03f450");
             var savingsDepositId = Guid.Parse("fd261404-8751-4faa-bffa-cdf7ea592903");
             var createdAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
             const string testPasswordHash = "PBKDF2-SHA256.100000.AQIDBAUGBwgJCgsMDQ4PEA==.1n/kUWC8lKsVwbzvVqx46PhnAJHTK4Pvs6t0RwMyEOQ=";
+            const string adminPasswordHash = "PBKDF2-SHA256.100000.ERITFBUWFxgZGhscHR4fIA==.3+i0Vv41HWR1ofVLRyJthACrUOkA/W2oSnAkMKm57ak=";
 
-            modelBuilder.Entity<User>().HasData(new User
-            {
-                Id = userId,
-                FirstName = "Demo",
-                LastName = "Customer",
-                Email = "mobile@bankingapp.local",
-                PasswordHash = testPasswordHash,
-                Role = AppRoles.Customer,
-                CreatedAtUtc = createdAtUtc
-            });
+            modelBuilder.Entity<User>().HasData(
+                new User
+                {
+                    Id = userId,
+                    FirstName = "Demo",
+                    LastName = "Customer",
+                    Email = "mobile@bankingapp.local",
+                    PhoneNumber = "+38761111222",
+                    PasswordHash = testPasswordHash,
+                    Role = AppRoles.Customer,
+                    CreatedAtUtc = createdAtUtc
+                },
+                new User
+                {
+                    Id = adminUserId,
+                    FirstName = "Desktop",
+                    LastName = "Admin",
+                    Email = "admin@bankingapp.local",
+                    PhoneNumber = "+38762222333",
+                    PasswordHash = adminPasswordHash,
+                    Role = AppRoles.Admin,
+                    CreatedAtUtc = createdAtUtc
+                });
 
             modelBuilder.Entity<Account>().HasData(
                 new Account
