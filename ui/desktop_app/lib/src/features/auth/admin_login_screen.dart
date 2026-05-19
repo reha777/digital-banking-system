@@ -44,7 +44,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
               border: Border.all(color: AppTheme.border),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Color(0x0D000000),
                   blurRadius: 28,
                   offset: const Offset(0, 18),
                 ),

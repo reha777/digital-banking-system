@@ -18,6 +18,10 @@ namespace BankingApp.Application.Transactions
 
         public string? DestinationAccountNumber { get; set; }
 
+        public string? SourceCustomerName { get; set; }
+
+        public string? DestinationCustomerName { get; set; }
+
         public string ReferenceNumber { get; set; } = string.Empty;
 
         public decimal Amount { get; set; }

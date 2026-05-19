@@ -1,62 +1,1388 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../../core/api_client.dart';
+import '../../core/app_theme.dart';
 import '../auth/admin_login_screen.dart';
 import '../auth/auth_session.dart';
+import '../transactions/admin_transaction_models.dart';
+import '../transactions/admin_transaction_service.dart';
 
-class AdminDashboardScreen extends StatelessWidget {
+class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key, required this.session});
 
   final AuthSession session;
 
   @override
+  State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
+}
+
+class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+  final _searchController = TextEditingController();
+  final _tableScrollController = ScrollController();
+  late final AdminTransactionService _transactionService;
+  late Future<_TransactionsViewData> _transactionsFuture;
+  Timer? _searchDebounce;
+  int _page = 1;
+  int _pageSize = 10;
+  int? _status;
+  DateTimeRange? _dateRange;
+
+  @override
+  void initState() {
+    super.initState();
+    _transactionService = AdminTransactionService(ApiClient());
+    _transactionsFuture = _loadTransactions();
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchController.dispose();
+    _tableScrollController.dispose();
+    super.dispose();
+  }
+
+  Future<_TransactionsViewData> _loadTransactions() async {
+    final token = widget.session.token;
+    if (token == null) {
+      throw ApiException('Sesija je istekla. Prijavite se ponovo.', 401);
+    }
+
+    final page = await _transactionService.getTransactions(
+      token: token,
+      page: _page,
+      pageSize: _pageSize,
+      search: _searchController.text,
+      status: _status,
+      dateFrom: _dateRange?.start,
+      dateTo: _dateRange?.end,
+    );
+    final summary = await _transactionService.getSummary(
+      token: token,
+      search: _searchController.text,
+      status: _status,
+      dateFrom: _dateRange?.start,
+      dateTo: _dateRange?.end,
+    );
+
+    return _TransactionsViewData(page: page, summary: summary);
+  }
+
+  void _refresh() {
+    setState(() {
+      _transactionsFuture = _loadTransactions();
+    });
+  }
+
+  void _refreshFromFirstPage() {
+    _page = 1;
+    _scrollTableTop();
+    _refresh();
+  }
+
+  void _scrollTableTop() {
+    if (_tableScrollController.hasClients) {
+      _tableScrollController.jumpTo(0);
+    }
+  }
+
+  void _searchChanged(String _) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+      _refreshFromFirstPage();
+    });
+  }
+
+  Future<void> _pickDateRange() async {
+    final selected = await showDialog<DateTimeRange?>(
+      context: context,
+      builder: (context) {
+        return _DateRangeDialog(initialRange: _dateRange);
+      },
+    );
+
+    if (selected == null) {
+      return;
+    }
+
+    setState(() {
+      _dateRange = selected;
+    });
+    _refreshFromFirstPage();
+  }
+
+  void _clearDateRange() {
+    setState(() {
+      _dateRange = null;
+    });
+    _refreshFromFirstPage();
+  }
+
+  Future<void> _logout() async {
+    await widget.session.logout();
+    if (!mounted) {
+      return;
+    }
+
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => AdminLoginScreen(session: widget.session),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final user = session.user;
+    final user = widget.session.user;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('BankPick Admin'),
-        actions: [
-          IconButton(
-            onPressed: () async {
-              await session.logout();
-              if (!context.mounted) {
-                return;
-              }
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute<void>(
-                  builder: (_) => AdminLoginScreen(session: session),
-                ),
-              );
-            },
-            icon: const Icon(Icons.logout),
-            tooltip: 'Sign out',
+      body: Row(
+        children: [
+          _AdminSidebar(
+            userName: '${user?.firstName ?? 'Admin'} ${user?.lastName ?? ''}'.trim(),
+            onLogout: _logout,
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _PageTitle(),
+                  const SizedBox(height: 22),
+                  _FiltersBar(
+                    searchController: _searchController,
+                    status: _status,
+                    dateRange: _dateRange,
+                    onSearchChanged: _searchChanged,
+                    onStatusChanged: (value) {
+                      _status = value;
+                      _refreshFromFirstPage();
+                    },
+                    onPickDateRange: _pickDateRange,
+                    onClearDateRange: _clearDateRange,
+                    onRefresh: _refresh,
+                  ),
+                  const SizedBox(height: 18),
+                  Expanded(
+                    child: FutureBuilder<_TransactionsViewData>(
+                      future: _transactionsFuture,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState != ConnectionState.done) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+
+                        if (snapshot.hasError) {
+                          return _AdminErrorState(
+                            message: snapshot.error.toString(),
+                            onRetry: _refresh,
+                          );
+                        }
+
+                        final data = snapshot.requireData;
+                        return Column(
+                          children: [
+                            _SummaryCards(summary: data.summary),
+                            const SizedBox(height: 16),
+                            Expanded(
+                              child: _TransactionsTable(
+                                page: data.page,
+                                currentPage: _page,
+                                pageSize: _pageSize,
+                                scrollController: _tableScrollController,
+                                onPageSelected: (pageNumber) {
+                                  _page = pageNumber;
+                                  _scrollTableTop();
+                                  _refresh();
+                                },
+                                onPageSizeChanged: (value) {
+                                  _pageSize = value;
+                                  _refreshFromFirstPage();
+                                },
+                                onPrevious: data.page.page <= 1
+                                    ? null
+                                    : () {
+                                        _page--;
+                                        _scrollTableTop();
+                                        _refresh();
+                                      },
+                                onNext: data.page.page >= data.page.totalPages
+                                    ? null
+                                    : () {
+                                        _page++;
+                                        _scrollTableTop();
+                                        _refresh();
+                                      },
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Welcome, ${user?.firstName ?? 'Admin'}',
-              style: Theme.of(context).textTheme.headlineSmall,
+    );
+  }
+}
+
+class _TransactionsViewData {
+  const _TransactionsViewData({
+    required this.page,
+    required this.summary,
+  });
+
+  final AdminTransactionPage page;
+  final AdminTransactionSummary summary;
+}
+
+class _SummaryCards extends StatelessWidget {
+  const _SummaryCards({required this.summary});
+
+  final AdminTransactionSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _SummaryCard(
+            title: 'Total transactions',
+            value: summary.totalTransactions.toString(),
+            icon: Icons.receipt_long,
+            tone: const Color(0xFF0066FF),
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: _SummaryCard(
+            title: 'Completed',
+            value: summary.completedTransactions.toString(),
+            icon: Icons.check_circle_outline,
+            tone: const Color(0xFF16A34A),
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: _SummaryCard(
+            title: 'Total transferred',
+            value: _formatAdminAmount(summary.totalTransferred),
+            icon: Icons.payments_outlined,
+            tone: const Color(0xFF7C3AED),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SummaryCard extends StatelessWidget {
+  const _SummaryCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.tone,
+  });
+
+  final String title;
+  final String value;
+  final IconData icon;
+  final Color tone;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 104),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppTheme.border),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: tone.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(8),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Administrative dashboard placeholder',
-              style: Theme.of(context).textTheme.bodySmall,
+            child: Icon(icon, color: tone),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: AppTheme.textMuted,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppTheme.textDark,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 28),
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text('Next: accounts, transactions, reports and reference data management.'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdminSidebar extends StatelessWidget {
+  const _AdminSidebar({
+    required this.userName,
+    required this.onLogout,
+  });
+
+  final String userName;
+  final VoidCallback onLogout;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 260,
+      color: const Color(0xFF111827),
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: AppTheme.primary,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.account_balance, color: Colors.white),
               ),
+              const SizedBox(width: 12),
+              const Text(
+                'BankPick',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 21,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 32),
+          const _SidebarItem(
+            icon: Icons.receipt_long,
+            title: 'Transactions',
+            isActive: true,
+          ),
+          const _SidebarItem(
+            icon: Icons.people_outline,
+            title: 'Customers',
+          ),
+          const _SidebarItem(
+            icon: Icons.credit_card,
+            title: 'Cards',
+          ),
+          const _SidebarItem(
+            icon: Icons.bar_chart,
+            title: 'Reports',
+          ),
+          const Spacer(),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1F2937),
+              borderRadius: BorderRadius.circular(8),
             ),
-          ],
+            child: Row(
+              children: [
+                const CircleAvatar(
+                  backgroundColor: Color(0xFF374151),
+                  child: Icon(Icons.person, color: Colors.white70),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    userName.isEmpty ? 'Admin' : userName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextButton.icon(
+            onPressed: onLogout,
+            icon: const Icon(Icons.logout),
+            label: const Text('Sign out'),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.white70,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarItem extends StatelessWidget {
+  const _SidebarItem({
+    required this.icon,
+    required this.title,
+    this.isActive = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final bool isActive;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: isActive ? AppTheme.primary : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: ListTile(
+        dense: true,
+        leading: Icon(icon, color: Colors.white),
+        title: Text(
+          title,
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: isActive ? FontWeight.w800 : FontWeight.w500,
+          ),
         ),
       ),
     );
   }
+}
+
+class _PageTitle extends StatelessWidget {
+  const _PageTitle();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: const Color(0x1F0066FF),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Icon(Icons.receipt_long, color: AppTheme.primary),
+        ),
+        const SizedBox(width: 14),
+        const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Transactions',
+              style: TextStyle(
+                color: AppTheme.textDark,
+                fontSize: 28,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            SizedBox(height: 3),
+            Text(
+              'Search, filter and review customer money movement.',
+              style: TextStyle(color: AppTheme.textMuted),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _FiltersBar extends StatelessWidget {
+  const _FiltersBar({
+    required this.searchController,
+    required this.status,
+    required this.dateRange,
+    required this.onSearchChanged,
+    required this.onStatusChanged,
+    required this.onPickDateRange,
+    required this.onClearDateRange,
+    required this.onRefresh,
+  });
+
+  final TextEditingController searchController;
+  final int? status;
+  final DateTimeRange? dateRange;
+  final ValueChanged<String> onSearchChanged;
+  final ValueChanged<int?> onStatusChanged;
+  final VoidCallback onPickDateRange;
+  final VoidCallback onClearDateRange;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppTheme.border),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 390,
+            child: TextField(
+              controller: searchController,
+              onChanged: onSearchChanged,
+              decoration: const InputDecoration(
+                labelText: 'Search reference, customer or account',
+                prefixIcon: Icon(Icons.search),
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          _StatusFilterButton(
+            status: status,
+            onChanged: onStatusChanged,
+          ),
+          const SizedBox(width: 14),
+          _DateRangeButton(
+            dateRange: dateRange,
+            onPressed: onPickDateRange,
+            onClear: dateRange == null ? null : onClearDateRange,
+          ),
+          const Spacer(),
+          IconButton.filledTonal(
+            onPressed: onRefresh,
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh',
+            style: IconButton.styleFrom(
+              backgroundColor: const Color(0xFFF3F6FF),
+              foregroundColor: AppTheme.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DateRangeButton extends StatelessWidget {
+  const _DateRangeButton({
+    required this.dateRange,
+    required this.onPressed,
+    required this.onClear,
+  });
+
+  final DateTimeRange? dateRange;
+  final VoidCallback onPressed;
+  final VoidCallback? onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = dateRange == null
+        ? 'Date range'
+        : '${_formatDate(dateRange!.start)} - ${_formatDate(dateRange!.end)}';
+
+    return Container(
+      height: 54,
+      constraints: const BoxConstraints(minWidth: 210),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        border: Border.all(color: AppTheme.border),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextButton.icon(
+            onPressed: onPressed,
+            icon: const Icon(Icons.calendar_month_outlined, size: 20),
+            label: Text(label),
+            style: TextButton.styleFrom(
+              foregroundColor: AppTheme.textDark,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+            ),
+          ),
+          if (onClear != null)
+            IconButton(
+              onPressed: onClear,
+              icon: const Icon(Icons.close, size: 18),
+              tooltip: 'Clear date range',
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusFilterButton extends StatelessWidget {
+  const _StatusFilterButton({
+    required this.status,
+    required this.onChanged,
+  });
+
+  final int? status;
+  final ValueChanged<int?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<int>(
+      tooltip: 'Status filter',
+      position: PopupMenuPosition.under,
+      onSelected: (value) => onChanged(value == 0 ? null : value),
+      itemBuilder: (context) => const [
+        PopupMenuItem<int>(
+          value: 0,
+          child: Text('All statuses'),
+        ),
+        PopupMenuItem<int>(
+          value: 1,
+          child: Text('Pending'),
+        ),
+        PopupMenuItem<int>(
+          value: 2,
+          child: Text('Completed'),
+        ),
+        PopupMenuItem<int>(
+          value: 3,
+          child: Text('Failed'),
+        ),
+        PopupMenuItem<int>(
+          value: 4,
+          child: Text('Cancelled'),
+        ),
+      ],
+      child: _FilterChipButton(
+        icon: Icons.tune,
+        label: _statusFilterLabel(status),
+        trailing: const Icon(Icons.keyboard_arrow_down, size: 20),
+      ),
+    );
+  }
+}
+
+class _DateRangeDialog extends StatefulWidget {
+  const _DateRangeDialog({required this.initialRange});
+
+  final DateTimeRange? initialRange;
+
+  @override
+  State<_DateRangeDialog> createState() => _DateRangeDialogState();
+}
+
+class _DateRangeDialogState extends State<_DateRangeDialog> {
+  late final TextEditingController _fromController;
+  late final TextEditingController _toController;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _fromController = TextEditingController(
+      text: _formatInputDate(widget.initialRange?.start),
+    );
+    _toController = TextEditingController(
+      text: _formatInputDate(widget.initialRange?.end),
+    );
+  }
+
+  @override
+  void dispose() {
+    _fromController.dispose();
+    _toController.dispose();
+    super.dispose();
+  }
+
+  void _setQuickRange(DateTime start, DateTime end) {
+    setState(() {
+      _error = null;
+      _fromController.text = _formatInputDate(start);
+      _toController.text = _formatInputDate(end);
+    });
+  }
+
+  void _apply() {
+    final from = _parseDateInput(_fromController.text);
+    final to = _parseDateInput(_toController.text);
+
+    if (from == null || to == null) {
+      setState(() {
+        _error = 'Use format YYYY-MM-DD or DD.MM.YYYY.';
+      });
+      return;
+    }
+
+    if (from.isAfter(to)) {
+      setState(() {
+        _error = 'From date must be before To date.';
+      });
+      return;
+    }
+
+    Navigator.of(context).pop(DateTimeRange(start: from, end: to));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    return AlertDialog(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      contentPadding: EdgeInsets.zero,
+      content: SizedBox(
+        width: 460,
+        child: Padding(
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Select Period',
+                style: TextStyle(
+                  color: AppTheme.textDark,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Type a date or use a quick period.',
+                style: TextStyle(color: AppTheme.textMuted),
+              ),
+              const SizedBox(height: 20),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _QuickRangeButton(
+                    label: 'Today',
+                    onPressed: () => _setQuickRange(today, today),
+                  ),
+                  _QuickRangeButton(
+                    label: 'Last 7 days',
+                    onPressed: () => _setQuickRange(
+                      today.subtract(const Duration(days: 6)),
+                      today,
+                    ),
+                  ),
+                  _QuickRangeButton(
+                    label: 'Last 30 days',
+                    onPressed: () => _setQuickRange(
+                      today.subtract(const Duration(days: 29)),
+                      today,
+                    ),
+                  ),
+                  _QuickRangeButton(
+                    label: 'This month',
+                    onPressed: () => _setQuickRange(
+                      DateTime(today.year, today.month),
+                      today,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: _DateTextField(
+                      label: 'From',
+                      controller: _fromController,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: _DateTextField(
+                      label: 'To',
+                      controller: _toController,
+                    ),
+                  ),
+                ],
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  _error!,
+                  style: const TextStyle(
+                    color: Color(0xFFDC2626),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 22),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: 10),
+                  ElevatedButton(
+                    onPressed: _apply,
+                    child: const Text('Apply'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickRangeButton extends StatelessWidget {
+  const _QuickRangeButton({
+    required this.label,
+    required this.onPressed,
+  });
+
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppTheme.textDark,
+        side: const BorderSide(color: AppTheme.border),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      child: Text(label),
+    );
+  }
+}
+
+class _DateTextField extends StatelessWidget {
+  const _DateTextField({
+    required this.label,
+    required this.controller,
+  });
+
+  final String label;
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: 'YYYY-MM-DD',
+        prefixIcon: const Icon(Icons.calendar_month_outlined),
+      ),
+      onSubmitted: (_) => FocusScope.of(context).nextFocus(),
+    );
+  }
+}
+
+DateTime? _parseDateInput(String value) {
+  final text = value.trim();
+  if (text.isEmpty) {
+    return null;
+  }
+
+  final isoMatch = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(text);
+  if (isoMatch != null) {
+    return _safeDate(
+      int.parse(isoMatch.group(1)!),
+      int.parse(isoMatch.group(2)!),
+      int.parse(isoMatch.group(3)!),
+    );
+  }
+
+  final localMatch = RegExp(r'^(\d{1,2})\.(\d{1,2})\.(\d{4})\.?$').firstMatch(text);
+  if (localMatch != null) {
+    return _safeDate(
+      int.parse(localMatch.group(3)!),
+      int.parse(localMatch.group(2)!),
+      int.parse(localMatch.group(1)!),
+    );
+  }
+
+  return null;
+}
+
+DateTime? _safeDate(int year, int month, int day) {
+  final date = DateTime(year, month, day);
+  if (date.year != year || date.month != month || date.day != day) {
+    return null;
+  }
+
+  return date;
+}
+
+String _formatInputDate(DateTime? value) {
+  if (value == null) {
+    return '';
+  }
+
+  return '${value.year.toString().padLeft(4, '0')}-'
+      '${value.month.toString().padLeft(2, '0')}-'
+      '${value.day.toString().padLeft(2, '0')}';
+}
+
+class _FilterChipButton extends StatelessWidget {
+  const _FilterChipButton({
+    required this.icon,
+    required this.label,
+    this.trailing,
+  });
+
+  final IconData icon;
+  final String label;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 54,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        border: Border.all(color: AppTheme.border),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 20, color: AppTheme.primary),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppTheme.textDark,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          if (trailing != null) ...[
+            const SizedBox(width: 8),
+            trailing!,
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TransactionsTable extends StatelessWidget {
+  const _TransactionsTable({
+    required this.page,
+    required this.currentPage,
+    required this.pageSize,
+    required this.scrollController,
+    required this.onPageSelected,
+    required this.onPageSizeChanged,
+    required this.onPrevious,
+    required this.onNext,
+  });
+
+  final AdminTransactionPage page;
+  final int currentPage;
+  final int pageSize;
+  final ScrollController scrollController;
+  final ValueChanged<int> onPageSelected;
+  final ValueChanged<int> onPageSizeChanged;
+  final VoidCallback? onPrevious;
+  final VoidCallback? onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppTheme.border),
+      ),
+      child: Column(
+        children: [
+          const _TableHeader(),
+          Expanded(
+            child: page.items.isEmpty
+                ? const Center(child: Text('No transactions found.'))
+                : ListView.separated(
+                    controller: scrollController,
+                    padding: EdgeInsets.zero,
+                    itemCount: page.items.length,
+                    separatorBuilder: (context, index) =>
+                        const Divider(height: 1, color: Color(0xFFEFF2F7)),
+                    itemBuilder: (context, index) {
+                      return _TransactionRow(
+                        index: ((page.page - 1) * page.pageSize) + index + 1,
+                        transaction: page.items[index],
+                      );
+                    },
+                  ),
+          ),
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                Text(
+                  'Showing ${page.items.length} of ${page.totalCount} transactions',
+                  style: const TextStyle(color: AppTheme.textMuted),
+                ),
+                const Spacer(),
+                const Text('Rows'),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 78,
+                  height: 40,
+                  child: DropdownButtonFormField<int>(
+                    initialValue: pageSize,
+                    decoration: const InputDecoration(
+                      contentPadding: EdgeInsets.symmetric(horizontal: 10),
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 10, child: Text('10')),
+                      DropdownMenuItem(value: 20, child: Text('20')),
+                      DropdownMenuItem(value: 50, child: Text('50')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        onPageSizeChanged(value);
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 18),
+                IconButton.filledTonal(
+                  onPressed: onPrevious,
+                  icon: const Icon(Icons.chevron_left),
+                  tooltip: 'Previous page',
+                ),
+                ..._visiblePages(currentPage, page.totalPages).map(
+                  (pageNumber) => Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    child: _PageButton(
+                      pageNumber: pageNumber,
+                      isActive: pageNumber == currentPage,
+                      onPressed: () => onPageSelected(pageNumber),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                IconButton.filledTonal(
+                  onPressed: onNext,
+                  icon: const Icon(Icons.chevron_right),
+                  tooltip: 'Next page',
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<int> _visiblePages(int currentPage, int totalPages) {
+    final start = (currentPage - 2).clamp(1, totalPages).toInt();
+    final end = (start + 4).clamp(1, totalPages).toInt();
+    return [for (var page = start; page <= end; page++) page];
+  }
+}
+
+class _TableHeader extends StatelessWidget {
+  const _TableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      decoration: const BoxDecoration(
+        color: Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
+      ),
+      child: const Row(
+        children: [
+          _HeaderCell('SL No', flex: 1),
+          _HeaderCell('Date', flex: 2),
+          _HeaderCell('Reference', flex: 3),
+          _HeaderCell('From', flex: 4),
+          _HeaderCell('To', flex: 4),
+          _HeaderCell('Amount', flex: 2),
+          _HeaderCell('Status', flex: 2),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeaderCell extends StatelessWidget {
+  const _HeaderCell(this.label, {required this.flex});
+
+  final String label;
+  final int flex;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      flex: flex,
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Color(0xFF5A77B8),
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+class _TransactionRow extends StatelessWidget {
+  const _TransactionRow({
+    required this.index,
+    required this.transaction,
+  });
+
+  final int index;
+  final AdminTransaction transaction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 58),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+      color: Colors.white,
+      child: Row(
+        children: [
+          _TableText('${index.toString().padLeft(2, '0')}.', flex: 1),
+          _TableText(_formatDate(transaction.createdAtUtc), flex: 2),
+          _TableText(_shorten(transaction.referenceNumber, 20), flex: 3),
+          _TableText(
+            _partyLabel(
+              transaction.sourceCustomerName,
+              transaction.sourceAccountNumber,
+              fallback: transaction.accountNumber,
+            ),
+            flex: 4,
+          ),
+          _TableText(
+            _partyLabel(
+              transaction.destinationCustomerName,
+              transaction.destinationAccountNumber,
+              fallback: '-',
+            ),
+            flex: 4,
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              _formatAdminAmount(transaction.amount),
+              style: const TextStyle(
+                color: AppTheme.textDark,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: _StatusBadge(status: transaction.status),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TableText extends StatelessWidget {
+  const _TableText(this.value, {required this.flex});
+
+  final String value;
+  final int flex;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      flex: flex,
+      child: Text(
+        value,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          color: AppTheme.textDark,
+          fontSize: 13,
+        ),
+      ),
+    );
+  }
+}
+
+class _PageButton extends StatelessWidget {
+  const _PageButton({
+    required this.pageNumber,
+    required this.isActive,
+    required this.onPressed,
+  });
+
+  final int pageNumber;
+  final bool isActive;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 38,
+      height: 38,
+      child: TextButton(
+        onPressed: isActive ? null : onPressed,
+        style: TextButton.styleFrom(
+          backgroundColor: isActive ? const Color(0xFFEAF1FF) : const Color(0xFFF8FAFC),
+          foregroundColor: isActive ? AppTheme.primary : AppTheme.textDark,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+            side: BorderSide(
+              color: isActive ? AppTheme.primary : AppTheme.border,
+            ),
+          ),
+        ),
+        child: Text('$pageNumber'),
+      ),
+    );
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final isCompleted = status == 'Completed';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: isCompleted ? const Color(0xFFE9F9EF) : const Color(0xFFFFF7E6),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        status,
+        style: TextStyle(
+          color: isCompleted ? const Color(0xFF16834A) : const Color(0xFFB7791F),
+          fontWeight: FontWeight.w700,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+}
+
+class _AdminErrorState extends StatelessWidget {
+  const _AdminErrorState({
+    required this.message,
+    required this.onRetry,
+  });
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(message, textAlign: TextAlign.center),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: onRetry,
+            child: const Text('Try again'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _partyLabel(String? name, String? accountNumber, {required String fallback}) {
+  final cleanName = name?.trim();
+  final cleanAccount = accountNumber?.trim();
+
+  if (cleanName != null && cleanName.isNotEmpty && cleanAccount != null && cleanAccount.isNotEmpty) {
+    return '$cleanName ($cleanAccount)';
+  }
+
+  if (cleanAccount != null && cleanAccount.isNotEmpty) {
+    return cleanAccount;
+  }
+
+  return fallback;
+}
+
+String _shorten(String value, int maxLength) {
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  return '${value.substring(0, maxLength - 1)}...';
+}
+
+String _formatDate(DateTime value) {
+  final local = value.toLocal();
+  return '${local.day.toString().padLeft(2, '0')}.'
+      '${local.month.toString().padLeft(2, '0')}.'
+      '${local.year}.';
+}
+
+String _formatAdminAmount(double value) {
+  return '\$${value.abs().toStringAsFixed(2)}';
+}
+
+String _statusFilterLabel(int? status) {
+  return switch (status) {
+    1 => 'Pending',
+    2 => 'Completed',
+    3 => 'Failed',
+    4 => 'Cancelled',
+    _ => 'All statuses',
+  };
 }

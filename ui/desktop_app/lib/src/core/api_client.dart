@@ -10,6 +10,34 @@ class ApiClient {
 
   final http.Client _httpClient = http.Client();
 
+  Future<Map<String, dynamic>> getJson(
+    String path, {
+    String? token,
+  }) async {
+    final headers = <String, String>{
+      'Accept': 'application/json',
+    };
+
+    if (token != null) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+
+    final response = await _httpClient.get(
+      Uri.parse('$baseUrl$path'),
+      headers: headers,
+    );
+
+    final decoded = response.body.isEmpty
+        ? <String, dynamic>{}
+        : jsonDecode(response.body) as Map<String, dynamic>;
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException(_extractErrorMessage(decoded), response.statusCode);
+    }
+
+    return decoded;
+  }
+
   Future<Map<String, dynamic>> postJson(
     String path,
     Map<String, dynamic> body, {

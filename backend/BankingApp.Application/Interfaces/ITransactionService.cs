@@ -7,6 +7,8 @@ namespace BankingApp.Application.Interfaces
     {
         Task<PagedResult<TransactionResponse>> GetAsync(TransactionQueryRequest request, CancellationToken cancellationToken = default);
 
+        Task<TransactionSummaryResponse> GetSummaryAsync(TransactionQueryRequest request, CancellationToken cancellationToken = default);
+
         Task<TransactionResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
         Task<TransactionResponse> CreateAsync(TransactionCreateRequest request, CancellationToken cancellationToken = default);

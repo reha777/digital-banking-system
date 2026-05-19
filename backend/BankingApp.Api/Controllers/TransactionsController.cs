@@ -20,6 +20,15 @@ namespace BankingApp.Api.Controllers
             return Ok(response);
         }
 
+        [HttpGet("summary")]
+        public async Task<ActionResult<TransactionSummaryResponse>> GetSummary(
+            [FromQuery] TransactionQueryRequest request,
+            CancellationToken cancellationToken)
+        {
+            var response = await transactionService.GetSummaryAsync(request, cancellationToken);
+            return Ok(response);
+        }
+
         [HttpGet("{id:guid}")]
         public async Task<ActionResult<TransactionResponse>> GetById(Guid id, CancellationToken cancellationToken)
         {
