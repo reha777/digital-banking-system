@@ -10,5 +10,9 @@ namespace BankingApp.Application.Transactions
         public string? Search { get; set; }
 
         public TransactionStatus? Status { get; set; }
+
+        public DateTime? DateFrom { get; set; }
+
+        public DateTime? DateTo { get; set; }
     }
 }

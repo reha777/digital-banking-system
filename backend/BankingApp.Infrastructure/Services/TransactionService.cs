@@ -22,33 +22,16 @@ namespace BankingApp.Infrastructure.Services
                 .Include(transaction => transaction.Account)
                 .AsQueryable();
 
-            query = ApplyOwnershipFilter(query);
-
-            if (request.AccountId.HasValue)
-            {
-                query = query.Where(transaction => transaction.AccountId == request.AccountId.Value);
-            }
-
-            if (request.Status.HasValue)
-            {
-                query = query.Where(transaction => transaction.Status == request.Status.Value);
-            }
-
-            if (!string.IsNullOrWhiteSpace(request.Search))
-            {
-                var search = request.Search.Trim();
-                query = query.Where(transaction =>
-                    transaction.ReferenceNumber.Contains(search) ||
-                    transaction.Description.Contains(search));
-            }
+            query = ApplyQuery(request, query);
 
             var totalCount = await query.CountAsync(cancellationToken);
-            var items = await query
+            var transactions = await query
                 .OrderByDescending(transaction => transaction.CreatedAtUtc)
                 .Skip((request.Page - 1) * request.PageSize)
                 .Take(request.PageSize)
-                .Select(transaction => ToResponse(transaction))
                 .ToListAsync(cancellationToken);
+            var items = transactions.Select(ToResponse).ToList();
+            await PopulateTransferDetailsAsync(items, cancellationToken);
 
             return new PagedResult<TransactionResponse>
             {
@@ -62,7 +45,9 @@ namespace BankingApp.Infrastructure.Services
         public async Task<TransactionResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
             var transaction = await GetOwnedTransactionAsync(id, cancellationToken);
-            return ToResponse(transaction);
+            var response = ToResponse(transaction);
+            await PopulateTransferDetailsAsync([response], cancellationToken);
+            return response;
         }
 
         public async Task<TransactionResponse> CreateAsync(
@@ -245,6 +230,65 @@ namespace BankingApp.Infrastructure.Services
                 : query.Where(transaction => transaction.Account.UserId == currentUserService.UserId);
         }
 
+        private IQueryable<Transaction> ApplyQuery(
+            TransactionQueryRequest request,
+            IQueryable<Transaction> query)
+        {
+            query = ApplyOwnershipFilter(query);
+
+            if (currentUserService.IsAdmin)
+            {
+                query = query.Where(transaction =>
+                    !transaction.SourceAccountId.HasValue ||
+                    transaction.AccountId == transaction.SourceAccountId.Value);
+            }
+
+            if (request.AccountId.HasValue)
+            {
+                query = query.Where(transaction => transaction.AccountId == request.AccountId.Value);
+            }
+
+            if (request.Status.HasValue)
+            {
+                query = query.Where(transaction => transaction.Status == request.Status.Value);
+            }
+
+            if (request.DateFrom.HasValue)
+            {
+                var dateFrom = request.DateFrom.Value.Date;
+                query = query.Where(transaction => transaction.CreatedAtUtc >= dateFrom);
+            }
+
+            if (request.DateTo.HasValue)
+            {
+                var dateTo = request.DateTo.Value.Date.AddDays(1);
+                query = query.Where(transaction => transaction.CreatedAtUtc < dateTo);
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.Search))
+            {
+                var search = request.Search.Trim();
+                var matchingAccountIds = dbContext.Accounts
+                    .Where(account =>
+                        account.AccountNumber.Contains(search) ||
+                        account.User.FirstName.Contains(search) ||
+                        account.User.LastName.Contains(search) ||
+                        account.User.Email.Contains(search))
+                    .Select(account => account.Id);
+
+                query = query.Where(transaction =>
+                    transaction.ReferenceNumber.Contains(search) ||
+                    transaction.Description.Contains(search) ||
+                    matchingAccountIds.Contains(transaction.AccountId) ||
+                    (transaction.SourceAccountId.HasValue &&
+                        matchingAccountIds.Contains(transaction.SourceAccountId.Value)) ||
+                    (transaction.DestinationAccountId.HasValue &&
+                        matchingAccountIds.Contains(transaction.DestinationAccountId.Value)));
+            }
+
+            return query;
+        }
+
         private async Task<Account> GetOwnedAccountAsync(Guid id, CancellationToken cancellationToken)
         {
             var query = currentUserService.IsAdmin
@@ -293,6 +337,8 @@ namespace BankingApp.Infrastructure.Services
             var response = ToResponse(transaction);
             response.SourceAccountNumber = sourceAccount.AccountNumber;
             response.DestinationAccountNumber = destinationAccount.AccountNumber;
+            response.SourceCustomerName = ToCustomerName(sourceAccount);
+            response.DestinationCustomerName = ToCustomerName(destinationAccount);
             return response;
         }
 
@@ -305,6 +351,77 @@ namespace BankingApp.Infrastructure.Services
                 Balance = account.Balance,
                 Currency = account.Currency
             };
+        }
+
+        public async Task<TransactionSummaryResponse> GetSummaryAsync(
+            TransactionQueryRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var query = dbContext.Transactions
+                .AsNoTracking()
+                .Include(transaction => transaction.Account)
+                .AsQueryable();
+
+            query = ApplyQuery(request, query);
+            var completedQuery = query.Where(transaction => transaction.Status == TransactionStatus.Completed);
+
+            return new TransactionSummaryResponse
+            {
+                TotalTransactions = await query.CountAsync(cancellationToken),
+                CompletedTransactions = await completedQuery.CountAsync(cancellationToken),
+                TotalTransferred = await completedQuery
+                    .SumAsync(transaction => transaction.Amount < 0 ? -transaction.Amount : transaction.Amount, cancellationToken)
+            };
+        }
+
+        private async Task PopulateTransferDetailsAsync(
+            IReadOnlyCollection<TransactionResponse> responses,
+            CancellationToken cancellationToken)
+        {
+            var accountIds = responses
+                .SelectMany(response => new[] { response.SourceAccountId, response.DestinationAccountId })
+                .Where(accountId => accountId.HasValue)
+                .Select(accountId => accountId!.Value)
+                .Distinct()
+                .ToList();
+
+            if (accountIds.Count == 0)
+            {
+                return;
+            }
+
+            var accounts = await dbContext.Accounts
+                .AsNoTracking()
+                .Include(account => account.User)
+                .Where(account => accountIds.Contains(account.Id))
+                .ToDictionaryAsync(account => account.Id, cancellationToken);
+
+            foreach (var response in responses)
+            {
+                if (response.SourceAccountId.HasValue &&
+                    accounts.TryGetValue(response.SourceAccountId.Value, out var sourceAccount))
+                {
+                    response.SourceAccountNumber = sourceAccount.AccountNumber;
+                    response.SourceCustomerName = ToCustomerName(sourceAccount);
+                }
+
+                if (response.DestinationAccountId.HasValue &&
+                    accounts.TryGetValue(response.DestinationAccountId.Value, out var destinationAccount))
+                {
+                    response.DestinationAccountNumber = destinationAccount.AccountNumber;
+                    response.DestinationCustomerName = ToCustomerName(destinationAccount);
+                }
+            }
+        }
+
+        private static string ToCustomerName(Account account)
+        {
+            if (account.User is null)
+            {
+                return string.Empty;
+            }
+
+            return $"{account.User.FirstName} {account.User.LastName}".Trim();
         }
     }
 }
