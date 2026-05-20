@@ -2,14 +2,20 @@ import 'package:flutter/material.dart';
 
 import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
+import '../../core/theme_controller.dart';
 import '../dashboard/admin_dashboard_screen.dart';
 import 'auth_session.dart';
 import 'widgets/admin_auth_widgets.dart';
 
 class AdminLoginScreen extends StatefulWidget {
-  const AdminLoginScreen({super.key, required this.session});
+  const AdminLoginScreen({
+    super.key,
+    required this.session,
+    required this.themeController,
+  });
 
   final AuthSession session;
+  final ThemeController themeController;
 
   @override
   State<AdminLoginScreen> createState() => _AdminLoginScreenState();
@@ -32,6 +38,8 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       body: Center(
         child: ConstrainedBox(
@@ -39,9 +47,11 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
           child: Container(
             padding: const EdgeInsets.all(34),
             decoration: BoxDecoration(
-              color: AppTheme.surface,
+              color: isDark ? AppTheme.darkSurface : AppTheme.surface,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppTheme.border),
+              border: Border.all(
+                color: isDark ? const Color(0xFF303244) : AppTheme.border,
+              ),
               boxShadow: [
                 BoxShadow(
                   color: Color(0x0D000000),
@@ -144,7 +154,10 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
 
       Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
-          builder: (_) => AdminDashboardScreen(session: widget.session),
+          builder: (_) => AdminDashboardScreen(
+            session: widget.session,
+            themeController: widget.themeController,
+          ),
         ),
       );
     } on ApiException catch (exception) {

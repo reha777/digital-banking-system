@@ -16,6 +16,8 @@ class MobileShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       body: child,
       bottomNavigationBar: SafeArea(
@@ -23,11 +25,11 @@ class MobileShell extends StatelessWidget {
         child: Container(
           height: 70,
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
-          decoration: const BoxDecoration(
-            color: Color(0xFFF7F7FA),
+          decoration: BoxDecoration(
+            color: isDark ? AppTheme.darkSurface : const Color(0xFFF7F7FA),
             boxShadow: [
               BoxShadow(
-                color: Color(0x12000000),
+                color: isDark ? const Color(0x33000000) : const Color(0x12000000),
                 blurRadius: 16,
                 offset: Offset(0, -5),
               ),
@@ -86,6 +88,7 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final color = isActive ? AppTheme.primary : AppTheme.textMuted;
 
     return Expanded(
@@ -105,7 +108,9 @@ class _NavItem extends StatelessWidget {
                 width: 38,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: isActive ? Colors.white : Colors.transparent,
+                  color: isActive
+                      ? (isDark ? const Color(0xFF25253D) : Colors.white)
+                      : Colors.transparent,
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: isActive
                       ? const [
@@ -162,13 +167,15 @@ class CircleIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return IconButton.filledTonal(
       onPressed: onPressed,
       icon: Icon(icon),
       tooltip: tooltip,
       style: IconButton.styleFrom(
-        backgroundColor: const Color(0xFFF5F6FA),
-        foregroundColor: AppTheme.textDark,
+        backgroundColor: isDark ? AppTheme.darkSurface : const Color(0xFFF5F6FA),
+        foregroundColor: isDark ? Colors.white : AppTheme.textDark,
       ),
     );
   }

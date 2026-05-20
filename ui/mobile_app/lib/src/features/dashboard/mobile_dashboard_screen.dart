@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
+import '../../core/theme_controller.dart';
 import '../../widgets/mobile_shell.dart';
 import '../accounts/account_models.dart';
 import '../accounts/account_service.dart';
@@ -12,9 +13,14 @@ import '../transactions/transaction_models.dart';
 import '../transactions/transaction_service.dart';
 
 class MobileDashboardScreen extends StatefulWidget {
-  const MobileDashboardScreen({super.key, required this.session});
+  const MobileDashboardScreen({
+    super.key,
+    required this.session,
+    required this.themeController,
+  });
 
   final AuthSession session;
+  final ThemeController themeController;
 
   @override
   State<MobileDashboardScreen> createState() => _MobileDashboardScreenState();
@@ -86,7 +92,10 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
     }
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
-        builder: (_) => LoginScreen(session: widget.session),
+        builder: (_) => LoginScreen(
+          session: widget.session,
+          themeController: widget.themeController,
+        ),
       ),
     );
   }
@@ -124,7 +133,12 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                 children: [
                   if (_selectedIndex != 0) ...[
                     _DashboardHeader(
-                      title: _selectedIndex == 2 ? 'Statistics' : 'Home',
+                      title: switch (_selectedIndex) {
+                        1 => 'My Cards',
+                        2 => 'Statistics',
+                        3 => 'Settings',
+                        _ => 'Home',
+                      },
                       onLogout: _logout,
                     ),
                     const SizedBox(height: 24),
@@ -140,10 +154,13 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                     )
                   else if (_selectedIndex == 2)
                     _StatisticsCard(summary: data.balance)
+                  else if (_selectedIndex == 3)
+                    _SettingsCard(
+                      themeController: widget.themeController,
+                      onLogout: _logout,
+                    )
                   else
-                    _ComingSoonCard(
-                      title: _selectedIndex == 1 ? 'My Cards' : 'Settings',
-                    ),
+                    const _ComingSoonCard(title: 'My Cards'),
                   const SizedBox(height: 24),
                   _TransactionsSection(transactions: data.transactions),
                 ],
@@ -310,6 +327,7 @@ class _HomeProfileHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fullName = '$firstName $lastName'.trim();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Row(
       children: [
@@ -364,8 +382,8 @@ class _HomeProfileHeader extends StatelessWidget {
           icon: const Icon(Icons.search),
           tooltip: 'Search',
           style: IconButton.styleFrom(
-            backgroundColor: const Color(0xFFF5F6FA),
-            foregroundColor: AppTheme.textDark,
+            backgroundColor: isDark ? AppTheme.darkSurface : const Color(0xFFF5F6FA),
+            foregroundColor: isDark ? Colors.white : AppTheme.textDark,
           ),
         ),
       ],
@@ -605,6 +623,7 @@ class _StatisticsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final total = summary.primaryTotal;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Column(
       children: [
@@ -615,8 +634,8 @@ class _StatisticsCard extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           '${total?.currency ?? 'USD'} ${_formatMoney(total?.balance ?? 0)}',
-          style: const TextStyle(
-            color: AppTheme.textDark,
+          style: TextStyle(
+            color: isDark ? Colors.white : AppTheme.textDark,
             fontSize: 28,
             fontWeight: FontWeight.w800,
           ),
@@ -724,11 +743,12 @@ class _TransactionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isIncoming = transaction.amount > 0;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: CircleAvatar(
-        backgroundColor: const Color(0xFFF5F6FA),
+        backgroundColor: isDark ? AppTheme.darkSurface : const Color(0xFFF5F6FA),
         child: Icon(
           isIncoming ? Icons.arrow_downward : Icons.arrow_upward,
           color: isIncoming ? AppTheme.primary : AppTheme.textMuted,
@@ -744,7 +764,9 @@ class _TransactionTile extends StatelessWidget {
       trailing: Text(
         '${isIncoming ? '+' : '-'} \$${_formatMoney(transaction.amount.abs())}',
         style: TextStyle(
-          color: isIncoming ? AppTheme.primary : AppTheme.textDark,
+          color: isIncoming
+              ? AppTheme.primary
+              : (isDark ? Colors.white : AppTheme.textDark),
           fontWeight: FontWeight.w800,
         ),
       ),
@@ -767,6 +789,8 @@ class _ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return InkWell(
       borderRadius: BorderRadius.circular(16),
       onTap: onPressed,
@@ -774,14 +798,18 @@ class _ActionButton extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 24,
-            backgroundColor: const Color(0xFFF5F6FA),
+            backgroundColor: isDark ? AppTheme.darkSurface : const Color(0xFFF5F6FA),
             child: assetPath == null
-                ? Icon(icon, color: const Color(0xFF10163A), size: 25)
+                ? Icon(
+                    icon,
+                    color: isDark ? Colors.white : const Color(0xFF10163A),
+                    size: 25,
+                  )
                 : Image.asset(
                     assetPath!,
                     width: 25,
                     height: 25,
-                    color: const Color(0xFF10163A),
+                    color: isDark ? Colors.white : const Color(0xFF10163A),
                     colorBlendMode: BlendMode.srcIn,
                   ),
           ),
@@ -800,14 +828,91 @@ class _ComingSoonCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: const Color(0xFFF5F6FA),
+        color: isDark ? AppTheme.darkSurface : const Color(0xFFF5F6FA),
         borderRadius: BorderRadius.circular(18),
       ),
       child: Text('$title screen will be connected next.'),
+    );
+  }
+}
+
+class _SettingsCard extends StatelessWidget {
+  const _SettingsCard({
+    required this.themeController,
+    required this.onLogout,
+  });
+
+  final ThemeController themeController;
+  final VoidCallback onLogout;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: themeController,
+      builder: (context, _) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: isDark ? AppTheme.darkSurface : const Color(0xFFF5F6FA),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF25253D) : const Color(0xFFE7E9F0),
+                ),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 22,
+                    backgroundColor: AppTheme.primary.withValues(alpha: 0.12),
+                    child: Icon(
+                      isDark ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
+                      color: AppTheme.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Dark mode',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Switch between light and dark app theme.',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: themeController.isDarkMode,
+                    onChanged: themeController.toggleDarkMode,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            OutlinedButton.icon(
+              onPressed: onLogout,
+              icon: const Icon(Icons.logout),
+              label: const Text('Sign out'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

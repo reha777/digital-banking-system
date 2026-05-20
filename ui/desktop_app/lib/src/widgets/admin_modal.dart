@@ -25,6 +25,10 @@ class AdminModal extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final actionColor = primaryColor ?? AppTheme.primary;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = isDark ? AppTheme.darkSurface : const Color(0xFFF4F5FB);
+    final textColor = isDark ? Colors.white : AppTheme.textDark;
+    final borderColor = isDark ? const Color(0xFF303244) : const Color(0xFF9CA3AF);
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -32,8 +36,9 @@ class AdminModal extends StatelessWidget {
         width: width,
         padding: const EdgeInsets.all(26),
         decoration: BoxDecoration(
-          color: const Color(0xFFF4F5FB),
+          color: surfaceColor,
           borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: borderColor),
           boxShadow: [
             BoxShadow(
               color: const Color(0xFF0F172A).withValues(alpha: 0.18),
@@ -48,8 +53,8 @@ class AdminModal extends StatelessWidget {
           children: [
             Text(
               title,
-              style: const TextStyle(
-                color: AppTheme.textDark,
+              style: TextStyle(
+                color: textColor,
                 fontSize: 28,
                 fontWeight: FontWeight.w800,
               ),
@@ -78,9 +83,9 @@ class AdminModal extends StatelessWidget {
                   child: OutlinedButton(
                     onPressed: () => Navigator.of(context).pop(),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: AppTheme.textDark,
+                      foregroundColor: textColor,
                       minimumSize: const Size.fromHeight(46),
-                      side: const BorderSide(color: Color(0xFF9CA3AF)),
+                      side: BorderSide(color: borderColor),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -113,6 +118,8 @@ class AdminModalField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -120,8 +127,8 @@ class AdminModalField extends StatelessWidget {
           padding: const EdgeInsets.only(left: 2, bottom: 7),
           child: Text(
             label,
-            style: const TextStyle(
-              color: AppTheme.textMuted,
+            style: TextStyle(
+              color: isDark ? const Color(0xFFA4A7B7) : AppTheme.textMuted,
               fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
@@ -133,7 +140,7 @@ class AdminModalField extends StatelessWidget {
           decoration: InputDecoration(
             prefixIcon: Icon(icon),
             filled: true,
-            fillColor: Colors.white,
+            fillColor: isDark ? const Color(0xFF242438) : Colors.white,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide.none,
