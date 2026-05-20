@@ -9,6 +9,7 @@ import '../accounts/account_service.dart';
 import '../auth/auth_session.dart';
 import '../auth/login_screen.dart';
 import '../transactions/send_money_screen.dart';
+import '../transactions/transaction_history_screen.dart';
 import '../transactions/transaction_models.dart';
 import '../transactions/transaction_service.dart';
 
@@ -82,6 +83,20 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
 
     if (transferred == true) {
       _refreshDashboard();
+    }
+  }
+
+  Future<void> _openTransactionHistory() async {
+    final selectedIndex = await Navigator.of(context).push<int>(
+      MaterialPageRoute<int>(
+        builder: (_) => TransactionHistoryScreen(session: widget.session),
+      ),
+    );
+
+    if (selectedIndex != null && mounted) {
+      setState(() {
+        _selectedIndex = selectedIndex;
+      });
     }
   }
 
@@ -162,7 +177,10 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                   else
                     const _ComingSoonCard(title: 'My Cards'),
                   const SizedBox(height: 24),
-                  _TransactionsSection(transactions: data.transactions),
+                  _TransactionsSection(
+                    transactions: data.transactions.take(4).toList(),
+                    onSeeAll: _openTransactionHistory,
+                  ),
                 ],
               ),
             );
@@ -701,9 +719,13 @@ class _ChartPainter extends CustomPainter {
 }
 
 class _TransactionsSection extends StatelessWidget {
-  const _TransactionsSection({required this.transactions});
+  const _TransactionsSection({
+    required this.transactions,
+    required this.onSeeAll,
+  });
 
   final List<BankTransaction> transactions;
+  final VoidCallback onSeeAll;
 
   @override
   Widget build(BuildContext context) {
@@ -718,7 +740,7 @@ class _TransactionsSection extends StatelessWidget {
             ),
             const Spacer(),
             TextButton(
-              onPressed: () {},
+              onPressed: onSeeAll,
               child: const Text('See All'),
             ),
           ],
@@ -729,47 +751,10 @@ class _TransactionsSection extends StatelessWidget {
             child: Text('No transactions yet.'),
           )
         else
-          ...transactions.map((transaction) => _TransactionTile(transaction: transaction)),
+          ...transactions.map(
+            (transaction) => TransactionHistoryTile(transaction: transaction),
+          ),
       ],
-    );
-  }
-}
-
-class _TransactionTile extends StatelessWidget {
-  const _TransactionTile({required this.transaction});
-
-  final BankTransaction transaction;
-
-  @override
-  Widget build(BuildContext context) {
-    final isIncoming = transaction.amount > 0;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: CircleAvatar(
-        backgroundColor: isDark ? AppTheme.darkSurface : const Color(0xFFF5F6FA),
-        child: Icon(
-          isIncoming ? Icons.arrow_downward : Icons.arrow_upward,
-          color: isIncoming ? AppTheme.primary : AppTheme.textMuted,
-        ),
-      ),
-      title: Text(
-        transaction.description.isEmpty ? 'Money Transfer' : transaction.description,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontWeight: FontWeight.w700),
-      ),
-      subtitle: Text(transaction.status),
-      trailing: Text(
-        '${isIncoming ? '+' : '-'} \$${_formatMoney(transaction.amount.abs())}',
-        style: TextStyle(
-          color: isIncoming
-              ? AppTheme.primary
-              : (isDark ? Colors.white : AppTheme.textDark),
-          fontWeight: FontWeight.w800,
-        ),
-      ),
     );
   }
 }
