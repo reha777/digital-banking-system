@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
+import '../../core/theme_controller.dart';
 import '../../widgets/admin_modal.dart';
 import '../auth/admin_login_screen.dart';
 import '../auth/auth_session.dart';
@@ -14,10 +15,35 @@ import '../transactions/admin_transaction_service.dart';
 
 enum _AdminSection { transactions, customers }
 
+bool _isDark(BuildContext context) => Theme.of(context).brightness == Brightness.dark;
+
+Color _adminSurface(BuildContext context) =>
+    _isDark(context) ? AppTheme.darkSurface : Colors.white;
+
+Color _adminSurfaceRaised(BuildContext context) =>
+    _isDark(context) ? const Color(0xFF242438) : const Color(0xFFF8FAFC);
+
+Color _adminBorder(BuildContext context) =>
+    _isDark(context) ? const Color(0xFF303244) : AppTheme.border;
+
+Color _adminDivider(BuildContext context) =>
+    _isDark(context) ? const Color(0xFF2A2C3D) : const Color(0xFFEFF2F7);
+
+Color _adminText(BuildContext context) =>
+    _isDark(context) ? Colors.white : AppTheme.textDark;
+
+Color _adminMuted(BuildContext context) =>
+    _isDark(context) ? const Color(0xFFA4A7B7) : AppTheme.textMuted;
+
 class AdminDashboardScreen extends StatefulWidget {
-  const AdminDashboardScreen({super.key, required this.session});
+  const AdminDashboardScreen({
+    super.key,
+    required this.session,
+    required this.themeController,
+  });
 
   final AuthSession session;
+  final ThemeController themeController;
 
   @override
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
@@ -256,8 +282,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         children: [
           Text(
             'Remove ${customer.fullName} from active customer records?',
-            style: const TextStyle(
-              color: AppTheme.textMuted,
+            style: TextStyle(
+              color: _adminMuted(context),
               height: 1.4,
             ),
           ),
@@ -298,7 +324,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
-        builder: (_) => AdminLoginScreen(session: widget.session),
+        builder: (_) => AdminLoginScreen(
+          session: widget.session,
+          themeController: widget.themeController,
+        ),
       ),
     );
   }
@@ -314,6 +343,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             userName: '${user?.firstName ?? 'Admin'} ${user?.lastName ?? ''}'.trim(),
             selectedSection: _selectedSection,
             onSectionSelected: _selectSection,
+            themeController: widget.themeController,
             onLogout: _logout,
           ),
           Expanded(
@@ -559,16 +589,18 @@ class _SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = _isDark(context);
+
     return Container(
       constraints: const BoxConstraints(minHeight: 104),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _adminSurface(context),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppTheme.border),
+        border: Border.all(color: _adminBorder(context)),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+            color: const Color(0xFF0F172A).withValues(alpha: isDark ? 0.18 : 0.04),
             blurRadius: 18,
             offset: const Offset(0, 8),
           ),
@@ -593,8 +625,8 @@ class _SummaryCard extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    color: AppTheme.textMuted,
+                  style: TextStyle(
+                    color: _adminMuted(context),
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),
@@ -604,8 +636,8 @@ class _SummaryCard extends StatelessWidget {
                   value,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppTheme.textDark,
+                  style: TextStyle(
+                    color: _adminText(context),
                     fontSize: 26,
                     fontWeight: FontWeight.w800,
                   ),
@@ -664,12 +696,14 @@ class _AdminSidebar extends StatelessWidget {
     required this.userName,
     required this.selectedSection,
     required this.onSectionSelected,
+    required this.themeController,
     required this.onLogout,
   });
 
   final String userName;
   final _AdminSection selectedSection;
   final ValueChanged<_AdminSection> onSectionSelected;
+  final ThemeController themeController;
   final VoidCallback onLogout;
 
   @override
@@ -725,6 +759,45 @@ class _AdminSidebar extends StatelessWidget {
             title: 'Reports',
           ),
           const Spacer(),
+          AnimatedBuilder(
+            animation: themeController,
+            builder: (context, _) {
+              return Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1F2937),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      themeController.isDarkMode
+                          ? Icons.dark_mode_outlined
+                          : Icons.light_mode_outlined,
+                      color: Colors.white70,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        'Dark mode',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    Switch(
+                      value: themeController.isDarkMode,
+                      onChanged: themeController.toggleDarkMode,
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(14),
@@ -832,8 +905,8 @@ class _PageTitle extends StatelessWidget {
           children: [
             Text(
               title,
-              style: const TextStyle(
-                color: AppTheme.textDark,
+              style: TextStyle(
+                color: _adminText(context),
                 fontSize: 28,
                 fontWeight: FontWeight.w800,
               ),
@@ -841,7 +914,7 @@ class _PageTitle extends StatelessWidget {
             const SizedBox(height: 3),
             Text(
               subtitle,
-              style: const TextStyle(color: AppTheme.textMuted),
+              style: TextStyle(color: _adminMuted(context)),
             ),
           ],
         ),
@@ -873,12 +946,16 @@ class _FiltersBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final refreshFill = _isDark(context)
+        ? const Color(0xFF27304A)
+        : const Color(0xFFF3F6FF);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _adminSurface(context),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppTheme.border),
+        border: Border.all(color: _adminBorder(context)),
       ),
       child: Row(
         children: [
@@ -910,7 +987,7 @@ class _FiltersBar extends StatelessWidget {
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh',
             style: IconButton.styleFrom(
-              backgroundColor: const Color(0xFFF3F6FF),
+              backgroundColor: refreshFill,
               foregroundColor: AppTheme.primary,
             ),
           ),
@@ -937,12 +1014,16 @@ class _CustomerFiltersBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final refreshFill = _isDark(context)
+        ? const Color(0xFF27304A)
+        : const Color(0xFFF3F6FF);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _adminSurface(context),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppTheme.border),
+        border: Border.all(color: _adminBorder(context)),
       ),
       child: Row(
         children: [
@@ -968,7 +1049,7 @@ class _CustomerFiltersBar extends StatelessWidget {
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh',
             style: IconButton.styleFrom(
-              backgroundColor: const Color(0xFFF3F6FF),
+              backgroundColor: refreshFill,
               foregroundColor: AppTheme.primary,
             ),
           ),
@@ -1041,8 +1122,8 @@ class _DateRangeButton extends StatelessWidget {
       height: 54,
       constraints: const BoxConstraints(minWidth: 210),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        border: Border.all(color: AppTheme.border),
+        color: _adminSurfaceRaised(context),
+        border: Border.all(color: _adminBorder(context)),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -1053,7 +1134,7 @@ class _DateRangeButton extends StatelessWidget {
             icon: const Icon(Icons.calendar_month_outlined, size: 20),
             label: Text(label),
             style: TextButton.styleFrom(
-              foregroundColor: AppTheme.textDark,
+              foregroundColor: _adminText(context),
               padding: const EdgeInsets.symmetric(horizontal: 14),
             ),
           ),
@@ -1180,10 +1261,11 @@ class _DateRangeDialogState extends State<_DateRangeDialog> {
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
+    final textColor = _adminText(context);
 
     return AlertDialog(
-      backgroundColor: Colors.white,
-      surfaceTintColor: Colors.white,
+      backgroundColor: _adminSurface(context),
+      surfaceTintColor: _adminSurface(context),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       contentPadding: EdgeInsets.zero,
       content: SizedBox(
@@ -1194,18 +1276,18 @@ class _DateRangeDialogState extends State<_DateRangeDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Select Period',
                 style: TextStyle(
-                  color: AppTheme.textDark,
+                  color: textColor,
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
                 ),
               ),
               const SizedBox(height: 6),
-              const Text(
+              Text(
                 'Type a date or use a quick period.',
-                style: TextStyle(color: AppTheme.textMuted),
+                style: TextStyle(color: _adminMuted(context)),
               ),
               const SizedBox(height: 20),
               Wrap(
@@ -1304,8 +1386,8 @@ class _QuickRangeButton extends StatelessWidget {
     return OutlinedButton(
       onPressed: onPressed,
       style: OutlinedButton.styleFrom(
-        foregroundColor: AppTheme.textDark,
-        side: const BorderSide(color: AppTheme.border),
+        foregroundColor: _adminText(context),
+        side: BorderSide(color: _adminBorder(context)),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       child: Text(label),
@@ -1399,8 +1481,8 @@ class _FilterChipButton extends StatelessWidget {
       height: 54,
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        border: Border.all(color: AppTheme.border),
+        color: _adminSurfaceRaised(context),
+        border: Border.all(color: _adminBorder(context)),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -1410,8 +1492,8 @@ class _FilterChipButton extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             label,
-            style: const TextStyle(
-              color: AppTheme.textDark,
+            style: TextStyle(
+              color: _adminText(context),
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1448,24 +1530,32 @@ class _TransactionsTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final borderColor = _adminBorder(context);
+    final dividerColor = _adminDivider(context);
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _adminSurface(context),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppTheme.border),
+        border: Border.all(color: borderColor),
       ),
       child: Column(
         children: [
           const _TableHeader(),
           Expanded(
             child: page.items.isEmpty
-                ? const Center(child: Text('No transactions found.'))
+                ? Center(
+                    child: Text(
+                      'No transactions found.',
+                      style: TextStyle(color: _adminMuted(context)),
+                    ),
+                  )
                 : ListView.separated(
                     controller: scrollController,
                     padding: EdgeInsets.zero,
                     itemCount: page.items.length,
                     separatorBuilder: (context, index) =>
-                        const Divider(height: 1, color: Color(0xFFEFF2F7)),
+                        Divider(height: 1, color: dividerColor),
                     itemBuilder: (context, index) {
                       return _TransactionRow(
                         index: ((page.page - 1) * page.pageSize) + index + 1,
@@ -1474,26 +1564,28 @@ class _TransactionsTable extends StatelessWidget {
                     },
                   ),
           ),
-          const Divider(height: 1),
+          Divider(height: 1, color: dividerColor),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               children: [
                 Text(
                   'Showing ${page.items.length} of ${page.totalCount} transactions',
-                  style: const TextStyle(color: AppTheme.textMuted),
+                  style: TextStyle(color: _adminMuted(context)),
                 ),
                 const Spacer(),
-                const Text('Rows'),
+                Text('Rows', style: TextStyle(color: _adminText(context))),
                 const SizedBox(width: 8),
                 SizedBox(
                   width: 78,
                   height: 40,
                   child: DropdownButtonFormField<int>(
                     initialValue: pageSize,
-                    decoration: const InputDecoration(
-                      contentPadding: EdgeInsets.symmetric(horizontal: 10),
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+                      border: OutlineInputBorder(
+                        borderSide: BorderSide(color: borderColor),
+                      ),
                     ),
                     items: const [
                       DropdownMenuItem(value: 10, child: Text('10')),
@@ -1573,24 +1665,32 @@ class _CustomersTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final borderColor = _adminBorder(context);
+    final dividerColor = _adminDivider(context);
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _adminSurface(context),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppTheme.border),
+        border: Border.all(color: borderColor),
       ),
       child: Column(
         children: [
           const _CustomersTableHeader(),
           Expanded(
             child: page.items.isEmpty
-                ? const Center(child: Text('No customers found.'))
+                ? Center(
+                    child: Text(
+                      'No customers found.',
+                      style: TextStyle(color: _adminMuted(context)),
+                    ),
+                  )
                 : ListView.separated(
                     controller: scrollController,
                     padding: EdgeInsets.zero,
                     itemCount: page.items.length,
                     separatorBuilder: (context, index) =>
-                        const Divider(height: 1, color: Color(0xFFEFF2F7)),
+                        Divider(height: 1, color: dividerColor),
                     itemBuilder: (context, index) {
                       return _CustomerRow(
                         index: ((page.page - 1) * page.pageSize) + index + 1,
@@ -1602,26 +1702,28 @@ class _CustomersTable extends StatelessWidget {
                     },
                   ),
           ),
-          const Divider(height: 1),
+          Divider(height: 1, color: dividerColor),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               children: [
                 Text(
                   'Showing ${page.items.length} of ${page.totalCount} customers',
-                  style: const TextStyle(color: AppTheme.textMuted),
+                  style: TextStyle(color: _adminMuted(context)),
                 ),
                 const Spacer(),
-                const Text('Rows'),
+                Text('Rows', style: TextStyle(color: _adminText(context))),
                 const SizedBox(width: 8),
                 SizedBox(
                   width: 78,
                   height: 40,
                   child: DropdownButtonFormField<int>(
                     initialValue: pageSize,
-                    decoration: const InputDecoration(
-                      contentPadding: EdgeInsets.symmetric(horizontal: 10),
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+                      border: OutlineInputBorder(
+                        borderSide: BorderSide(color: borderColor),
+                      ),
                     ),
                     items: const [
                       DropdownMenuItem(value: 10, child: Text('10')),
@@ -1677,12 +1779,16 @@ class _CustomersTableHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final headerColor = _isDark(context)
+        ? const Color(0xFF202033)
+        : const Color(0xFFF8FAFC);
+
     return Container(
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 18),
-      decoration: const BoxDecoration(
-        color: Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
+      decoration: BoxDecoration(
+        color: headerColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
       ),
       child: const Row(
         children: [
@@ -1717,10 +1823,12 @@ class _CustomerRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = _isDark(context);
+
     return Container(
       constraints: const BoxConstraints(minHeight: 66),
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-      color: Colors.white,
+      color: _adminSurface(context),
       child: Row(
         children: [
           _TableText('${index.toString().padLeft(2, '0')}.', flex: 1),
@@ -1730,7 +1838,9 @@ class _CustomerRow extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 18,
-                  backgroundColor: const Color(0xFFEAF1FF),
+                  backgroundColor: isDark
+                      ? const Color(0xFF27304A)
+                      : const Color(0xFFEAF1FF),
                   child: Text(
                     _customerInitials(customer),
                     style: const TextStyle(
@@ -1749,8 +1859,8 @@ class _CustomerRow extends StatelessWidget {
                         customer.fullName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppTheme.textDark,
+                        style: TextStyle(
+                          color: _adminText(context),
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -1758,8 +1868,8 @@ class _CustomerRow extends StatelessWidget {
                         customer.email,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppTheme.textMuted,
+                        style: TextStyle(
+                          color: _adminMuted(context),
                           fontSize: 12,
                         ),
                       ),
@@ -1875,12 +1985,16 @@ class _TableHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final headerColor = _isDark(context)
+        ? const Color(0xFF202033)
+        : const Color(0xFFF8FAFC);
+
     return Container(
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 18),
-      decoration: const BoxDecoration(
-        color: Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
+      decoration: BoxDecoration(
+        color: headerColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
       ),
       child: const Row(
         children: [
@@ -1905,12 +2019,15 @@ class _HeaderCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = _isDark(context);
+    final headerColor = isDark ? const Color(0xFF87A7FF) : const Color(0xFF5A77B8);
+
     return Expanded(
       flex: flex,
       child: Text(
         label,
-        style: const TextStyle(
-          color: Color(0xFF5A77B8),
+        style: TextStyle(
+          color: headerColor,
           fontSize: 12,
           fontWeight: FontWeight.w800,
         ),
@@ -1930,10 +2047,12 @@ class _TransactionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textColor = _adminText(context);
+
     return Container(
       constraints: const BoxConstraints(minHeight: 58),
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-      color: Colors.white,
+      color: _adminSurface(context),
       child: Row(
         children: [
           _TableText('${index.toString().padLeft(2, '0')}.', flex: 1),
@@ -1959,8 +2078,8 @@ class _TransactionRow extends StatelessWidget {
             flex: 2,
             child: Text(
               _formatAdminAmount(transaction.amount),
-              style: const TextStyle(
-                color: AppTheme.textDark,
+              style: TextStyle(
+                color: textColor,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -1992,8 +2111,8 @@ class _TableText extends StatelessWidget {
         value,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          color: AppTheme.textDark,
+        style: TextStyle(
+          color: _adminText(context),
           fontSize: 13,
         ),
       ),
@@ -2014,18 +2133,22 @@ class _PageButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = _isDark(context);
+
     return SizedBox(
       width: 38,
       height: 38,
       child: TextButton(
         onPressed: isActive ? null : onPressed,
         style: TextButton.styleFrom(
-          backgroundColor: isActive ? const Color(0xFFEAF1FF) : const Color(0xFFF8FAFC),
-          foregroundColor: isActive ? AppTheme.primary : AppTheme.textDark,
+          backgroundColor: isActive
+              ? (isDark ? const Color(0xFF173A78) : const Color(0xFFEAF1FF))
+              : _adminSurfaceRaised(context),
+          foregroundColor: isActive ? Colors.white : _adminText(context),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
             side: BorderSide(
-              color: isActive ? AppTheme.primary : AppTheme.border,
+              color: isActive ? AppTheme.primary : _adminBorder(context),
             ),
           ),
         ),

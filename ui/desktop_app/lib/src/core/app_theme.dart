@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 class AppTheme {
   static const Color primary = Color(0xFF0066FF);
+  static const Color darkBackground = Color(0xFF161622);
+  static const Color darkSurface = Color(0xFF1E1E2C);
   static const Color background = Color(0xFFF5F7FB);
   static const Color surface = Color(0xFFFFFFFF);
   static const Color textDark = Color(0xFF1E1F2F);
@@ -10,53 +12,85 @@ class AppTheme {
   static const Color error = Color(0xFFE5484D);
 
   static ThemeData get light {
+    return _base(
+      brightness: Brightness.light,
+      scaffoldBackgroundColor: background,
+      surfaceColor: surface,
+      textColor: textDark,
+      mutedColor: textMuted,
+      borderColor: border,
+    );
+  }
+
+  static ThemeData get dark {
+    return _base(
+      brightness: Brightness.dark,
+      scaffoldBackgroundColor: darkBackground,
+      surfaceColor: darkSurface,
+      textColor: Colors.white,
+      mutedColor: const Color(0xFFA4A7B7),
+      borderColor: const Color(0xFF303244),
+    );
+  }
+
+  static ThemeData _base({
+    required Brightness brightness,
+    required Color scaffoldBackgroundColor,
+    required Color surfaceColor,
+    required Color textColor,
+    required Color mutedColor,
+    required Color borderColor,
+  }) {
     return ThemeData(
       useMaterial3: true,
-      scaffoldBackgroundColor: background,
+      brightness: brightness,
+      scaffoldBackgroundColor: scaffoldBackgroundColor,
       colorScheme: ColorScheme.fromSeed(
         seedColor: primary,
+        brightness: brightness,
         primary: primary,
         error: error,
+        surface: surfaceColor,
       ),
       fontFamily: 'Arial',
-      textTheme: const TextTheme(
+      textTheme: TextTheme(
         headlineSmall: TextStyle(
-          color: textDark,
+          color: textColor,
           fontSize: 28,
           fontWeight: FontWeight.w800,
         ),
         titleLarge: TextStyle(
-          color: textDark,
+          color: textColor,
           fontSize: 24,
           fontWeight: FontWeight.w800,
         ),
         bodyMedium: TextStyle(
-          color: textDark,
+          color: textColor,
           fontSize: 14,
           fontWeight: FontWeight.w400,
         ),
         bodySmall: TextStyle(
-          color: textMuted,
+          color: mutedColor,
           fontSize: 12,
           fontWeight: FontWeight.w400,
         ),
       ),
-      inputDecorationTheme: const InputDecorationTheme(
+      inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: surface,
-        contentPadding: EdgeInsets.symmetric(vertical: 15),
-        labelStyle: TextStyle(color: textMuted, fontSize: 12),
-        errorStyle: TextStyle(color: error, fontSize: 11, height: 1.3),
+        fillColor: surfaceColor,
+        contentPadding: const EdgeInsets.symmetric(vertical: 15),
+        labelStyle: TextStyle(color: mutedColor, fontSize: 12),
+        errorStyle: const TextStyle(color: error, fontSize: 11, height: 1.3),
         enabledBorder: UnderlineInputBorder(
-          borderSide: BorderSide(color: border),
+          borderSide: BorderSide(color: borderColor),
         ),
-        focusedBorder: UnderlineInputBorder(
+        focusedBorder: const UnderlineInputBorder(
           borderSide: BorderSide(color: primary, width: 1.4),
         ),
-        errorBorder: UnderlineInputBorder(
+        errorBorder: const UnderlineInputBorder(
           borderSide: BorderSide(color: error),
         ),
-        focusedErrorBorder: UnderlineInputBorder(
+        focusedErrorBorder: const UnderlineInputBorder(
           borderSide: BorderSide(color: error, width: 1.4),
         ),
       ),

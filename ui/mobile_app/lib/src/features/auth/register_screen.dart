@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
 
 import '../../core/api_client.dart';
+import '../../core/theme_controller.dart';
 import '../dashboard/mobile_dashboard_screen.dart';
 import 'auth_session.dart';
 import 'login_screen.dart';
 import 'widgets/auth_widgets.dart';
 
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key, required this.session});
+  const RegisterScreen({
+    super.key,
+    required this.session,
+    required this.themeController,
+  });
 
   final AuthSession session;
+  final ThemeController themeController;
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -101,7 +107,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
               onPressed: () {
                 Navigator.of(context).pushReplacement(
                   MaterialPageRoute<void>(
-                    builder: (_) => LoginScreen(session: widget.session),
+                    builder: (_) => LoginScreen(
+                      session: widget.session,
+                      themeController: widget.themeController,
+                    ),
                   ),
                 );
               },
@@ -142,7 +151,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
-          builder: (_) => MobileDashboardScreen(session: widget.session),
+          builder: (_) => MobileDashboardScreen(
+            session: widget.session,
+            themeController: widget.themeController,
+          ),
         ),
       );
     } on ApiException catch (exception) {
