@@ -1,6 +1,9 @@
 class PagedTransactions {
   const PagedTransactions({
     required this.items,
+    required this.page,
+    required this.pageSize,
+    required this.totalCount,
   });
 
   factory PagedTransactions.fromJson(Map<String, dynamic> json) {
@@ -8,10 +11,24 @@ class PagedTransactions {
       items: (json['items'] as List? ?? [])
           .map((item) => BankTransaction.fromJson(item as Map<String, dynamic>))
           .toList(),
+      page: json['page'] as int? ?? 1,
+      pageSize: json['pageSize'] as int? ?? 20,
+      totalCount: json['totalCount'] as int? ?? 0,
     );
   }
 
   final List<BankTransaction> items;
+  final int page;
+  final int pageSize;
+  final int totalCount;
+
+  int get totalPages {
+    if (totalCount == 0) {
+      return 1;
+    }
+
+    return ((totalCount + pageSize - 1) / pageSize).floor();
+  }
 }
 
 class BankTransaction {
@@ -36,7 +53,7 @@ class BankTransaction {
       referenceNumber: json['referenceNumber']?.toString() ?? '',
       amount: (json['amount'] as num? ?? 0).toDouble(),
       description: json['description']?.toString() ?? '',
-      status: json['status']?.toString() ?? '',
+      status: _statusLabel(json['status']),
       sourceAccountNumber: json['sourceAccountNumber']?.toString(),
       destinationAccountNumber: json['destinationAccountNumber']?.toString(),
       createdAtUtc: DateTime.tryParse(json['createdAtUtc']?.toString() ?? '') ??
@@ -54,6 +71,17 @@ class BankTransaction {
   final DateTime createdAtUtc;
   final String? sourceAccountNumber;
   final String? destinationAccountNumber;
+}
+
+String _statusLabel(Object? value) {
+  return switch (value?.toString()) {
+    '1' => 'Pending',
+    '2' => 'Completed',
+    '3' => 'Failed',
+    '4' => 'Cancelled',
+    final label when label != null && label.isNotEmpty => label,
+    _ => 'Unknown',
+  };
 }
 
 class MoneyTransferResult {
