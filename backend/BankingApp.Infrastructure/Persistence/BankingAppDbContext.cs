@@ -61,6 +61,16 @@ namespace BankingApp.Infrastructure.Persistence
                     .HasMaxLength(50)
                     .IsRequired();
 
+                entity.Property(user => user.Status)
+                    .HasConversion<string>()
+                    .HasMaxLength(25)
+                    .IsRequired();
+
+                entity.Property(user => user.IsDeleted)
+                    .IsRequired();
+
+                entity.Property(user => user.DeletedAtUtc);
+
                 entity.Property(user => user.CreatedAtUtc)
                     .IsRequired();
 
@@ -224,6 +234,8 @@ namespace BankingApp.Infrastructure.Persistence
                     PhoneNumber = "+38761111222",
                     PasswordHash = testPasswordHash,
                     Role = AppRoles.Customer,
+                    Status = CustomerStatus.Active,
+                    IsDeleted = false,
                     CreatedAtUtc = createdAtUtc
                 },
                 new User
@@ -235,6 +247,8 @@ namespace BankingApp.Infrastructure.Persistence
                     PhoneNumber = "+38762222333",
                     PasswordHash = adminPasswordHash,
                     Role = AppRoles.Admin,
+                    Status = CustomerStatus.Active,
+                    IsDeleted = false,
                     CreatedAtUtc = createdAtUtc
                 },
                 new User
@@ -246,6 +260,8 @@ namespace BankingApp.Infrastructure.Persistence
                     PhoneNumber = "+38763333444",
                     PasswordHash = testPasswordHash,
                     Role = AppRoles.Customer,
+                    Status = CustomerStatus.Active,
+                    IsDeleted = false,
                     CreatedAtUtc = createdAtUtc
                 });
 

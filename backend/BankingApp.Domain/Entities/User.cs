@@ -1,3 +1,5 @@
+using BankingApp.Domain.Enums;
+
 namespace BankingApp.Domain.Entities
 {
     public class User
@@ -15,6 +17,12 @@ namespace BankingApp.Domain.Entities
         public string PasswordHash { get; set; } = string.Empty;
 
         public string Role { get; set; } = string.Empty;
+
+        public CustomerStatus Status { get; set; } = CustomerStatus.Active;
+
+        public bool IsDeleted { get; set; }
+
+        public DateTime? DeletedAtUtc { get; set; }
 
         public DateTime CreatedAtUtc { get; set; }
 

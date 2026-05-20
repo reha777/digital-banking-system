@@ -7,6 +7,7 @@ using BankingApp.Application.Common.Exceptions;
 using BankingApp.Application.Interfaces;
 using BankingApp.Domain.Constants;
 using BankingApp.Domain.Entities;
+using BankingApp.Domain.Enums;
 using BankingApp.Infrastructure.Authentication;
 using BankingApp.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -33,6 +34,8 @@ namespace BankingApp.Infrastructure.Services
                 throw new BusinessException("Email ili lozinka nisu ispravni.");
             }
 
+            EnsureUserCanAuthenticate(user);
+
             return await CreateAuthResponseAsync(user, cancellationToken);
         }
 
@@ -56,6 +59,8 @@ namespace BankingApp.Infrastructure.Services
                 PhoneNumber = request.PhoneNumber.Trim(),
                 PasswordHash = passwordHasher.Hash(request.Password),
                 Role = AppRoles.Customer,
+                Status = CustomerStatus.Active,
+                IsDeleted = false,
                 CreatedAtUtc = DateTime.UtcNow
             };
 
@@ -77,6 +82,8 @@ namespace BankingApp.Infrastructure.Services
             {
                 throw new BusinessException("Refresh token nije validan ili je istekao.");
             }
+
+            EnsureUserCanAuthenticate(refreshToken.User);
 
             refreshToken.RevokedAtUtc = DateTime.UtcNow;
             return await CreateAuthResponseAsync(refreshToken.User, cancellationToken);
@@ -150,6 +157,8 @@ namespace BankingApp.Infrastructure.Services
 
         private async Task<AuthResponse> CreateAuthResponseAsync(User user, CancellationToken cancellationToken)
         {
+            EnsureUserCanAuthenticate(user);
+
             var refreshTokenValue = CreateRefreshTokenValue();
             var refreshTokenExpiresAtUtc = DateTime.UtcNow.AddDays(_jwtOptions.RefreshTokenExpirationDays);
 
@@ -199,6 +208,19 @@ namespace BankingApp.Infrastructure.Services
         {
             var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(refreshToken));
             return Convert.ToHexString(bytes);
+        }
+
+        private static void EnsureUserCanAuthenticate(User user)
+        {
+            if (user.IsDeleted)
+            {
+                throw new BusinessException("Korisnicki nalog vise nije aktivan.");
+            }
+
+            if (user.Role == AppRoles.Customer && user.Status != CustomerStatus.Active)
+            {
+                throw new BusinessException("Korisnicki nalog nije aktivan.");
+            }
         }
     }
 }
