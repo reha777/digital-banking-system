@@ -4,10 +4,15 @@ import 'package:flutter/material.dart';
 
 import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
+import '../../widgets/admin_modal.dart';
 import '../auth/admin_login_screen.dart';
 import '../auth/auth_session.dart';
+import '../customers/admin_customer_models.dart';
+import '../customers/admin_customer_service.dart';
 import '../transactions/admin_transaction_models.dart';
 import '../transactions/admin_transaction_service.dart';
+
+enum _AdminSection { transactions, customers }
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key, required this.session});
@@ -20,27 +25,42 @@ class AdminDashboardScreen extends StatefulWidget {
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final _searchController = TextEditingController();
+  final _customerSearchController = TextEditingController();
   final _tableScrollController = ScrollController();
+  final _customerTableScrollController = ScrollController();
   late final AdminTransactionService _transactionService;
+  late final AdminCustomerService _customerService;
   late Future<_TransactionsViewData> _transactionsFuture;
+  late Future<_CustomersViewData> _customersFuture;
   Timer? _searchDebounce;
+  Timer? _customerSearchDebounce;
+  _AdminSection _selectedSection = _AdminSection.transactions;
   int _page = 1;
   int _pageSize = 10;
   int? _status;
   DateTimeRange? _dateRange;
+  int _customerPage = 1;
+  int _customerPageSize = 10;
+  int? _customerStatus;
 
   @override
   void initState() {
     super.initState();
-    _transactionService = AdminTransactionService(ApiClient());
+    final apiClient = ApiClient();
+    _transactionService = AdminTransactionService(apiClient);
+    _customerService = AdminCustomerService(apiClient);
     _transactionsFuture = _loadTransactions();
+    _customersFuture = _loadCustomers();
   }
 
   @override
   void dispose() {
     _searchDebounce?.cancel();
+    _customerSearchDebounce?.cancel();
     _searchController.dispose();
+    _customerSearchController.dispose();
     _tableScrollController.dispose();
+    _customerTableScrollController.dispose();
     super.dispose();
   }
 
@@ -70,9 +90,37 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return _TransactionsViewData(page: page, summary: summary);
   }
 
+  Future<_CustomersViewData> _loadCustomers() async {
+    final token = widget.session.token;
+    if (token == null) {
+      throw ApiException('Sesija je istekla. Prijavite se ponovo.', 401);
+    }
+
+    final page = await _customerService.getCustomers(
+      token: token,
+      page: _customerPage,
+      pageSize: _customerPageSize,
+      search: _customerSearchController.text,
+      status: _customerStatus,
+    );
+    final summary = await _customerService.getSummary(
+      token: token,
+      search: _customerSearchController.text,
+      status: _customerStatus,
+    );
+
+    return _CustomersViewData(page: page, summary: summary);
+  }
+
   void _refresh() {
     setState(() {
       _transactionsFuture = _loadTransactions();
+    });
+  }
+
+  void _refreshCustomers() {
+    setState(() {
+      _customersFuture = _loadCustomers();
     });
   }
 
@@ -82,9 +130,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _refresh();
   }
 
+  void _refreshCustomersFromFirstPage() {
+    _customerPage = 1;
+    _scrollCustomerTableTop();
+    _refreshCustomers();
+  }
+
   void _scrollTableTop() {
     if (_tableScrollController.hasClients) {
       _tableScrollController.jumpTo(0);
+    }
+  }
+
+  void _scrollCustomerTableTop() {
+    if (_customerTableScrollController.hasClients) {
+      _customerTableScrollController.jumpTo(0);
     }
   }
 
@@ -92,6 +152,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _searchDebounce?.cancel();
     _searchDebounce = Timer(const Duration(milliseconds: 350), () {
       _refreshFromFirstPage();
+    });
+  }
+
+  void _customerSearchChanged(String _) {
+    _customerSearchDebounce?.cancel();
+    _customerSearchDebounce = Timer(const Duration(milliseconds: 350), () {
+      _refreshCustomersFromFirstPage();
+    });
+  }
+
+  void _selectSection(_AdminSection section) {
+    setState(() {
+      _selectedSection = section;
     });
   }
 
@@ -120,6 +193,103 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _refreshFromFirstPage();
   }
 
+  Future<void> _editCustomer(AdminCustomer customer) async {
+    final token = widget.session.token;
+    if (token == null) {
+      return;
+    }
+
+    final request = await showDialog<_CustomerEditRequest?>(
+      context: context,
+      builder: (context) => _CustomerEditDialog(customer: customer),
+    );
+
+    if (request == null) {
+      return;
+    }
+
+    try {
+      await _customerService.updateCustomer(
+        token: token,
+        id: customer.id,
+        firstName: request.firstName,
+        lastName: request.lastName,
+        phoneNumber: request.phoneNumber,
+      );
+      _refreshCustomers();
+    } on ApiException catch (error) {
+      if (mounted) {
+        _showMessage(error.message);
+      }
+    }
+  }
+
+  Future<void> _changeCustomerStatus(AdminCustomer customer, int status) async {
+    final token = widget.session.token;
+    if (token == null || status == customer.statusValue) {
+      return;
+    }
+
+    try {
+      await _customerService.updateStatus(
+        token: token,
+        id: customer.id,
+        status: status,
+      );
+      _refreshCustomers();
+    } on ApiException catch (error) {
+      if (mounted) {
+        _showMessage(error.message);
+      }
+    }
+  }
+
+  Future<void> _deleteCustomer(AdminCustomer customer) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AdminModal(
+        title: 'Delete customer',
+        primaryLabel: 'Delete',
+        primaryColor: const Color(0xFFDC2626),
+        onPrimary: () => Navigator.of(context).pop(true),
+        width: 460,
+        children: [
+          Text(
+            'Remove ${customer.fullName} from active customer records?',
+            style: const TextStyle(
+              color: AppTheme.textMuted,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    final token = widget.session.token;
+    if (token == null) {
+      return;
+    }
+
+    try {
+      await _customerService.deleteCustomer(token: token, id: customer.id);
+      _refreshCustomersFromFirstPage();
+    } on ApiException catch (error) {
+      if (mounted) {
+        _showMessage(error.message);
+      }
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   Future<void> _logout() async {
     await widget.session.logout();
     if (!mounted) {
@@ -142,6 +312,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         children: [
           _AdminSidebar(
             userName: '${user?.firstName ?? 'Admin'} ${user?.lastName ?? ''}'.trim(),
+            selectedSection: _selectedSection,
+            onSectionSelected: _selectSection,
             onLogout: _logout,
           ),
           Expanded(
@@ -150,77 +322,157 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const _PageTitle(),
-                  const SizedBox(height: 22),
-                  _FiltersBar(
-                    searchController: _searchController,
-                    status: _status,
-                    dateRange: _dateRange,
-                    onSearchChanged: _searchChanged,
-                    onStatusChanged: (value) {
-                      _status = value;
-                      _refreshFromFirstPage();
-                    },
-                    onPickDateRange: _pickDateRange,
-                    onClearDateRange: _clearDateRange,
-                    onRefresh: _refresh,
+                  _PageTitle(
+                    icon: _selectedSection == _AdminSection.transactions
+                        ? Icons.receipt_long
+                        : Icons.people_outline,
+                    title: _selectedSection == _AdminSection.transactions
+                        ? 'Transactions'
+                        : 'Customers',
+                    subtitle: _selectedSection == _AdminSection.transactions
+                        ? 'Search, filter and review customer money movement.'
+                        : 'Manage customer records, status and contact information.',
                   ),
+                  const SizedBox(height: 22),
+                  if (_selectedSection == _AdminSection.transactions)
+                    _FiltersBar(
+                      searchController: _searchController,
+                      status: _status,
+                      dateRange: _dateRange,
+                      onSearchChanged: _searchChanged,
+                      onStatusChanged: (value) {
+                        _status = value;
+                        _refreshFromFirstPage();
+                      },
+                      onPickDateRange: _pickDateRange,
+                      onClearDateRange: _clearDateRange,
+                      onRefresh: _refresh,
+                    )
+                  else
+                    _CustomerFiltersBar(
+                      searchController: _customerSearchController,
+                      status: _customerStatus,
+                      onSearchChanged: _customerSearchChanged,
+                      onStatusChanged: (value) {
+                        _customerStatus = value;
+                        _refreshCustomersFromFirstPage();
+                      },
+                      onRefresh: _refreshCustomers,
+                    ),
                   const SizedBox(height: 18),
                   Expanded(
-                    child: FutureBuilder<_TransactionsViewData>(
-                      future: _transactionsFuture,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState != ConnectionState.done) {
-                          return const Center(child: CircularProgressIndicator());
-                        }
+                    child: _selectedSection == _AdminSection.transactions
+                        ? FutureBuilder<_TransactionsViewData>(
+                            future: _transactionsFuture,
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState != ConnectionState.done) {
+                                return const Center(child: CircularProgressIndicator());
+                              }
 
-                        if (snapshot.hasError) {
-                          return _AdminErrorState(
-                            message: snapshot.error.toString(),
-                            onRetry: _refresh,
-                          );
-                        }
+                              if (snapshot.hasError) {
+                                return _AdminErrorState(
+                                  message: snapshot.error.toString(),
+                                  onRetry: _refresh,
+                                );
+                              }
 
-                        final data = snapshot.requireData;
-                        return Column(
-                          children: [
-                            _SummaryCards(summary: data.summary),
-                            const SizedBox(height: 16),
-                            Expanded(
-                              child: _TransactionsTable(
-                                page: data.page,
-                                currentPage: _page,
-                                pageSize: _pageSize,
-                                scrollController: _tableScrollController,
-                                onPageSelected: (pageNumber) {
-                                  _page = pageNumber;
-                                  _scrollTableTop();
-                                  _refresh();
-                                },
-                                onPageSizeChanged: (value) {
-                                  _pageSize = value;
-                                  _refreshFromFirstPage();
-                                },
-                                onPrevious: data.page.page <= 1
-                                    ? null
-                                    : () {
-                                        _page--;
+                              final data = snapshot.requireData;
+                              return Column(
+                                children: [
+                                  _SummaryCards(summary: data.summary),
+                                  const SizedBox(height: 16),
+                                  Expanded(
+                                    child: _TransactionsTable(
+                                      page: data.page,
+                                      currentPage: _page,
+                                      pageSize: _pageSize,
+                                      scrollController: _tableScrollController,
+                                      onPageSelected: (pageNumber) {
+                                        _page = pageNumber;
                                         _scrollTableTop();
                                         _refresh();
                                       },
-                                onNext: data.page.page >= data.page.totalPages
-                                    ? null
-                                    : () {
-                                        _page++;
-                                        _scrollTableTop();
-                                        _refresh();
+                                      onPageSizeChanged: (value) {
+                                        _pageSize = value;
+                                        _refreshFromFirstPage();
                                       },
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
+                                      onPrevious: data.page.page <= 1
+                                          ? null
+                                          : () {
+                                              _page--;
+                                              _scrollTableTop();
+                                              _refresh();
+                                            },
+                                      onNext: data.page.page >= data.page.totalPages
+                                          ? null
+                                          : () {
+                                              _page++;
+                                              _scrollTableTop();
+                                              _refresh();
+                                            },
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          )
+                        : FutureBuilder<_CustomersViewData>(
+                            future: _customersFuture,
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState != ConnectionState.done) {
+                                return const Center(child: CircularProgressIndicator());
+                              }
+
+                              if (snapshot.hasError) {
+                                return _AdminErrorState(
+                                  message: snapshot.error.toString(),
+                                  onRetry: _refreshCustomers,
+                                );
+                              }
+
+                              final data = snapshot.requireData;
+                              return Column(
+                                children: [
+                                  _CustomerSummaryCards(summary: data.summary),
+                                  const SizedBox(height: 16),
+                                  Expanded(
+                                    child: _CustomersTable(
+                                      page: data.page,
+                                      currentPage: _customerPage,
+                                      pageSize: _customerPageSize,
+                                      scrollController: _customerTableScrollController,
+                                      onEdit: _editCustomer,
+                                      onDelete: _deleteCustomer,
+                                      onStatusChanged: _changeCustomerStatus,
+                                      onPageSelected: (pageNumber) {
+                                        _customerPage = pageNumber;
+                                        _scrollCustomerTableTop();
+                                        _refreshCustomers();
+                                      },
+                                      onPageSizeChanged: (value) {
+                                        _customerPageSize = value;
+                                        _refreshCustomersFromFirstPage();
+                                      },
+                                      onPrevious: data.page.page <= 1
+                                          ? null
+                                          : () {
+                                              _customerPage--;
+                                              _scrollCustomerTableTop();
+                                              _refreshCustomers();
+                                            },
+                                      onNext: data.page.page >= data.page.totalPages
+                                          ? null
+                                          : () {
+                                              _customerPage++;
+                                              _scrollCustomerTableTop();
+                                              _refreshCustomers();
+                                            },
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
                   ),
                 ],
               ),
@@ -240,6 +492,16 @@ class _TransactionsViewData {
 
   final AdminTransactionPage page;
   final AdminTransactionSummary summary;
+}
+
+class _CustomersViewData {
+  const _CustomersViewData({
+    required this.page,
+    required this.summary,
+  });
+
+  final AdminCustomerPage page;
+  final AdminCustomerSummary summary;
 }
 
 class _SummaryCards extends StatelessWidget {
@@ -357,13 +619,57 @@ class _SummaryCard extends StatelessWidget {
   }
 }
 
+class _CustomerSummaryCards extends StatelessWidget {
+  const _CustomerSummaryCards({required this.summary});
+
+  final AdminCustomerSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _SummaryCard(
+            title: 'Total customers',
+            value: summary.totalCustomers.toString(),
+            icon: Icons.people_outline,
+            tone: const Color(0xFF0066FF),
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: _SummaryCard(
+            title: 'Active',
+            value: summary.activeCustomers.toString(),
+            icon: Icons.verified_user_outlined,
+            tone: const Color(0xFF16A34A),
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: _SummaryCard(
+            title: 'Inactive / blocked',
+            value: '${summary.inactiveCustomers + summary.blockedCustomers}',
+            icon: Icons.person_off_outlined,
+            tone: const Color(0xFFF97316),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _AdminSidebar extends StatelessWidget {
   const _AdminSidebar({
     required this.userName,
+    required this.selectedSection,
+    required this.onSectionSelected,
     required this.onLogout,
   });
 
   final String userName;
+  final _AdminSection selectedSection;
+  final ValueChanged<_AdminSection> onSectionSelected;
   final VoidCallback onLogout;
 
   @override
@@ -398,14 +704,17 @@ class _AdminSidebar extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 32),
-          const _SidebarItem(
+          _SidebarItem(
             icon: Icons.receipt_long,
             title: 'Transactions',
-            isActive: true,
+            isActive: selectedSection == _AdminSection.transactions,
+            onTap: () => onSectionSelected(_AdminSection.transactions),
           ),
-          const _SidebarItem(
+          _SidebarItem(
             icon: Icons.people_outline,
             title: 'Customers',
+            isActive: selectedSection == _AdminSection.customers,
+            onTap: () => onSectionSelected(_AdminSection.customers),
           ),
           const _SidebarItem(
             icon: Icons.credit_card,
@@ -461,11 +770,13 @@ class _SidebarItem extends StatelessWidget {
     required this.icon,
     required this.title,
     this.isActive = false,
+    this.onTap,
   });
 
   final IconData icon;
   final String title;
   final bool isActive;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -477,6 +788,7 @@ class _SidebarItem extends StatelessWidget {
       ),
       child: ListTile(
         dense: true,
+        onTap: onTap,
         leading: Icon(icon, color: Colors.white),
         title: Text(
           title,
@@ -491,7 +803,15 @@ class _SidebarItem extends StatelessWidget {
 }
 
 class _PageTitle extends StatelessWidget {
-  const _PageTitle();
+  const _PageTitle({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
 
   @override
   Widget build(BuildContext context) {
@@ -504,24 +824,24 @@ class _PageTitle extends StatelessWidget {
             color: const Color(0x1F0066FF),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: const Icon(Icons.receipt_long, color: AppTheme.primary),
+          child: Icon(icon, color: AppTheme.primary),
         ),
         const SizedBox(width: 14),
-        const Column(
+        Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Transactions',
-              style: TextStyle(
+              title,
+              style: const TextStyle(
                 color: AppTheme.textDark,
                 fontSize: 28,
                 fontWeight: FontWeight.w800,
               ),
             ),
-            SizedBox(height: 3),
+            const SizedBox(height: 3),
             Text(
-              'Search, filter and review customer money movement.',
-              style: TextStyle(color: AppTheme.textMuted),
+              subtitle,
+              style: const TextStyle(color: AppTheme.textMuted),
             ),
           ],
         ),
@@ -595,6 +915,106 @@ class _FiltersBar extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _CustomerFiltersBar extends StatelessWidget {
+  const _CustomerFiltersBar({
+    required this.searchController,
+    required this.status,
+    required this.onSearchChanged,
+    required this.onStatusChanged,
+    required this.onRefresh,
+  });
+
+  final TextEditingController searchController;
+  final int? status;
+  final ValueChanged<String> onSearchChanged;
+  final ValueChanged<int?> onStatusChanged;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppTheme.border),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 430,
+            child: TextField(
+              controller: searchController,
+              onChanged: onSearchChanged,
+              decoration: const InputDecoration(
+                labelText: 'Search name, email, phone or account',
+                prefixIcon: Icon(Icons.search),
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          _CustomerStatusFilterButton(
+            status: status,
+            onChanged: onStatusChanged,
+          ),
+          const Spacer(),
+          IconButton.filledTonal(
+            onPressed: onRefresh,
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh',
+            style: IconButton.styleFrom(
+              backgroundColor: const Color(0xFFF3F6FF),
+              foregroundColor: AppTheme.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CustomerStatusFilterButton extends StatelessWidget {
+  const _CustomerStatusFilterButton({
+    required this.status,
+    required this.onChanged,
+  });
+
+  final int? status;
+  final ValueChanged<int?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<int>(
+      tooltip: 'Customer status filter',
+      position: PopupMenuPosition.under,
+      onSelected: (value) => onChanged(value == 0 ? null : value),
+      itemBuilder: (context) => const [
+        PopupMenuItem<int>(
+          value: 0,
+          child: Text('All statuses'),
+        ),
+        PopupMenuItem<int>(
+          value: 1,
+          child: Text('Active'),
+        ),
+        PopupMenuItem<int>(
+          value: 2,
+          child: Text('Inactive'),
+        ),
+        PopupMenuItem<int>(
+          value: 3,
+          child: Text('Blocked'),
+        ),
+      ],
+      child: _FilterChipButton(
+        icon: Icons.tune,
+        label: _customerStatusFilterLabel(status),
+        trailing: const Icon(Icons.keyboard_arrow_down, size: 20),
       ),
     );
   }
@@ -1124,6 +1544,332 @@ class _TransactionsTable extends StatelessWidget {
   }
 }
 
+class _CustomersTable extends StatelessWidget {
+  const _CustomersTable({
+    required this.page,
+    required this.currentPage,
+    required this.pageSize,
+    required this.scrollController,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onStatusChanged,
+    required this.onPageSelected,
+    required this.onPageSizeChanged,
+    required this.onPrevious,
+    required this.onNext,
+  });
+
+  final AdminCustomerPage page;
+  final int currentPage;
+  final int pageSize;
+  final ScrollController scrollController;
+  final ValueChanged<AdminCustomer> onEdit;
+  final ValueChanged<AdminCustomer> onDelete;
+  final void Function(AdminCustomer customer, int status) onStatusChanged;
+  final ValueChanged<int> onPageSelected;
+  final ValueChanged<int> onPageSizeChanged;
+  final VoidCallback? onPrevious;
+  final VoidCallback? onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppTheme.border),
+      ),
+      child: Column(
+        children: [
+          const _CustomersTableHeader(),
+          Expanded(
+            child: page.items.isEmpty
+                ? const Center(child: Text('No customers found.'))
+                : ListView.separated(
+                    controller: scrollController,
+                    padding: EdgeInsets.zero,
+                    itemCount: page.items.length,
+                    separatorBuilder: (context, index) =>
+                        const Divider(height: 1, color: Color(0xFFEFF2F7)),
+                    itemBuilder: (context, index) {
+                      return _CustomerRow(
+                        index: ((page.page - 1) * page.pageSize) + index + 1,
+                        customer: page.items[index],
+                        onEdit: onEdit,
+                        onDelete: onDelete,
+                        onStatusChanged: onStatusChanged,
+                      );
+                    },
+                  ),
+          ),
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                Text(
+                  'Showing ${page.items.length} of ${page.totalCount} customers',
+                  style: const TextStyle(color: AppTheme.textMuted),
+                ),
+                const Spacer(),
+                const Text('Rows'),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 78,
+                  height: 40,
+                  child: DropdownButtonFormField<int>(
+                    initialValue: pageSize,
+                    decoration: const InputDecoration(
+                      contentPadding: EdgeInsets.symmetric(horizontal: 10),
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 10, child: Text('10')),
+                      DropdownMenuItem(value: 20, child: Text('20')),
+                      DropdownMenuItem(value: 50, child: Text('50')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        onPageSizeChanged(value);
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 18),
+                IconButton.filledTonal(
+                  onPressed: onPrevious,
+                  icon: const Icon(Icons.chevron_left),
+                  tooltip: 'Previous page',
+                ),
+                ..._visiblePages(currentPage, page.totalPages).map(
+                  (pageNumber) => Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    child: _PageButton(
+                      pageNumber: pageNumber,
+                      isActive: pageNumber == currentPage,
+                      onPressed: () => onPageSelected(pageNumber),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                IconButton.filledTonal(
+                  onPressed: onNext,
+                  icon: const Icon(Icons.chevron_right),
+                  tooltip: 'Next page',
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<int> _visiblePages(int currentPage, int totalPages) {
+    final start = (currentPage - 2).clamp(1, totalPages).toInt();
+    final end = (start + 4).clamp(1, totalPages).toInt();
+    return [for (var page = start; page <= end; page++) page];
+  }
+}
+
+class _CustomersTableHeader extends StatelessWidget {
+  const _CustomersTableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      decoration: const BoxDecoration(
+        color: Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
+      ),
+      child: const Row(
+        children: [
+          _HeaderCell('SL No', flex: 1),
+          _HeaderCell('Customer', flex: 4),
+          _HeaderCell('Contact', flex: 4),
+          _HeaderCell('Bank accounts', flex: 2),
+          _HeaderCell('Balance', flex: 2),
+          _HeaderCell('Joined', flex: 2),
+          _HeaderCell('Status', flex: 2),
+          _HeaderCell('Actions', flex: 2),
+        ],
+      ),
+    );
+  }
+}
+
+class _CustomerRow extends StatelessWidget {
+  const _CustomerRow({
+    required this.index,
+    required this.customer,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onStatusChanged,
+  });
+
+  final int index;
+  final AdminCustomer customer;
+  final ValueChanged<AdminCustomer> onEdit;
+  final ValueChanged<AdminCustomer> onDelete;
+  final void Function(AdminCustomer customer, int status) onStatusChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 66),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+      color: Colors.white,
+      child: Row(
+        children: [
+          _TableText('${index.toString().padLeft(2, '0')}.', flex: 1),
+          Expanded(
+            flex: 4,
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: const Color(0xFFEAF1FF),
+                  child: Text(
+                    _customerInitials(customer),
+                    style: const TextStyle(
+                      color: AppTheme.primary,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        customer.fullName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppTheme.textDark,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Text(
+                        customer.email,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppTheme.textMuted,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _TableText(customer.phoneNumber, flex: 4),
+          _TableText(customer.accountCount.toString(), flex: 2),
+          _TableText(_formatAdminAmount(customer.totalBalance), flex: 2),
+          _TableText(_formatDate(customer.createdAtUtc), flex: 2),
+          Expanded(
+            flex: 2,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: _CustomerStatusMenu(
+                customer: customer,
+                onChanged: onStatusChanged,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Row(
+              children: [
+                IconButton(
+                  onPressed: () => onEdit(customer),
+                  icon: const Icon(Icons.edit_outlined),
+                  tooltip: 'Edit customer',
+                ),
+                IconButton(
+                  onPressed: () => onDelete(customer),
+                  icon: const Icon(Icons.delete_outline),
+                  tooltip: 'Delete customer',
+                  color: const Color(0xFFDC2626),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CustomerStatusMenu extends StatelessWidget {
+  const _CustomerStatusMenu({
+    required this.customer,
+    required this.onChanged,
+  });
+
+  final AdminCustomer customer;
+  final void Function(AdminCustomer customer, int status) onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<int>(
+      tooltip: 'Change status',
+      position: PopupMenuPosition.under,
+      onSelected: (status) => onChanged(customer, status),
+      itemBuilder: (context) => const [
+        PopupMenuItem(value: 1, child: Text('Active')),
+        PopupMenuItem(value: 2, child: Text('Inactive')),
+        PopupMenuItem(value: 3, child: Text('Blocked')),
+      ],
+      child: _CustomerStatusBadge(status: customer.status),
+    );
+  }
+}
+
+class _CustomerStatusBadge extends StatelessWidget {
+  const _CustomerStatusBadge({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = switch (status) {
+      'Active' => (const Color(0xFFE9F9EF), const Color(0xFF16834A)),
+      'Blocked' => (const Color(0xFFFFEAEA), const Color(0xFFB91C1C)),
+      _ => (const Color(0xFFFFF7E6), const Color(0xFFB7791F)),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: colors.$1,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            status,
+            style: TextStyle(
+              color: colors.$2,
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Icon(Icons.keyboard_arrow_down, size: 14, color: colors.$2),
+        ],
+      ),
+    );
+  }
+}
+
 class _TableHeader extends StatelessWidget {
   const _TableHeader();
 
@@ -1343,6 +2089,98 @@ class _AdminErrorState extends StatelessWidget {
   }
 }
 
+class _CustomerEditRequest {
+  const _CustomerEditRequest({
+    required this.firstName,
+    required this.lastName,
+    required this.phoneNumber,
+  });
+
+  final String firstName;
+  final String lastName;
+  final String phoneNumber;
+}
+
+class _CustomerEditDialog extends StatefulWidget {
+  const _CustomerEditDialog({required this.customer});
+
+  final AdminCustomer customer;
+
+  @override
+  State<_CustomerEditDialog> createState() => _CustomerEditDialogState();
+}
+
+class _CustomerEditDialogState extends State<_CustomerEditDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _firstNameController;
+  late final TextEditingController _lastNameController;
+  late final TextEditingController _phoneController;
+
+  @override
+  void initState() {
+    super.initState();
+    _firstNameController = TextEditingController(text: widget.customer.firstName);
+    _lastNameController = TextEditingController(text: widget.customer.lastName);
+    _phoneController = TextEditingController(text: widget.customer.phoneNumber);
+  }
+
+  @override
+  void dispose() {
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    Navigator.of(context).pop(
+      _CustomerEditRequest(
+        firstName: _firstNameController.text.trim(),
+        lastName: _lastNameController.text.trim(),
+        phoneNumber: _phoneController.text.trim(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Form(
+      key: _formKey,
+      child: AdminModal(
+        title: 'Edit customer',
+        primaryLabel: 'Save',
+        onPrimary: _save,
+        children: [
+          AdminModalField(
+            controller: _firstNameController,
+            label: 'First name',
+            icon: Icons.person_outline,
+            validator: _requiredValidator,
+          ),
+          const SizedBox(height: 14),
+          AdminModalField(
+            controller: _lastNameController,
+            label: 'Last name',
+            icon: Icons.person_outline,
+            validator: _requiredValidator,
+          ),
+          const SizedBox(height: 14),
+          AdminModalField(
+            controller: _phoneController,
+            label: 'Phone number',
+            icon: Icons.phone_outlined,
+            validator: _requiredValidator,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 String _partyLabel(String? name, String? accountNumber, {required String fallback}) {
   final cleanName = name?.trim();
   final cleanAccount = accountNumber?.trim();
@@ -1356,6 +2194,21 @@ String _partyLabel(String? name, String? accountNumber, {required String fallbac
   }
 
   return fallback;
+}
+
+String? _requiredValidator(String? value) {
+  if (value == null || value.trim().isEmpty) {
+    return 'This field is required.';
+  }
+
+  return null;
+}
+
+String _customerInitials(AdminCustomer customer) {
+  final first = customer.firstName.isEmpty ? '' : customer.firstName[0];
+  final last = customer.lastName.isEmpty ? '' : customer.lastName[0];
+  final initials = '$first$last'.trim();
+  return initials.isEmpty ? 'C' : initials.toUpperCase();
 }
 
 String _shorten(String value, int maxLength) {
@@ -1383,6 +2236,15 @@ String _statusFilterLabel(int? status) {
     2 => 'Completed',
     3 => 'Failed',
     4 => 'Cancelled',
+    _ => 'All statuses',
+  };
+}
+
+String _customerStatusFilterLabel(int? status) {
+  return switch (status) {
+    1 => 'Active',
+    2 => 'Inactive',
+    3 => 'Blocked',
     _ => 'All statuses',
   };
 }
