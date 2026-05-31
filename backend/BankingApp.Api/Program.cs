@@ -96,6 +96,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<ITransactionService, TransactionService>();
 builder.Services.AddScoped<IAdminCustomerService, AdminCustomerService>();
+builder.Services.AddScoped<ICardService, CardService>();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
 builder.Services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();

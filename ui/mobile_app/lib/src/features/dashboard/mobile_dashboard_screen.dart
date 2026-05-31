@@ -8,6 +8,9 @@ import '../accounts/account_models.dart';
 import '../accounts/account_service.dart';
 import '../auth/auth_session.dart';
 import '../auth/login_screen.dart';
+import '../cards/card_models.dart';
+import '../cards/card_service.dart';
+import '../cards/mobile_cards_screen.dart';
 import '../transactions/send_money_screen.dart';
 import '../transactions/transaction_history_screen.dart';
 import '../transactions/transaction_models.dart';
@@ -30,6 +33,7 @@ class MobileDashboardScreen extends StatefulWidget {
 class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
   late final AccountService _accountService;
   late final TransactionService _transactionService;
+  late final CardService _cardService;
   late Future<_DashboardData> _dashboardFuture;
   int _selectedIndex = 0;
 
@@ -39,6 +43,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
     final apiClient = ApiClient();
     _accountService = AccountService(apiClient);
     _transactionService = TransactionService(apiClient);
+    _cardService = CardService(apiClient);
     _dashboardFuture = _loadDashboard();
   }
 
@@ -50,10 +55,12 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
 
     final balance = await _accountService.getBalanceSummary(token);
     final transactions = await _transactionService.getRecentTransactions(token);
+    final cards = await _cardService.getMyCards(token);
 
     return _DashboardData(
       balance: balance,
       transactions: transactions,
+      cards: cards,
     );
   }
 
@@ -98,6 +105,16 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         _selectedIndex = selectedIndex;
       });
     }
+  }
+
+  Future<void> _openCardRequest() async {
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => CardRequestScreen(
+          session: widget.session,
+        ),
+      ),
+    );
   }
 
   Future<void> _logout() async {
@@ -154,33 +171,43 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                         3 => 'Settings',
                         _ => 'Home',
                       },
+                      showLogout: _selectedIndex != 1,
                       onLogout: _logout,
                     ),
                     const SizedBox(height: 24),
                   ],
-                  if (_selectedIndex == 0)
+                  if (_selectedIndex == 0) ...[
                     _HomeBalanceCard(
                       firstName: widget.session.user?.firstName ?? 'Customer',
                       lastName: widget.session.user?.lastName ?? '',
                       summary: data.balance,
+                      card: data.primaryCard,
                       onSendMoney: data.balance.primaryAccount == null
                           ? null
                           : () => _openSendMoney(data.balance.primaryAccount!),
+                    ),
+                    const SizedBox(height: 24),
+                    _TransactionsSection(
+                      transactions: data.transactions.take(4).toList(),
+                      onSeeAll: _openTransactionHistory,
+                    ),
+                  ] else if (_selectedIndex == 1)
+                    SizedBox(
+                      height: MediaQuery.sizeOf(context).height - 180,
+                      child: MobileCardsScreen(
+                        session: widget.session,
+                        onRequestCard: _openCardRequest,
+                      ),
                     )
-                  else if (_selectedIndex == 2)
-                    _StatisticsCard(summary: data.balance)
-                  else if (_selectedIndex == 3)
+                  else if (_selectedIndex == 2) ...[
+                    _StatisticsCard(summary: data.balance),
+                  ] else if (_selectedIndex == 3)
                     _SettingsCard(
                       themeController: widget.themeController,
                       onLogout: _logout,
                     )
                   else
                     const _ComingSoonCard(title: 'My Cards'),
-                  const SizedBox(height: 24),
-                  _TransactionsSection(
-                    transactions: data.transactions.take(4).toList(),
-                    onSeeAll: _openTransactionHistory,
-                  ),
                 ],
               ),
             );
@@ -195,19 +222,25 @@ class _DashboardData {
   const _DashboardData({
     required this.balance,
     required this.transactions,
+    required this.cards,
   });
 
   final AccountBalanceSummary balance;
   final List<BankTransaction> transactions;
+  final List<BankCardModel> cards;
+
+  BankCardModel? get primaryCard => cards.isEmpty ? null : cards.first;
 }
 
 class _DashboardHeader extends StatelessWidget {
   const _DashboardHeader({
     required this.title,
+    required this.showLogout,
     required this.onLogout,
   });
 
   final String title;
+  final bool showLogout;
   final VoidCallback onLogout;
 
   @override
@@ -226,11 +259,14 @@ class _DashboardHeader extends StatelessWidget {
             style: Theme.of(context).textTheme.titleMedium,
           ),
         ),
-        CircleIconButton(
-          icon: Icons.logout,
-          onPressed: onLogout,
-          tooltip: 'Sign out',
-        ),
+        if (showLogout)
+          CircleIconButton(
+            icon: Icons.logout,
+            onPressed: onLogout,
+            tooltip: 'Sign out',
+          )
+        else
+          const SizedBox(width: 48),
       ],
     );
   }
@@ -241,12 +277,14 @@ class _HomeBalanceCard extends StatelessWidget {
     required this.firstName,
     required this.lastName,
     required this.summary,
+    required this.card,
     required this.onSendMoney,
   });
 
   final String firstName;
   final String lastName;
   final AccountBalanceSummary summary;
+  final BankCardModel? card;
   final VoidCallback? onSendMoney;
 
   @override
@@ -282,6 +320,7 @@ class _HomeBalanceCard extends StatelessWidget {
             Column(
               children: [
                 _BankCard(
+                  card: card,
                   accountNumber: account?.accountNumber ?? 'No account available',
                   holderName: '$firstName $lastName'.trim().isEmpty
                       ? 'BankPick Customer'
@@ -411,12 +450,14 @@ class _HomeProfileHeader extends StatelessWidget {
 
 class _BankCard extends StatelessWidget {
   const _BankCard({
+    required this.card,
     required this.accountNumber,
     required this.holderName,
     required this.currency,
     required this.balance,
   });
 
+  final BankCardModel? card;
   final String accountNumber;
   final String holderName;
   final String currency;
@@ -424,7 +465,13 @@ class _BankCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final groupedNumber = _formatAccountNumber(accountNumber);
+    final groupedNumber = _formatCardNumber(card?.cardNumber ?? accountNumber);
+    final displayedHolderName = card?.cardholderName ?? holderName;
+    final displayedCurrency = card?.currency ?? currency;
+    final displayedBalance = card?.balance ?? balance;
+    final displayedExpiry =
+        card == null ? '24/2000' : _formatCardExpiry(card!.expiryDate);
+    final displayedCvv = card?.cvv ?? '6986';
 
     return AspectRatio(
       aspectRatio: 335 / 199,
@@ -493,7 +540,7 @@ class _BankCard extends StatelessWidget {
               left: 26,
               top: 123,
               child: Text(
-                holderName,
+                displayedHolderName,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
@@ -514,12 +561,12 @@ class _BankCard extends StatelessWidget {
                 ),
               ),
             ),
-            const Positioned(
+            Positioned(
               left: 26,
               bottom: 18,
               child: Text(
-                '24/2000',
-                style: TextStyle(
+                displayedExpiry,
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
@@ -537,12 +584,12 @@ class _BankCard extends StatelessWidget {
                 ),
               ),
             ),
-            const Positioned(
+            Positioned(
               left: 112,
               bottom: 18,
               child: Text(
-                '6986',
-                style: TextStyle(
+                displayedCvv,
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
@@ -577,7 +624,7 @@ class _BankCard extends StatelessWidget {
               right: 26,
               top: 122,
               child: Text(
-                '$currency ${_formatMoney(balance)}',
+                '$displayedCurrency ${_formatMoney(displayedBalance)}',
                 style: const TextStyle(
                   color: Color(0xB3FFFFFF),
                   fontSize: 11,
@@ -957,8 +1004,8 @@ String _formatMoney(double value) {
   return '${buffer.toString()}.${parts.last}';
 }
 
-String _formatAccountNumber(String accountNumber) {
-  final digits = accountNumber.replaceAll(RegExp('[^0-9]'), '');
+String _formatCardNumber(String value) {
+  final digits = value.replaceAll(RegExp('[^0-9]'), '');
   if (digits.length < 16) {
     return '4562  1122  4595  7852';
   }
@@ -966,4 +1013,8 @@ String _formatAccountNumber(String accountNumber) {
   final cardDigits = digits.substring(0, 16);
   return '${cardDigits.substring(0, 4)}  ${cardDigits.substring(4, 8)}  '
       '${cardDigits.substring(8, 12)}  ${cardDigits.substring(12, 16)}';
+}
+
+String _formatCardExpiry(DateTime value) {
+  return '${value.month.toString().padLeft(2, '0')}/${value.year}';
 }

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -47,6 +48,43 @@ class ApiClient {
     return decoded;
   }
 
+  Future<List<Map<String, dynamic>>> getJsonList(
+    String path, {
+    String? token,
+  }) async {
+    final headers = <String, String>{
+      'Accept': 'application/json',
+    };
+
+    if (token != null) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+
+    final response = await _httpClient.get(
+      Uri.parse('$baseUrl$path'),
+      headers: headers,
+    );
+
+    final decoded = response.body.isEmpty ? [] : jsonDecode(response.body);
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException(
+        decoded is Map<String, dynamic>
+            ? _extractErrorMessage(decoded)
+            : 'Zahtjev nije uspjesno obradjen.',
+        response.statusCode,
+      );
+    }
+
+    if (decoded is List) {
+      return decoded
+          .map((item) => item as Map<String, dynamic>)
+          .toList();
+    }
+
+    return [];
+  }
+
   Future<Map<String, dynamic>> postJson(
     String path,
     Map<String, dynamic> body, {
@@ -67,6 +105,44 @@ class ApiClient {
       body: jsonEncode(body),
     );
 
+    final decoded = response.body.isEmpty
+        ? <String, dynamic>{}
+        : jsonDecode(response.body) as Map<String, dynamic>;
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException(
+        _extractErrorMessage(decoded),
+        response.statusCode,
+      );
+    }
+
+    return decoded;
+  }
+
+  Future<Map<String, dynamic>> postMultipartBytes(
+    String path, {
+    required String fieldName,
+    required String fileName,
+    required Uint8List bytes,
+    String? token,
+  }) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl$path'));
+    request.headers['Accept'] = 'application/json';
+
+    if (token != null) {
+      request.headers['Authorization'] = 'Bearer $token';
+    }
+
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        fieldName,
+        bytes,
+        filename: fileName,
+      ),
+    );
+
+    final streamedResponse = await _httpClient.send(request);
+    final response = await http.Response.fromStream(streamedResponse);
     final decoded = response.body.isEmpty
         ? <String, dynamic>{}
         : jsonDecode(response.body) as Map<String, dynamic>;
