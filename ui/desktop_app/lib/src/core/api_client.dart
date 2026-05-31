@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -36,6 +37,33 @@ class ApiClient {
     }
 
     return decoded;
+  }
+
+  Future<Uint8List> getBytes(
+    String path, {
+    String? token,
+  }) async {
+    final headers = <String, String>{
+      'Accept': '*/*',
+    };
+
+    if (token != null) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+
+    final response = await _httpClient.get(
+      Uri.parse('$baseUrl$path'),
+      headers: headers,
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final decoded = response.body.isEmpty
+          ? <String, dynamic>{}
+          : jsonDecode(response.body) as Map<String, dynamic>;
+      throw ApiException(_extractErrorMessage(decoded), response.statusCode);
+    }
+
+    return response.bodyBytes;
   }
 
   Future<Map<String, dynamic>> postJson(

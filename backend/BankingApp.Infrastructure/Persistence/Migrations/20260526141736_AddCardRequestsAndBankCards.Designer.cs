@@ -4,6 +4,7 @@ using BankingApp.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BankingApp.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(BankingAppDbContext))]
-    partial class BankingAppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260526141736_AddCardRequestsAndBankCards")]
+    partial class AddCardRequestsAndBankCards
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -227,13 +230,6 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                         .HasMaxLength(80)
                         .HasColumnType("nvarchar(80)");
 
-                    b.Property<string>("DocumentsRequestNote")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<DateTime?>("DocumentsRequestedAtUtc")
-                        .HasColumnType("datetime2");
-
                     b.Property<string>("Note")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -262,42 +258,6 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("CardRequests", (string)null);
-                });
-
-            modelBuilder.Entity("BankingApp.Domain.Entities.CardRequestDocument", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("CardRequestId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<byte[]>("Content")
-                        .IsRequired()
-                        .HasColumnType("varbinary(max)");
-
-                    b.Property<string>("ContentType")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .HasColumnType("nvarchar(120)");
-
-                    b.Property<string>("FileName")
-                        .IsRequired()
-                        .HasMaxLength(180)
-                        .HasColumnType("nvarchar(180)");
-
-                    b.Property<long>("SizeBytes")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateTime>("UploadedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CardRequestId");
-
-                    b.ToTable("CardRequestDocuments", (string)null);
                 });
 
             modelBuilder.Entity("BankingApp.Domain.Entities.RefreshToken", b =>
@@ -547,17 +507,6 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("BankingApp.Domain.Entities.CardRequestDocument", b =>
-                {
-                    b.HasOne("BankingApp.Domain.Entities.CardRequest", "CardRequest")
-                        .WithMany("Documents")
-                        .HasForeignKey("CardRequestId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("CardRequest");
-                });
-
             modelBuilder.Entity("BankingApp.Domain.Entities.RefreshToken", b =>
                 {
                     b.HasOne("BankingApp.Domain.Entities.User", "User")
@@ -585,11 +534,6 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                     b.Navigation("Card");
 
                     b.Navigation("Transactions");
-                });
-
-            modelBuilder.Entity("BankingApp.Domain.Entities.CardRequest", b =>
-                {
-                    b.Navigation("Documents");
                 });
 
             modelBuilder.Entity("BankingApp.Domain.Entities.User", b =>

@@ -13,6 +13,12 @@ namespace BankingApp.Infrastructure.Persistence
 
         public DbSet<Transaction> Transactions => Set<Transaction>();
 
+        public DbSet<BankCard> BankCards => Set<BankCard>();
+
+        public DbSet<CardRequest> CardRequests => Set<CardRequest>();
+
+        public DbSet<CardRequestDocument> CardRequestDocuments => Set<CardRequestDocument>();
+
         public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
         public DbSet<AccessTokenRevocation> AccessTokenRevocations => Set<AccessTokenRevocation>();
@@ -24,6 +30,9 @@ namespace BankingApp.Infrastructure.Persistence
             ConfigureUsers(modelBuilder);
             ConfigureAccounts(modelBuilder);
             ConfigureTransactions(modelBuilder);
+            ConfigureBankCards(modelBuilder);
+            ConfigureCardRequests(modelBuilder);
+            ConfigureCardRequestDocuments(modelBuilder);
             ConfigureRefreshTokens(modelBuilder);
             ConfigureAccessTokenRevocations(modelBuilder);
             SeedData(modelBuilder);
@@ -124,6 +133,11 @@ namespace BankingApp.Infrastructure.Persistence
                     .WithOne(transaction => transaction.Account)
                     .HasForeignKey(transaction => transaction.AccountId)
                     .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(account => account.Card)
+                    .WithOne(card => card.Account)
+                    .HasForeignKey<BankCard>(card => card.AccountId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
         }
 
@@ -161,6 +175,141 @@ namespace BankingApp.Infrastructure.Persistence
 
                 entity.HasIndex(transaction => transaction.ReferenceNumber)
                     .IsUnique(false);
+            });
+        }
+
+        private static void ConfigureBankCards(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<BankCard>(entity =>
+            {
+                entity.ToTable("BankCards");
+
+                entity.HasKey(card => card.Id);
+
+                entity.Property(card => card.CardNumber)
+                    .HasMaxLength(19)
+                    .IsRequired();
+
+                entity.Property(card => card.CardholderName)
+                    .HasMaxLength(160)
+                    .IsRequired();
+
+                entity.Property(card => card.Cvv)
+                    .HasMaxLength(4)
+                    .IsRequired();
+
+                entity.Property(card => card.Brand)
+                    .HasConversion<string>()
+                    .HasMaxLength(25)
+                    .IsRequired();
+
+                entity.Property(card => card.Status)
+                    .HasConversion<string>()
+                    .HasMaxLength(25)
+                    .IsRequired();
+
+                entity.Property(card => card.ExpiryDate)
+                    .IsRequired();
+
+                entity.Property(card => card.CreatedAtUtc)
+                    .IsRequired();
+
+                entity.HasIndex(card => card.AccountId)
+                    .IsUnique();
+
+                entity.HasIndex(card => card.CardNumber)
+                    .IsUnique();
+            });
+        }
+
+        private static void ConfigureCardRequests(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<CardRequest>(entity =>
+            {
+                entity.ToTable("CardRequests");
+
+                entity.HasKey(request => request.Id);
+
+                entity.Property(request => request.CardholderName)
+                    .HasMaxLength(160)
+                    .IsRequired();
+
+                entity.Property(request => request.Currency)
+                    .HasMaxLength(3)
+                    .IsRequired();
+
+                entity.Property(request => request.DocumentNumber)
+                    .HasMaxLength(80)
+                    .IsRequired();
+
+                entity.Property(request => request.DeliveryAddress)
+                    .HasMaxLength(250)
+                    .IsRequired();
+
+                entity.Property(request => request.Note)
+                    .HasMaxLength(500)
+                    .IsRequired();
+
+                entity.Property(request => request.Status)
+                    .HasConversion<string>()
+                    .HasMaxLength(25)
+                    .IsRequired();
+
+                entity.Property(request => request.AdminNote)
+                    .HasMaxLength(500);
+
+                entity.Property(request => request.DocumentsRequestNote)
+                    .HasMaxLength(500);
+
+                entity.Property(request => request.CreatedAtUtc)
+                    .IsRequired();
+
+                entity.HasOne(request => request.User)
+                    .WithMany(user => user.CardRequests)
+                    .HasForeignKey(request => request.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(request => request.ApprovedAccount)
+                    .WithMany()
+                    .HasForeignKey(request => request.ApprovedAccountId)
+                    .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasOne(request => request.ApprovedCard)
+                    .WithMany()
+                    .HasForeignKey(request => request.ApprovedCardId)
+                    .OnDelete(DeleteBehavior.NoAction);
+            });
+        }
+
+        private static void ConfigureCardRequestDocuments(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<CardRequestDocument>(entity =>
+            {
+                entity.ToTable("CardRequestDocuments");
+
+                entity.HasKey(document => document.Id);
+
+                entity.Property(document => document.FileName)
+                    .HasMaxLength(180)
+                    .IsRequired();
+
+                entity.Property(document => document.ContentType)
+                    .HasMaxLength(120)
+                    .IsRequired();
+
+                entity.Property(document => document.SizeBytes)
+                    .IsRequired();
+
+                entity.Property(document => document.Content)
+                    .IsRequired();
+
+                entity.Property(document => document.UploadedAtUtc)
+                    .IsRequired();
+
+                entity.HasOne(document => document.CardRequest)
+                    .WithMany(request => request.Documents)
+                    .HasForeignKey(document => document.CardRequestId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
         }
 
@@ -218,6 +367,7 @@ namespace BankingApp.Infrastructure.Persistence
             var checkingAccountId = Guid.Parse("dbdd0766-a83e-4a7d-944c-af7d0373ff50");
             var savingsAccountId = Guid.Parse("6e4ac9f4-28d0-4f6a-b8c4-c7937f9a5ae3");
             var recipientAccountId = Guid.Parse("deed75d2-e898-4c2d-a7e3-2fa1152d7222");
+            var demoCardId = Guid.Parse("a8f0f3aa-e7d3-460c-86ff-6cfe0f5105dd");
             var initialDepositId = Guid.Parse("b8e0dbf7-536f-4301-99c7-5b3a1e03f450");
             var savingsDepositId = Guid.Parse("fd261404-8751-4faa-bffa-cdf7ea592903");
             var createdAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -294,6 +444,20 @@ namespace BankingApp.Infrastructure.Persistence
                     AccountType = AccountType.Checking,
                     Balance = 300.00m,
                     Currency = "USD",
+                    CreatedAtUtc = createdAtUtc
+                });
+
+            modelBuilder.Entity<BankCard>().HasData(
+                new BankCard
+                {
+                    Id = demoCardId,
+                    AccountId = checkingAccountId,
+                    CardNumber = "4562112245957852",
+                    CardholderName = "Demo Customer",
+                    Cvv = "6986",
+                    ExpiryDate = new DateTime(2030, 6, 24, 0, 0, 0, DateTimeKind.Utc),
+                    Brand = CardBrand.Mastercard,
+                    Status = CardStatus.Active,
                     CreatedAtUtc = createdAtUtc
                 });
 

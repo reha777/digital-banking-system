@@ -21,5 +21,7 @@ namespace BankingApp.Domain.Entities
         public DateTime CreatedAtUtc { get; set; }
 
         public ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
+
+        public BankCard? Card { get; set; }
     }
 }
