@@ -10,6 +10,11 @@ class AppTheme {
   static const Color textMuted = Color(0xFF85889A);
   static const Color border = Color(0xFFE7E9F0);
   static const Color error = Color(0xFFE5484D);
+  static const Color success = Color(0xFF168A4A);
+  static const Color warning = Color(0xFFE08A00);
+  static const double radiusSmall = 8;
+  static const double radiusMedium = 12;
+  static const double radiusLarge = 16;
 
   static ThemeData get light {
     return _base(
@@ -74,24 +79,79 @@ class AppTheme {
           fontSize: 12,
           fontWeight: FontWeight.w400,
         ),
+        titleMedium: TextStyle(
+          color: textColor,
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+        ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: surfaceColor,
-        contentPadding: const EdgeInsets.symmetric(vertical: 15),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         labelStyle: TextStyle(color: mutedColor, fontSize: 12),
         errorStyle: const TextStyle(color: error, fontSize: 11, height: 1.3),
-        enabledBorder: UnderlineInputBorder(
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(radiusSmall),
           borderSide: BorderSide(color: borderColor),
         ),
-        focusedBorder: const UnderlineInputBorder(
-          borderSide: BorderSide(color: primary, width: 1.4),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(radiusSmall),
+          borderSide: const BorderSide(color: primary, width: 1.4),
         ),
-        errorBorder: const UnderlineInputBorder(
-          borderSide: BorderSide(color: error),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(radiusSmall),
+          borderSide: const BorderSide(color: error),
         ),
-        focusedErrorBorder: const UnderlineInputBorder(
-          borderSide: BorderSide(color: error, width: 1.4),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(radiusSmall),
+          borderSide: const BorderSide(color: error, width: 1.4),
+        ),
+      ),
+      cardTheme: CardThemeData(
+        color: surfaceColor,
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusMedium),
+          side: BorderSide(color: borderColor),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: surfaceColor,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusLarge),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusSmall),
+        ),
+      ),
+      tooltipTheme: TooltipThemeData(
+        waitDuration: const Duration(milliseconds: 350),
+        decoration: BoxDecoration(
+          color: brightness == Brightness.dark
+              ? const Color(0xFFF3F4F6)
+              : const Color(0xFF111827),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        textStyle: TextStyle(
+          color: brightness == Brightness.dark
+              ? const Color(0xFF111827)
+              : Colors.white,
+          fontSize: 12,
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(44, 44),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(radiusSmall),
+          ),
+          side: BorderSide(color: borderColor),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -99,7 +159,7 @@ class AppTheme {
           backgroundColor: primary,
           foregroundColor: Colors.white,
           elevation: 0,
-          minimumSize: const Size.fromHeight(54),
+          minimumSize: const Size(44, 46),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
           ),

@@ -13,6 +13,8 @@ namespace BankingApp.Infrastructure.Persistence
 
         public DbSet<Transaction> Transactions => Set<Transaction>();
 
+        public DbSet<TransactionDocument> TransactionDocuments => Set<TransactionDocument>();
+
         public DbSet<BankCard> BankCards => Set<BankCard>();
 
         public DbSet<CardRequest> CardRequests => Set<CardRequest>();
@@ -30,6 +32,7 @@ namespace BankingApp.Infrastructure.Persistence
             ConfigureUsers(modelBuilder);
             ConfigureAccounts(modelBuilder);
             ConfigureTransactions(modelBuilder);
+            ConfigureTransactionDocuments(modelBuilder);
             ConfigureBankCards(modelBuilder);
             ConfigureCardRequests(modelBuilder);
             ConfigureCardRequestDocuments(modelBuilder);
@@ -170,11 +173,49 @@ namespace BankingApp.Infrastructure.Persistence
                     .HasMaxLength(25)
                     .IsRequired();
 
+                entity.Property(transaction => transaction.ReviewReason)
+                    .HasMaxLength(500);
+
+                entity.Property(transaction => transaction.DocumentsRequestNote)
+                    .HasMaxLength(500);
+
+                entity.Property(transaction => transaction.AdminNote)
+                    .HasMaxLength(500);
+
                 entity.Property(transaction => transaction.CreatedAtUtc)
                     .IsRequired();
 
                 entity.HasIndex(transaction => transaction.ReferenceNumber)
                     .IsUnique(false);
+            });
+        }
+
+        private static void ConfigureTransactionDocuments(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<TransactionDocument>(entity =>
+            {
+                entity.ToTable("TransactionDocuments");
+
+                entity.HasKey(document => document.Id);
+
+                entity.Property(document => document.FileName)
+                    .HasMaxLength(180)
+                    .IsRequired();
+
+                entity.Property(document => document.ContentType)
+                    .HasMaxLength(120)
+                    .IsRequired();
+
+                entity.Property(document => document.Content)
+                    .IsRequired();
+
+                entity.Property(document => document.UploadedAtUtc)
+                    .IsRequired();
+
+                entity.HasOne(document => document.Transaction)
+                    .WithMany(transaction => transaction.Documents)
+                    .HasForeignKey(document => document.TransactionId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
         }
 

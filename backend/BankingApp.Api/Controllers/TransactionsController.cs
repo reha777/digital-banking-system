@@ -1,6 +1,7 @@
 using BankingApp.Application.Common.Pagination;
 using BankingApp.Application.Interfaces;
 using BankingApp.Application.Transactions;
+using BankingApp.Domain.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -64,11 +65,104 @@ namespace BankingApp.Api.Controllers
             return Ok(response);
         }
 
+        [Authorize(Roles = AppRoles.Admin)]
+        [HttpPost("{id:guid}/approve")]
+        public async Task<ActionResult<TransactionResponse>> ApproveReview(
+            Guid id,
+            TransactionReviewRequest request,
+            CancellationToken cancellationToken)
+        {
+            var response = await transactionService.ApproveReviewAsync(id, request, cancellationToken);
+            return Ok(response);
+        }
+
+        [Authorize(Roles = AppRoles.Admin)]
+        [HttpPost("{id:guid}/reject")]
+        public async Task<ActionResult<TransactionResponse>> RejectReview(
+            Guid id,
+            TransactionReviewRequest request,
+            CancellationToken cancellationToken)
+        {
+            var response = await transactionService.RejectReviewAsync(id, request, cancellationToken);
+            return Ok(response);
+        }
+
+        [Authorize(Roles = AppRoles.Admin)]
+        [HttpPost("{id:guid}/request-documents")]
+        public async Task<ActionResult<TransactionResponse>> RequestDocuments(
+            Guid id,
+            TransactionDocumentsRequest request,
+            CancellationToken cancellationToken)
+        {
+            var response = await transactionService.RequestDocumentsAsync(id, request, cancellationToken);
+            return Ok(response);
+        }
+
+        [HttpPost("{id:guid}/documents")]
+        public async Task<ActionResult<TransactionResponse>> UploadDocument(
+            Guid id,
+            IFormFile file,
+            CancellationToken cancellationToken)
+        {
+            if (file.Length == 0)
+            {
+                return BadRequest(new { message = "Dokument ne moze biti prazan." });
+            }
+
+            await using var stream = file.OpenReadStream();
+            using var memoryStream = new MemoryStream();
+            await stream.CopyToAsync(memoryStream, cancellationToken);
+
+            var response = await transactionService.UploadDocumentAsync(
+                id,
+                new TransactionDocumentUploadRequest
+                {
+                    FileName = file.FileName,
+                    ContentType = ResolveContentType(file.FileName, file.ContentType),
+                    Content = memoryStream.ToArray()
+                },
+                cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("{transactionId:guid}/documents/{documentId:guid}/download")]
+        public async Task<IActionResult> DownloadDocument(
+            Guid transactionId,
+            Guid documentId,
+            CancellationToken cancellationToken)
+        {
+            var response = await transactionService.DownloadDocumentAsync(
+                transactionId,
+                documentId,
+                cancellationToken);
+
+            return File(response.Content, response.ContentType, response.FileName);
+        }
+
         [HttpDelete("{id:guid}")]
         public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
         {
             await transactionService.DeleteAsync(id, cancellationToken);
             return NoContent();
+        }
+
+        private static string ResolveContentType(string fileName, string contentType)
+        {
+            if (!string.IsNullOrWhiteSpace(contentType) &&
+                !contentType.Equals("application/octet-stream", StringComparison.OrdinalIgnoreCase))
+            {
+                return contentType;
+            }
+
+            return Path.GetExtension(fileName).ToLowerInvariant() switch
+            {
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".png" => "image/png",
+                ".pdf" => "application/pdf",
+                ".txt" => "text/plain",
+                _ => "application/octet-stream"
+            };
         }
     }
 }

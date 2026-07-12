@@ -10,6 +10,7 @@ import '../../core/app_theme.dart';
 import '../../core/document_opener.dart';
 import '../../core/theme_controller.dart';
 import '../../widgets/admin_modal.dart';
+import '../../widgets/app_date_range_picker.dart';
 import '../auth/admin_login_screen.dart';
 import '../auth/auth_session.dart';
 import '../cards/admin_card_request_models.dart';
@@ -19,9 +20,10 @@ import '../customers/admin_customer_service.dart';
 import '../transactions/admin_transaction_models.dart';
 import '../transactions/admin_transaction_service.dart';
 
-enum _AdminSection { transactions, customers, cards }
+enum _AdminSection { transactions, transactionReviews, customers, cards }
 
-bool _isDark(BuildContext context) => Theme.of(context).brightness == Brightness.dark;
+bool _isDark(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark;
 
 Color _adminSurface(BuildContext context) =>
     _isDark(context) ? AppTheme.darkSurface : Colors.white;
@@ -66,6 +68,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   late final AdminCustomerService _customerService;
   late final AdminCardRequestService _cardRequestService;
   late Future<_TransactionsViewData> _transactionsFuture;
+  late Future<_TransactionsViewData> _transactionReviewsFuture;
   late Future<_CustomersViewData> _customersFuture;
   late Future<_CardRequestsViewData> _cardRequestsFuture;
   Timer? _searchDebounce;
@@ -91,6 +94,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _customerService = AdminCustomerService(apiClient);
     _cardRequestService = AdminCardRequestService(apiClient);
     _transactionsFuture = _loadTransactions();
+    _transactionReviewsFuture = _loadTransactionReviews();
     _customersFuture = _loadCustomers();
     _cardRequestsFuture = _loadCardRequests();
   }
@@ -130,6 +134,34 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       status: _status,
       dateFrom: _dateRange?.start,
       dateTo: _dateRange?.end,
+    );
+
+    return _TransactionsViewData(page: page, summary: summary);
+  }
+
+  Future<_TransactionsViewData> _loadTransactionReviews() async {
+    final token = widget.session.token;
+    if (token == null) {
+      throw ApiException('Sesija je istekla. Prijavite se ponovo.', 401);
+    }
+
+    final page = await _transactionService.getTransactions(
+      token: token,
+      page: _page,
+      pageSize: _pageSize,
+      search: _searchController.text,
+      status: _status,
+      dateFrom: _dateRange?.start,
+      dateTo: _dateRange?.end,
+      highRiskOnly: true,
+    );
+    final summary = await _transactionService.getSummary(
+      token: token,
+      search: _searchController.text,
+      status: _status,
+      dateFrom: _dateRange?.start,
+      dateTo: _dateRange?.end,
+      highRiskOnly: true,
     );
 
     return _TransactionsViewData(page: page, summary: summary);
@@ -181,7 +213,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   void _refresh() {
     setState(() {
-      _transactionsFuture = _loadTransactions();
+      if (_selectedSection == _AdminSection.transactionReviews) {
+        _transactionReviewsFuture = _loadTransactionReviews();
+      } else {
+        _transactionsFuture = _loadTransactions();
+      }
     });
   }
 
@@ -260,31 +296,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     });
   }
 
-  Future<void> _pickDateRange() async {
-    final selected = await showDialog<DateTimeRange?>(
-      context: context,
-      builder: (context) {
-        return _DateRangeDialog(initialRange: _dateRange);
-      },
-    );
-
-    if (selected == null) {
-      return;
-    }
-
-    setState(() {
-      _dateRange = selected;
-    });
-    _refreshFromFirstPage();
-  }
-
-  void _clearDateRange() {
-    setState(() {
-      _dateRange = null;
-    });
-    _refreshFromFirstPage();
-  }
-
   Future<void> _editCustomer(AdminCustomer customer) async {
     final token = widget.session.token;
     if (token == null) {
@@ -348,10 +359,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         children: [
           Text(
             'Remove ${customer.fullName} from active customer records?',
-            style: TextStyle(
-              color: _adminMuted(context),
-              height: 1.4,
-            ),
+            style: TextStyle(color: _adminMuted(context), height: 1.4),
           ),
         ],
       ),
@@ -376,9 +384,131 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
   }
 
+  Future<bool> _requestTransactionDocuments(
+    AdminTransaction transaction,
+    String adminNote,
+  ) async {
+    final token = widget.session.token;
+    if (token == null) {
+      return false;
+    }
+
+    try {
+      await _transactionService.requestDocuments(
+        token: token,
+        id: transaction.id,
+        adminNote: adminNote,
+      );
+      _refresh();
+      if (mounted) {
+        _showMessage('Document request sent to customer.');
+      }
+      return true;
+    } on ApiException catch (error) {
+      if (mounted) {
+        _showMessage(error.message);
+      }
+      return false;
+    }
+  }
+
+  Future<bool> _approveTransactionReview(
+    AdminTransaction transaction,
+    String adminNote,
+  ) async {
+    final token = widget.session.token;
+    if (token == null) {
+      return false;
+    }
+
+    try {
+      await _transactionService.approveReview(
+        token: token,
+        id: transaction.id,
+        adminNote: adminNote,
+      );
+      _refresh();
+      if (mounted) {
+        _showMessage('Transaction approved.');
+      }
+      return true;
+    } on ApiException catch (error) {
+      if (mounted) {
+        _showMessage(error.message);
+      }
+      return false;
+    }
+  }
+
+  Future<bool> _rejectTransactionReview(
+    AdminTransaction transaction,
+    String adminNote,
+  ) async {
+    final token = widget.session.token;
+    if (token == null) {
+      return false;
+    }
+
+    try {
+      await _transactionService.rejectReview(
+        token: token,
+        id: transaction.id,
+        adminNote: adminNote,
+      );
+      _refresh();
+      if (mounted) {
+        _showMessage('Transaction rejected.');
+      }
+      return true;
+    } on ApiException catch (error) {
+      if (mounted) {
+        _showMessage(error.message);
+      }
+      return false;
+    }
+  }
+
+  Future<Uint8List> _downloadTransactionDocument(
+    AdminTransaction transaction,
+    AdminTransactionDocument document,
+  ) async {
+    final token = widget.session.token;
+    if (token == null) {
+      throw ApiException('Sesija je istekla. Prijavite se ponovo.', 401);
+    }
+
+    final bytes = await _transactionService.downloadDocument(
+      token: token,
+      transactionId: transaction.id,
+      documentId: document.id,
+    );
+
+    return Uint8List.fromList(bytes);
+  }
+
+  Future<void> _openTransactionReviewDetails(
+    AdminTransaction transaction,
+  ) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return _TransactionReviewDetailsDialog(
+          transaction: transaction,
+          onRequestDocuments: (note) =>
+              _requestTransactionDocuments(transaction, note),
+          onApprove: (note) => _approveTransactionReview(transaction, note),
+          onReject: (note) => _rejectTransactionReview(transaction, note),
+          onDownloadDocument: (document) =>
+              _downloadTransactionDocument(transaction, document),
+        );
+      },
+    );
+  }
+
   Future<void> _approveCardRequest(AdminCardRequest request) async {
     final token = widget.session.token;
-    if (token == null || (request.statusValue != 1 && request.statusValue != 4)) {
+    if (token == null ||
+        (request.statusValue != 1 && request.statusValue != 4)) {
       return;
     }
 
@@ -408,7 +538,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Future<void> _rejectCardRequest(AdminCardRequest request) async {
     final token = widget.session.token;
-    if (token == null || (request.statusValue != 1 && request.statusValue != 4)) {
+    if (token == null ||
+        (request.statusValue != 1 && request.statusValue != 4)) {
       return;
     }
 
@@ -521,7 +652,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           title: title,
           primaryLabel: primaryLabel,
           primaryColor: primaryColor,
-          onPrimary: () => Navigator.of(context).pop(noteController.text.trim()),
+          onPrimary: () =>
+              Navigator.of(context).pop(noteController.text.trim()),
           width: 520,
           children: [
             Text(
@@ -541,9 +673,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _logout() async {
@@ -567,286 +699,334 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final user = widget.session.user;
 
     return Scaffold(
-      body: Row(
-        children: [
-          _AdminSidebar(
-            userName: '${user?.firstName ?? 'Admin'} ${user?.lastName ?? ''}'.trim(),
-            selectedSection: _selectedSection,
-            onSectionSelected: _selectSection,
-            themeController: widget.themeController,
-            onLogout: _logout,
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _PageTitle(
-                    icon: switch (_selectedSection) {
-                      _AdminSection.transactions => Icons.receipt_long,
-                      _AdminSection.customers => Icons.people_outline,
-                      _AdminSection.cards => Icons.credit_card,
-                    },
-                    title: switch (_selectedSection) {
-                      _AdminSection.transactions => 'Transactions',
-                      _AdminSection.customers => 'Customers',
-                      _AdminSection.cards => 'Card Requests',
-                    },
-                    subtitle: switch (_selectedSection) {
-                      _AdminSection.transactions =>
-                        'Search, filter and review customer money movement.',
-                      _AdminSection.customers =>
-                        'Manage customer records, status and contact information.',
-                      _AdminSection.cards =>
-                        'Review account and card requests from mobile customers.',
-                    },
-                  ),
-                  const SizedBox(height: 22),
-                  if (_selectedSection == _AdminSection.transactions)
-                    _FiltersBar(
-                      searchController: _searchController,
-                      status: _status,
-                      dateRange: _dateRange,
-                      onSearchChanged: _searchChanged,
-                      onStatusChanged: (value) {
-                        _status = value;
-                        _refreshFromFirstPage();
-                      },
-                      onPickDateRange: _pickDateRange,
-                      onClearDateRange: _clearDateRange,
-                      onRefresh: _refresh,
-                    )
-                  else if (_selectedSection == _AdminSection.customers)
-                    _CustomerFiltersBar(
-                      searchController: _customerSearchController,
-                      status: _customerStatus,
-                      onSearchChanged: _customerSearchChanged,
-                      onStatusChanged: (value) {
-                        _customerStatus = value;
-                        _refreshCustomersFromFirstPage();
-                      },
-                      onRefresh: _refreshCustomers,
-                    )
-                  else
-                    _CardRequestFiltersBar(
-                      searchController: _cardRequestSearchController,
-                      status: _cardRequestStatus,
-                      onSearchChanged: _cardRequestSearchChanged,
-                      onStatusChanged: (value) {
-                        _cardRequestStatus = value;
-                        _refreshCardRequestsFromFirstPage();
-                      },
-                      onRefresh: _refreshCardRequests,
-                    ),
-                  const SizedBox(height: 18),
-                  Expanded(
-                    child: _selectedSection == _AdminSection.transactions
-                        ? FutureBuilder<_TransactionsViewData>(
-                            future: _transactionsFuture,
-                            builder: (context, snapshot) {
-                              if (snapshot.connectionState != ConnectionState.done) {
-                                return const Center(child: CircularProgressIndicator());
-                              }
-
-                              if (snapshot.hasError) {
-                                return _AdminErrorState(
-                                  message: snapshot.error.toString(),
-                                  onRetry: _refresh,
-                                );
-                              }
-
-                              final data = snapshot.requireData;
-                              return Column(
-                                children: [
-                                  _SummaryCards(summary: data.summary),
-                                  const SizedBox(height: 16),
-                                  Expanded(
-                                    child: _TransactionsTable(
-                                      page: data.page,
-                                      currentPage: _page,
-                                      pageSize: _pageSize,
-                                      scrollController: _tableScrollController,
-                                      onPageSelected: (pageNumber) {
-                                        _page = pageNumber;
-                                        _scrollTableTop();
-                                        _refresh();
-                                      },
-                                      onPageSizeChanged: (value) {
-                                        _pageSize = value;
-                                        _refreshFromFirstPage();
-                                      },
-                                      onPrevious: data.page.page <= 1
-                                          ? null
-                                          : () {
-                                              _page--;
-                                              _scrollTableTop();
-                                              _refresh();
-                                            },
-                                      onNext: data.page.page >= data.page.totalPages
-                                          ? null
-                                          : () {
-                                              _page++;
-                                              _scrollTableTop();
-                                              _refresh();
-                                            },
-                                    ),
-                                  ),
-                                ],
-                              );
-                            },
-                          )
-                        : _selectedSection == _AdminSection.customers
-                        ? FutureBuilder<_CustomersViewData>(
-                            future: _customersFuture,
-                            builder: (context, snapshot) {
-                              if (snapshot.connectionState != ConnectionState.done) {
-                                return const Center(child: CircularProgressIndicator());
-                              }
-
-                              if (snapshot.hasError) {
-                                return _AdminErrorState(
-                                  message: snapshot.error.toString(),
-                                  onRetry: _refreshCustomers,
-                                );
-                              }
-
-                              final data = snapshot.requireData;
-                              return Column(
-                                children: [
-                                  _CustomerSummaryCards(summary: data.summary),
-                                  const SizedBox(height: 16),
-                                  Expanded(
-                                    child: _CustomersTable(
-                                      page: data.page,
-                                      currentPage: _customerPage,
-                                      pageSize: _customerPageSize,
-                                      scrollController: _customerTableScrollController,
-                                      onEdit: _editCustomer,
-                                      onDelete: _deleteCustomer,
-                                      onStatusChanged: _changeCustomerStatus,
-                                      onPageSelected: (pageNumber) {
-                                        _customerPage = pageNumber;
-                                        _scrollCustomerTableTop();
-                                        _refreshCustomers();
-                                      },
-                                      onPageSizeChanged: (value) {
-                                        _customerPageSize = value;
-                                        _refreshCustomersFromFirstPage();
-                                      },
-                                      onPrevious: data.page.page <= 1
-                                          ? null
-                                          : () {
-                                              _customerPage--;
-                                              _scrollCustomerTableTop();
-                                              _refreshCustomers();
-                                            },
-                                      onNext: data.page.page >= data.page.totalPages
-                                          ? null
-                                          : () {
-                                              _customerPage++;
-                                              _scrollCustomerTableTop();
-                                              _refreshCustomers();
-                                            },
-                                    ),
-                                  ),
-                                ],
-                              );
-                            },
-                          )
-                        : FutureBuilder<_CardRequestsViewData>(
-                            future: _cardRequestsFuture,
-                            builder: (context, snapshot) {
-                              if (snapshot.connectionState != ConnectionState.done) {
-                                return const Center(child: CircularProgressIndicator());
-                              }
-
-                              if (snapshot.hasError) {
-                                return _AdminErrorState(
-                                  message: snapshot.error.toString(),
-                                  onRetry: _refreshCardRequests,
-                                );
-                              }
-
-                              final data = snapshot.requireData;
-                              return Column(
-                                children: [
-                                  _CardRequestSummaryCards(summary: data.summary),
-                                  const SizedBox(height: 16),
-                                  Expanded(
-                                    child: _CardRequestsTable(
-                                      page: data.page,
-                                      currentPage: _cardRequestPage,
-                                      pageSize: _cardRequestPageSize,
-                                      scrollController: _cardRequestTableScrollController,
-                                      onApprove: _approveCardRequest,
-                                      onReject: _rejectCardRequest,
-                                      onDetails: _openCardRequestDetails,
-                                      onPageSelected: (pageNumber) {
-                                        _cardRequestPage = pageNumber;
-                                        _scrollCardRequestTableTop();
-                                        _refreshCardRequests();
-                                      },
-                                      onPageSizeChanged: (value) {
-                                        _cardRequestPageSize = value;
-                                        _refreshCardRequestsFromFirstPage();
-                                      },
-                                      onPrevious: data.page.page <= 1
-                                          ? null
-                                          : () {
-                                              _cardRequestPage--;
-                                              _scrollCardRequestTableTop();
-                                              _refreshCardRequests();
-                                            },
-                                      onNext: data.page.page >= data.page.totalPages
-                                          ? null
-                                          : () {
-                                              _cardRequestPage++;
-                                              _scrollCardRequestTableTop();
-                                              _refreshCardRequests();
-                                            },
-                                    ),
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-                  ),
-                ],
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final compactNavigation = constraints.maxWidth < 1100;
+          final horizontalPadding = constraints.maxWidth < 900 ? 16.0 : 28.0;
+          return Row(
+            children: [
+              _AdminSidebar(
+                compact: compactNavigation,
+                userName:
+                    '${user?.firstName ?? 'Admin'} ${user?.lastName ?? ''}'
+                        .trim(),
+                selectedSection: _selectedSection,
+                onSectionSelected: _selectSection,
+                themeController: widget.themeController,
+                onLogout: _logout,
               ),
-            ),
-          ),
-        ],
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    horizontalPadding,
+                    24,
+                    horizontalPadding,
+                    24,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _PageTitle(
+                        icon: switch (_selectedSection) {
+                          _AdminSection.transactions => Icons.receipt_long,
+                          _AdminSection.transactionReviews =>
+                            Icons.gpp_maybe_outlined,
+                          _AdminSection.customers => Icons.people_outline,
+                          _AdminSection.cards => Icons.credit_card,
+                        },
+                        title: switch (_selectedSection) {
+                          _AdminSection.transactions => 'Transactions',
+                          _AdminSection.transactionReviews =>
+                            'Transaction Review',
+                          _AdminSection.customers => 'Customers',
+                          _AdminSection.cards => 'Card Requests',
+                        },
+                        subtitle: switch (_selectedSection) {
+                          _AdminSection.transactions =>
+                            'Search, filter and review customer money movement.',
+                          _AdminSection.transactionReviews =>
+                            'Review high-risk transfers above the approval threshold.',
+                          _AdminSection.customers =>
+                            'Manage customer records, status and contact information.',
+                          _AdminSection.cards =>
+                            'Review account and card requests from mobile customers.',
+                        },
+                      ),
+                      const SizedBox(height: 22),
+                      if (_selectedSection == _AdminSection.transactions ||
+                          _selectedSection == _AdminSection.transactionReviews)
+                        _FiltersBar(
+                          searchController: _searchController,
+                          status: _status,
+                          dateRange: _dateRange,
+                          onSearchChanged: _searchChanged,
+                          onStatusChanged: (value) {
+                            _status = value;
+                            _refreshFromFirstPage();
+                          },
+                          onDateRangeChanged: (range) {
+                            setState(() => _dateRange = range);
+                            _refreshFromFirstPage();
+                          },
+                          onRefresh: _refresh,
+                        )
+                      else if (_selectedSection == _AdminSection.customers)
+                        _CustomerFiltersBar(
+                          searchController: _customerSearchController,
+                          status: _customerStatus,
+                          onSearchChanged: _customerSearchChanged,
+                          onStatusChanged: (value) {
+                            _customerStatus = value;
+                            _refreshCustomersFromFirstPage();
+                          },
+                          onRefresh: _refreshCustomers,
+                        )
+                      else
+                        _CardRequestFiltersBar(
+                          searchController: _cardRequestSearchController,
+                          status: _cardRequestStatus,
+                          onSearchChanged: _cardRequestSearchChanged,
+                          onStatusChanged: (value) {
+                            _cardRequestStatus = value;
+                            _refreshCardRequestsFromFirstPage();
+                          },
+                          onRefresh: _refreshCardRequests,
+                        ),
+                      const SizedBox(height: 18),
+                      Expanded(
+                        child:
+                            _selectedSection == _AdminSection.transactions ||
+                                _selectedSection ==
+                                    _AdminSection.transactionReviews
+                            ? FutureBuilder<_TransactionsViewData>(
+                                future:
+                                    _selectedSection ==
+                                        _AdminSection.transactions
+                                    ? _transactionsFuture
+                                    : _transactionReviewsFuture,
+                                builder: (context, snapshot) {
+                                  if (snapshot.connectionState !=
+                                      ConnectionState.done) {
+                                    return const Center(
+                                      child: CircularProgressIndicator(),
+                                    );
+                                  }
+
+                                  if (snapshot.hasError) {
+                                    return _AdminErrorState(
+                                      message: snapshot.error.toString(),
+                                      onRetry: _refresh,
+                                    );
+                                  }
+
+                                  final data = snapshot.requireData;
+                                  return Column(
+                                    children: [
+                                      _SummaryCards(summary: data.summary),
+                                      const SizedBox(height: 16),
+                                      Expanded(
+                                        child: _TransactionsTable(
+                                          page: data.page,
+                                          showActions:
+                                              _selectedSection ==
+                                              _AdminSection.transactionReviews,
+                                          currentPage: _page,
+                                          pageSize: _pageSize,
+                                          scrollController:
+                                              _tableScrollController,
+                                          onView: _openTransactionReviewDetails,
+                                          onPageSelected: (pageNumber) {
+                                            _page = pageNumber;
+                                            _scrollTableTop();
+                                            _refresh();
+                                          },
+                                          onPageSizeChanged: (value) {
+                                            _pageSize = value;
+                                            _refreshFromFirstPage();
+                                          },
+                                          onPrevious: data.page.page <= 1
+                                              ? null
+                                              : () {
+                                                  _page--;
+                                                  _scrollTableTop();
+                                                  _refresh();
+                                                },
+                                          onNext:
+                                              data.page.page >=
+                                                  data.page.totalPages
+                                              ? null
+                                              : () {
+                                                  _page++;
+                                                  _scrollTableTop();
+                                                  _refresh();
+                                                },
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              )
+                            : _selectedSection == _AdminSection.customers
+                            ? FutureBuilder<_CustomersViewData>(
+                                future: _customersFuture,
+                                builder: (context, snapshot) {
+                                  if (snapshot.connectionState !=
+                                      ConnectionState.done) {
+                                    return const Center(
+                                      child: CircularProgressIndicator(),
+                                    );
+                                  }
+
+                                  if (snapshot.hasError) {
+                                    return _AdminErrorState(
+                                      message: snapshot.error.toString(),
+                                      onRetry: _refreshCustomers,
+                                    );
+                                  }
+
+                                  final data = snapshot.requireData;
+                                  return Column(
+                                    children: [
+                                      _CustomerSummaryCards(
+                                        summary: data.summary,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Expanded(
+                                        child: _CustomersTable(
+                                          page: data.page,
+                                          currentPage: _customerPage,
+                                          pageSize: _customerPageSize,
+                                          scrollController:
+                                              _customerTableScrollController,
+                                          onEdit: _editCustomer,
+                                          onDelete: _deleteCustomer,
+                                          onStatusChanged:
+                                              _changeCustomerStatus,
+                                          onPageSelected: (pageNumber) {
+                                            _customerPage = pageNumber;
+                                            _scrollCustomerTableTop();
+                                            _refreshCustomers();
+                                          },
+                                          onPageSizeChanged: (value) {
+                                            _customerPageSize = value;
+                                            _refreshCustomersFromFirstPage();
+                                          },
+                                          onPrevious: data.page.page <= 1
+                                              ? null
+                                              : () {
+                                                  _customerPage--;
+                                                  _scrollCustomerTableTop();
+                                                  _refreshCustomers();
+                                                },
+                                          onNext:
+                                              data.page.page >=
+                                                  data.page.totalPages
+                                              ? null
+                                              : () {
+                                                  _customerPage++;
+                                                  _scrollCustomerTableTop();
+                                                  _refreshCustomers();
+                                                },
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              )
+                            : FutureBuilder<_CardRequestsViewData>(
+                                future: _cardRequestsFuture,
+                                builder: (context, snapshot) {
+                                  if (snapshot.connectionState !=
+                                      ConnectionState.done) {
+                                    return const Center(
+                                      child: CircularProgressIndicator(),
+                                    );
+                                  }
+
+                                  if (snapshot.hasError) {
+                                    return _AdminErrorState(
+                                      message: snapshot.error.toString(),
+                                      onRetry: _refreshCardRequests,
+                                    );
+                                  }
+
+                                  final data = snapshot.requireData;
+                                  return Column(
+                                    children: [
+                                      _CardRequestSummaryCards(
+                                        summary: data.summary,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Expanded(
+                                        child: _CardRequestsTable(
+                                          page: data.page,
+                                          currentPage: _cardRequestPage,
+                                          pageSize: _cardRequestPageSize,
+                                          scrollController:
+                                              _cardRequestTableScrollController,
+                                          onApprove: _approveCardRequest,
+                                          onReject: _rejectCardRequest,
+                                          onDetails: _openCardRequestDetails,
+                                          onPageSelected: (pageNumber) {
+                                            _cardRequestPage = pageNumber;
+                                            _scrollCardRequestTableTop();
+                                            _refreshCardRequests();
+                                          },
+                                          onPageSizeChanged: (value) {
+                                            _cardRequestPageSize = value;
+                                            _refreshCardRequestsFromFirstPage();
+                                          },
+                                          onPrevious: data.page.page <= 1
+                                              ? null
+                                              : () {
+                                                  _cardRequestPage--;
+                                                  _scrollCardRequestTableTop();
+                                                  _refreshCardRequests();
+                                                },
+                                          onNext:
+                                              data.page.page >=
+                                                  data.page.totalPages
+                                              ? null
+                                              : () {
+                                                  _cardRequestPage++;
+                                                  _scrollCardRequestTableTop();
+                                                  _refreshCardRequests();
+                                                },
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 }
 
 class _TransactionsViewData {
-  const _TransactionsViewData({
-    required this.page,
-    required this.summary,
-  });
+  const _TransactionsViewData({required this.page, required this.summary});
 
   final AdminTransactionPage page;
   final AdminTransactionSummary summary;
 }
 
 class _CustomersViewData {
-  const _CustomersViewData({
-    required this.page,
-    required this.summary,
-  });
+  const _CustomersViewData({required this.page, required this.summary});
 
   final AdminCustomerPage page;
   final AdminCustomerSummary summary;
 }
 
 class _CardRequestsViewData {
-  const _CardRequestsViewData({
-    required this.page,
-    required this.summary,
-  });
+  const _CardRequestsViewData({required this.page, required this.summary});
 
   final AdminCardRequestPage page;
   final AdminCardRequestSummary summary;
@@ -918,7 +1098,9 @@ class _SummaryCard extends StatelessWidget {
         border: Border.all(color: _adminBorder(context)),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: isDark ? 0.18 : 0.04),
+            color: const Color(
+              0xFF0F172A,
+            ).withValues(alpha: isDark ? 0.18 : 0.04),
             blurRadius: 18,
             offset: const Offset(0, 8),
           ),
@@ -1056,6 +1238,7 @@ class _AdminSidebar extends StatelessWidget {
     required this.onSectionSelected,
     required this.themeController,
     required this.onLogout,
+    required this.compact,
   });
 
   final String userName;
@@ -1063,13 +1246,21 @@ class _AdminSidebar extends StatelessWidget {
   final ValueChanged<_AdminSection> onSectionSelected;
   final ThemeController themeController;
   final VoidCallback onLogout;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 260,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      width: compact ? 84 : 260,
       color: const Color(0xFF111827),
-      padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
+      padding: EdgeInsets.fromLTRB(
+        compact ? 12 : 20,
+        22,
+        compact ? 12 : 20,
+        18,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1084,15 +1275,17 @@ class _AdminSidebar extends StatelessWidget {
                 ),
                 child: const Icon(Icons.account_balance, color: Colors.white),
               ),
-              const SizedBox(width: 12),
-              const Text(
-                'BankPick',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 21,
-                  fontWeight: FontWeight.w800,
+              if (!compact) ...[
+                const SizedBox(width: 12),
+                const Text(
+                  'BankPick',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 21,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
           const SizedBox(height: 32),
@@ -1101,31 +1294,61 @@ class _AdminSidebar extends StatelessWidget {
             title: 'Transactions',
             isActive: selectedSection == _AdminSection.transactions,
             onTap: () => onSectionSelected(_AdminSection.transactions),
+            compact: compact,
+          ),
+          _SidebarItem(
+            icon: Icons.gpp_maybe_outlined,
+            title: 'Transaction Review',
+            isActive: selectedSection == _AdminSection.transactionReviews,
+            onTap: () => onSectionSelected(_AdminSection.transactionReviews),
+            compact: compact,
           ),
           _SidebarItem(
             icon: Icons.people_outline,
             title: 'Customers',
             isActive: selectedSection == _AdminSection.customers,
             onTap: () => onSectionSelected(_AdminSection.customers),
+            compact: compact,
           ),
           _SidebarItem(
             icon: Icons.credit_card,
             title: 'Cards',
             isActive: selectedSection == _AdminSection.cards,
             onTap: () => onSectionSelected(_AdminSection.cards),
+            compact: compact,
           ),
-          const _SidebarItem(
+          _SidebarItem(
             icon: Icons.bar_chart,
             title: 'Reports',
+            compact: compact,
           ),
           const Spacer(),
           AnimatedBuilder(
             animation: themeController,
             builder: (context, _) {
+              if (compact) {
+                return IconButton(
+                  onPressed: () => themeController.toggleDarkMode(
+                    !themeController.isDarkMode,
+                  ),
+                  tooltip: themeController.isDarkMode
+                      ? 'Use light mode'
+                      : 'Use dark mode',
+                  icon: Icon(
+                    themeController.isDarkMode
+                        ? Icons.dark_mode_outlined
+                        : Icons.light_mode_outlined,
+                    color: Colors.white70,
+                  ),
+                );
+              }
               return Container(
                 width: double.infinity,
                 margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFF1F2937),
                   borderRadius: BorderRadius.circular(8),
@@ -1158,40 +1381,46 @@ class _AdminSidebar extends StatelessWidget {
               );
             },
           ),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1F2937),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                const CircleAvatar(
-                  backgroundColor: Color(0xFF374151),
-                  child: Icon(Icons.person, color: Colors.white70),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    userName.isEmpty ? 'Admin' : userName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white),
+          if (!compact)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1F2937),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const CircleAvatar(
+                    backgroundColor: Color(0xFF374151),
+                    child: Icon(Icons.person, color: Colors.white70),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      userName.isEmpty ? 'Admin' : userName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
           const SizedBox(height: 12),
-          TextButton.icon(
-            onPressed: onLogout,
-            icon: const Icon(Icons.logout),
-            label: const Text('Sign out'),
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.white70,
+          if (compact)
+            IconButton(
+              onPressed: onLogout,
+              tooltip: 'Sign out $userName',
+              icon: const Icon(Icons.logout, color: Colors.white70),
+            )
+          else
+            TextButton.icon(
+              onPressed: onLogout,
+              icon: const Icon(Icons.logout),
+              label: const Text('Sign out'),
+              style: TextButton.styleFrom(foregroundColor: Colors.white70),
             ),
-          ),
         ],
       ),
     );
@@ -1204,34 +1433,49 @@ class _SidebarItem extends StatelessWidget {
     required this.title,
     this.isActive = false,
     this.onTap,
+    this.compact = false,
   });
 
   final IconData icon;
   final String title;
   final bool isActive;
   final VoidCallback? onTap;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final item = AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         color: isActive ? AppTheme.primary : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
       ),
       child: ListTile(
+        contentPadding: compact ? EdgeInsets.zero : null,
+        horizontalTitleGap: compact ? 0 : 16,
         dense: true,
         onTap: onTap,
-        leading: Icon(icon, color: Colors.white),
-        title: Text(
-          title,
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: isActive ? FontWeight.w800 : FontWeight.w500,
-          ),
-        ),
+        leading: compact
+            ? null
+            : Icon(icon, color: onTap == null ? Colors.white38 : Colors.white),
+        title: compact
+            ? Center(
+                child: Icon(
+                  icon,
+                  color: onTap == null ? Colors.white38 : Colors.white,
+                ),
+              )
+            : Text(
+                title,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: isActive ? FontWeight.w800 : FontWeight.w500,
+                ),
+              ),
       ),
     );
+    return compact ? Tooltip(message: title, child: item) : item;
   }
 }
 
@@ -1272,10 +1516,7 @@ class _PageTitle extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 3),
-            Text(
-              subtitle,
-              style: TextStyle(color: _adminMuted(context)),
-            ),
+            Text(subtitle, style: TextStyle(color: _adminMuted(context))),
           ],
         ),
       ],
@@ -1290,8 +1531,7 @@ class _FiltersBar extends StatelessWidget {
     required this.dateRange,
     required this.onSearchChanged,
     required this.onStatusChanged,
-    required this.onPickDateRange,
-    required this.onClearDateRange,
+    required this.onDateRangeChanged,
     required this.onRefresh,
   });
 
@@ -1300,8 +1540,7 @@ class _FiltersBar extends StatelessWidget {
   final DateTimeRange? dateRange;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<int?> onStatusChanged;
-  final VoidCallback onPickDateRange;
-  final VoidCallback onClearDateRange;
+  final ValueChanged<DateTimeRange?> onDateRangeChanged;
   final VoidCallback onRefresh;
 
   @override
@@ -1317,41 +1556,41 @@ class _FiltersBar extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: _adminBorder(context)),
       ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 390,
-            child: TextField(
-              controller: searchController,
-              onChanged: onSearchChanged,
-              decoration: const InputDecoration(
-                labelText: 'Search reference, customer or account',
-                prefixIcon: Icon(Icons.search),
+      child: LayoutBuilder(
+        builder: (context, constraints) => Wrap(
+          spacing: 14,
+          runSpacing: 12,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            SizedBox(
+              width: math.min(390, constraints.maxWidth),
+              child: TextField(
+                controller: searchController,
+                onChanged: onSearchChanged,
+                decoration: const InputDecoration(
+                  labelText: 'Search reference, customer or account',
+                  prefixIcon: Icon(Icons.search),
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 14),
-          _StatusFilterButton(
-            status: status,
-            onChanged: onStatusChanged,
-          ),
-          const SizedBox(width: 14),
-          _DateRangeButton(
-            dateRange: dateRange,
-            onPressed: onPickDateRange,
-            onClear: dateRange == null ? null : onClearDateRange,
-          ),
-          const Spacer(),
-          IconButton.filledTonal(
-            onPressed: onRefresh,
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh',
-            style: IconButton.styleFrom(
-              backgroundColor: refreshFill,
-              foregroundColor: AppTheme.primary,
+            _StatusFilterButton(status: status, onChanged: onStatusChanged),
+            AppDateRangePicker(
+              dateFrom: dateRange?.start,
+              dateTo: dateRange?.end,
+              onApply: onDateRangeChanged,
+              onClear: () => onDateRangeChanged(null),
             ),
-          ),
-        ],
+            IconButton.filledTonal(
+              onPressed: onRefresh,
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Refresh',
+              style: IconButton.styleFrom(
+                backgroundColor: refreshFill,
+                foregroundColor: AppTheme.primary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1435,22 +1674,10 @@ class _CustomerStatusFilterButton extends StatelessWidget {
       position: PopupMenuPosition.under,
       onSelected: (value) => onChanged(value == 0 ? null : value),
       itemBuilder: (context) => const [
-        PopupMenuItem<int>(
-          value: 0,
-          child: Text('All statuses'),
-        ),
-        PopupMenuItem<int>(
-          value: 1,
-          child: Text('Active'),
-        ),
-        PopupMenuItem<int>(
-          value: 2,
-          child: Text('Inactive'),
-        ),
-        PopupMenuItem<int>(
-          value: 3,
-          child: Text('Blocked'),
-        ),
+        PopupMenuItem<int>(value: 0, child: Text('All statuses')),
+        PopupMenuItem<int>(value: 1, child: Text('Active')),
+        PopupMenuItem<int>(value: 2, child: Text('Inactive')),
+        PopupMenuItem<int>(value: 3, child: Text('Blocked')),
       ],
       child: _FilterChipButton(
         icon: Icons.tune,
@@ -1554,60 +1781,8 @@ class _CardRequestStatusFilterButton extends StatelessWidget {
   }
 }
 
-class _DateRangeButton extends StatelessWidget {
-  const _DateRangeButton({
-    required this.dateRange,
-    required this.onPressed,
-    required this.onClear,
-  });
-
-  final DateTimeRange? dateRange;
-  final VoidCallback onPressed;
-  final VoidCallback? onClear;
-
-  @override
-  Widget build(BuildContext context) {
-    final label = dateRange == null
-        ? 'Date range'
-        : '${_formatDate(dateRange!.start)} - ${_formatDate(dateRange!.end)}';
-
-    return Container(
-      height: 54,
-      constraints: const BoxConstraints(minWidth: 210),
-      decoration: BoxDecoration(
-        color: _adminSurfaceRaised(context),
-        border: Border.all(color: _adminBorder(context)),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextButton.icon(
-            onPressed: onPressed,
-            icon: const Icon(Icons.calendar_month_outlined, size: 20),
-            label: Text(label),
-            style: TextButton.styleFrom(
-              foregroundColor: _adminText(context),
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-            ),
-          ),
-          if (onClear != null)
-            IconButton(
-              onPressed: onClear,
-              icon: const Icon(Icons.close, size: 18),
-              tooltip: 'Clear date range',
-            ),
-        ],
-      ),
-    );
-  }
-}
-
 class _StatusFilterButton extends StatelessWidget {
-  const _StatusFilterButton({
-    required this.status,
-    required this.onChanged,
-  });
+  const _StatusFilterButton({required this.status, required this.onChanged});
 
   final int? status;
   final ValueChanged<int?> onChanged;
@@ -1619,26 +1794,12 @@ class _StatusFilterButton extends StatelessWidget {
       position: PopupMenuPosition.under,
       onSelected: (value) => onChanged(value == 0 ? null : value),
       itemBuilder: (context) => const [
-        PopupMenuItem<int>(
-          value: 0,
-          child: Text('All statuses'),
-        ),
-        PopupMenuItem<int>(
-          value: 1,
-          child: Text('Pending'),
-        ),
-        PopupMenuItem<int>(
-          value: 2,
-          child: Text('Completed'),
-        ),
-        PopupMenuItem<int>(
-          value: 3,
-          child: Text('Failed'),
-        ),
-        PopupMenuItem<int>(
-          value: 4,
-          child: Text('Cancelled'),
-        ),
+        PopupMenuItem<int>(value: 0, child: Text('All statuses')),
+        PopupMenuItem<int>(value: 1, child: Text('Pending')),
+        PopupMenuItem<int>(value: 2, child: Text('Completed')),
+        PopupMenuItem<int>(value: 3, child: Text('Failed')),
+        PopupMenuItem<int>(value: 4, child: Text('Cancelled')),
+        PopupMenuItem<int>(value: 5, child: Text('Documents requested')),
       ],
       child: _FilterChipButton(
         icon: Icons.tune,
@@ -1647,274 +1808,6 @@ class _StatusFilterButton extends StatelessWidget {
       ),
     );
   }
-}
-
-class _DateRangeDialog extends StatefulWidget {
-  const _DateRangeDialog({required this.initialRange});
-
-  final DateTimeRange? initialRange;
-
-  @override
-  State<_DateRangeDialog> createState() => _DateRangeDialogState();
-}
-
-class _DateRangeDialogState extends State<_DateRangeDialog> {
-  late final TextEditingController _fromController;
-  late final TextEditingController _toController;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _fromController = TextEditingController(
-      text: _formatInputDate(widget.initialRange?.start),
-    );
-    _toController = TextEditingController(
-      text: _formatInputDate(widget.initialRange?.end),
-    );
-  }
-
-  @override
-  void dispose() {
-    _fromController.dispose();
-    _toController.dispose();
-    super.dispose();
-  }
-
-  void _setQuickRange(DateTime start, DateTime end) {
-    setState(() {
-      _error = null;
-      _fromController.text = _formatInputDate(start);
-      _toController.text = _formatInputDate(end);
-    });
-  }
-
-  void _apply() {
-    final from = _parseDateInput(_fromController.text);
-    final to = _parseDateInput(_toController.text);
-
-    if (from == null || to == null) {
-      setState(() {
-        _error = 'Use format YYYY-MM-DD or DD.MM.YYYY.';
-      });
-      return;
-    }
-
-    if (from.isAfter(to)) {
-      setState(() {
-        _error = 'From date must be before To date.';
-      });
-      return;
-    }
-
-    Navigator.of(context).pop(DateTimeRange(start: from, end: to));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final textColor = _adminText(context);
-
-    return AlertDialog(
-      backgroundColor: _adminSurface(context),
-      surfaceTintColor: _adminSurface(context),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      contentPadding: EdgeInsets.zero,
-      content: SizedBox(
-        width: 460,
-        child: Padding(
-          padding: const EdgeInsets.all(22),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Select Period',
-                style: TextStyle(
-                  color: textColor,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Type a date or use a quick period.',
-                style: TextStyle(color: _adminMuted(context)),
-              ),
-              const SizedBox(height: 20),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _QuickRangeButton(
-                    label: 'Today',
-                    onPressed: () => _setQuickRange(today, today),
-                  ),
-                  _QuickRangeButton(
-                    label: 'Last 7 days',
-                    onPressed: () => _setQuickRange(
-                      today.subtract(const Duration(days: 6)),
-                      today,
-                    ),
-                  ),
-                  _QuickRangeButton(
-                    label: 'Last 30 days',
-                    onPressed: () => _setQuickRange(
-                      today.subtract(const Duration(days: 29)),
-                      today,
-                    ),
-                  ),
-                  _QuickRangeButton(
-                    label: 'This month',
-                    onPressed: () => _setQuickRange(
-                      DateTime(today.year, today.month),
-                      today,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 18),
-              Row(
-                children: [
-                  Expanded(
-                    child: _DateTextField(
-                      label: 'From',
-                      controller: _fromController,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: _DateTextField(
-                      label: 'To',
-                      controller: _toController,
-                    ),
-                  ),
-                ],
-              ),
-              if (_error != null) ...[
-                const SizedBox(height: 10),
-                Text(
-                  _error!,
-                  style: const TextStyle(
-                    color: Color(0xFFDC2626),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 22),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Cancel'),
-                  ),
-                  const SizedBox(width: 10),
-                  ElevatedButton(
-                    onPressed: _apply,
-                    child: const Text('Apply'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _QuickRangeButton extends StatelessWidget {
-  const _QuickRangeButton({
-    required this.label,
-    required this.onPressed,
-  });
-
-  final String label;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return OutlinedButton(
-      onPressed: onPressed,
-      style: OutlinedButton.styleFrom(
-        foregroundColor: _adminText(context),
-        side: BorderSide(color: _adminBorder(context)),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-      child: Text(label),
-    );
-  }
-}
-
-class _DateTextField extends StatelessWidget {
-  const _DateTextField({
-    required this.label,
-    required this.controller,
-  });
-
-  final String label;
-  final TextEditingController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: 'YYYY-MM-DD',
-        prefixIcon: const Icon(Icons.calendar_month_outlined),
-      ),
-      onSubmitted: (_) => FocusScope.of(context).nextFocus(),
-    );
-  }
-}
-
-DateTime? _parseDateInput(String value) {
-  final text = value.trim();
-  if (text.isEmpty) {
-    return null;
-  }
-
-  final isoMatch = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(text);
-  if (isoMatch != null) {
-    return _safeDate(
-      int.parse(isoMatch.group(1)!),
-      int.parse(isoMatch.group(2)!),
-      int.parse(isoMatch.group(3)!),
-    );
-  }
-
-  final localMatch = RegExp(r'^(\d{1,2})\.(\d{1,2})\.(\d{4})\.?$').firstMatch(text);
-  if (localMatch != null) {
-    return _safeDate(
-      int.parse(localMatch.group(3)!),
-      int.parse(localMatch.group(2)!),
-      int.parse(localMatch.group(1)!),
-    );
-  }
-
-  return null;
-}
-
-DateTime? _safeDate(int year, int month, int day) {
-  final date = DateTime(year, month, day);
-  if (date.year != year || date.month != month || date.day != day) {
-    return null;
-  }
-
-  return date;
-}
-
-String _formatInputDate(DateTime? value) {
-  if (value == null) {
-    return '';
-  }
-
-  return '${value.year.toString().padLeft(4, '0')}-'
-      '${value.month.toString().padLeft(2, '0')}-'
-      '${value.day.toString().padLeft(2, '0')}';
 }
 
 class _FilterChipButton extends StatelessWidget {
@@ -1950,10 +1843,7 @@ class _FilterChipButton extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
-          if (trailing != null) ...[
-            const SizedBox(width: 8),
-            trailing!,
-          ],
+          if (trailing != null) ...[const SizedBox(width: 8), trailing!],
         ],
       ),
     );
@@ -1963,6 +1853,8 @@ class _FilterChipButton extends StatelessWidget {
 class _TransactionsTable extends StatelessWidget {
   const _TransactionsTable({
     required this.page,
+    this.showActions = false,
+    this.onView,
     required this.currentPage,
     required this.pageSize,
     required this.scrollController,
@@ -1973,6 +1865,8 @@ class _TransactionsTable extends StatelessWidget {
   });
 
   final AdminTransactionPage page;
+  final bool showActions;
+  final ValueChanged<AdminTransaction>? onView;
   final int currentPage;
   final int pageSize;
   final ScrollController scrollController;
@@ -1994,7 +1888,7 @@ class _TransactionsTable extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const _TableHeader(),
+          _TableHeader(showActions: showActions),
           Expanded(
             child: page.items.isEmpty
                 ? Center(
@@ -2013,6 +1907,8 @@ class _TransactionsTable extends StatelessWidget {
                       return _TransactionRow(
                         index: ((page.page - 1) * page.pageSize) + index + 1,
                         transaction: page.items[index],
+                        showActions: showActions,
+                        onView: onView,
                       );
                     },
                   ),
@@ -2035,7 +1931,9 @@ class _TransactionsTable extends StatelessWidget {
                   child: DropdownButtonFormField<int>(
                     initialValue: pageSize,
                     decoration: InputDecoration(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                      ),
                       border: OutlineInputBorder(
                         borderSide: BorderSide(color: borderColor),
                       ),
@@ -2173,7 +2071,9 @@ class _CustomersTable extends StatelessWidget {
                   child: DropdownButtonFormField<int>(
                     initialValue: pageSize,
                     decoration: InputDecoration(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                      ),
                       border: OutlineInputBorder(
                         borderSide: BorderSide(color: borderColor),
                       ),
@@ -2281,14 +2181,19 @@ class _CardRequestsTable extends StatelessWidget {
                     padding: EdgeInsets.zero,
                     child: Column(
                       children: [
-                        for (var index = 0; index < page.items.length; index++) ...[
+                        for (
+                          var index = 0;
+                          index < page.items.length;
+                          index++
+                        ) ...[
                           _CardRequestRow(
-                            index: ((page.page - 1) * page.pageSize) + index + 1,
-                        request: page.items[index],
-                        onApprove: onApprove,
-                        onReject: onReject,
-                        onDetails: onDetails,
-                      ),
+                            index:
+                                ((page.page - 1) * page.pageSize) + index + 1,
+                            request: page.items[index],
+                            onApprove: onApprove,
+                            onReject: onReject,
+                            onDetails: onDetails,
+                          ),
                           if (index != page.items.length - 1)
                             Divider(height: 1, color: dividerColor),
                         ],
@@ -2314,7 +2219,9 @@ class _CardRequestsTable extends StatelessWidget {
                   child: DropdownButtonFormField<int>(
                     initialValue: pageSize,
                     decoration: InputDecoration(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                      ),
                       border: OutlineInputBorder(
                         borderSide: BorderSide(color: borderColor),
                       ),
@@ -2445,10 +2352,7 @@ class _CardRequestRow extends StatelessWidget {
                   request.customerEmail,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: _adminMuted(context),
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: _adminMuted(context), fontSize: 12),
                 ),
               ],
             ),
@@ -2487,6 +2391,460 @@ class _CardRequestRow extends StatelessWidget {
   }
 }
 
+class _TransactionReviewDetailsDialog extends StatefulWidget {
+  const _TransactionReviewDetailsDialog({
+    required this.transaction,
+    required this.onRequestDocuments,
+    required this.onApprove,
+    required this.onReject,
+    required this.onDownloadDocument,
+  });
+
+  final AdminTransaction transaction;
+  final Future<bool> Function(String note) onRequestDocuments;
+  final Future<bool> Function(String note) onApprove;
+  final Future<bool> Function(String note) onReject;
+  final Future<Uint8List> Function(AdminTransactionDocument document)
+  onDownloadDocument;
+
+  @override
+  State<_TransactionReviewDetailsDialog> createState() =>
+      _TransactionReviewDetailsDialogState();
+}
+
+class _TransactionReviewDetailsDialogState
+    extends State<_TransactionReviewDetailsDialog> {
+  final _noteController = TextEditingController();
+  AdminTransactionDocument? _selectedDocument;
+  Future<Uint8List>? _documentPreviewFuture;
+  String? _activeAction;
+
+  @override
+  void dispose() {
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _openDocument(AdminTransactionDocument document) async {
+    if (_selectedDocument?.id == document.id &&
+        _documentPreviewFuture != null) {
+      return;
+    }
+    final download = widget.onDownloadDocument(document);
+    setState(() {
+      _selectedDocument = document;
+      _documentPreviewFuture = download;
+    });
+
+    try {
+      final bytes = await download;
+      await openDocumentBytes(
+        bytes: bytes,
+        fileName: document.fileName,
+        contentType: _previewTransactionContentType(document),
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Document could not be opened. Please try again.'),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _submitReviewAction(String action) async {
+    if (_activeAction != null) return;
+    final note = _noteController.text.trim();
+    if (action == 'documents' && note.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Enter a reason for requesting documents.'),
+        ),
+      );
+      return;
+    }
+
+    if (action != 'documents') {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(
+            action == 'approve'
+                ? 'Approve transaction?'
+                : 'Reject transaction?',
+          ),
+          content: Text(
+            '${_formatAdminAmount(widget.transaction.amount)} for '
+            '${widget.transaction.sourceCustomerName ?? widget.transaction.accountNumber}. '
+            'This decision cannot be easily reversed.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              style: action == 'reject'
+                  ? FilledButton.styleFrom(backgroundColor: AppTheme.error)
+                  : null,
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(action == 'approve' ? 'Approve' : 'Reject'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+    }
+
+    setState(() => _activeAction = action);
+    final succeeded = switch (action) {
+      'approve' => await widget.onApprove(note),
+      'reject' => await widget.onReject(note),
+      _ => await widget.onRequestDocuments(note),
+    };
+    if (!mounted) return;
+    if (succeeded) {
+      Navigator.of(context).pop();
+    } else {
+      setState(() => _activeAction = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final transaction = widget.transaction;
+    final canReview =
+        transaction.statusValue == 1 || transaction.statusValue == 5;
+    final isDark = _isDark(context);
+    final viewport = MediaQuery.sizeOf(context);
+    final dialogHeight = math.min(viewport.height - 32, 760.0);
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Material(
+          color: isDark ? const Color(0xFF202033) : Colors.white,
+          elevation: 28,
+          borderRadius: BorderRadius.circular(18),
+          clipBehavior: Clip.antiAlias,
+          child: Container(
+            width: math.min(920, viewport.width - 32),
+            height: dialogHeight,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: _adminBorder(context)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.gpp_maybe_outlined,
+                      color: AppTheme.primary,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'High-risk transaction review',
+                        style: TextStyle(
+                          color: _adminText(context),
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: _activeAction == null
+                          ? () => Navigator.of(context).pop()
+                          : null,
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            final panels = [
+                              _DetailsPanel(
+                                title: 'Transaction',
+                                children: [
+                                  _DetailsLine(
+                                    'Transaction ID',
+                                    transaction.id,
+                                  ),
+                                  _DetailsLine(
+                                    'Reference',
+                                    transaction.referenceNumber,
+                                  ),
+                                  _DetailsLine('Status', transaction.status),
+                                  _DetailsLine(
+                                    'Amount',
+                                    _formatAdminAmount(transaction.amount),
+                                  ),
+                                  _DetailsLine(
+                                    'Created',
+                                    _formatDate(transaction.createdAtUtc),
+                                  ),
+                                  _DetailsLine(
+                                    'Reason',
+                                    transaction.reviewReason ??
+                                        'High value transfer.',
+                                  ),
+                                ],
+                              ),
+                              _DetailsPanel(
+                                title: 'Parties',
+                                children: [
+                                  _DetailsLine(
+                                    'From',
+                                    _partyLabel(
+                                      transaction.sourceCustomerName,
+                                      transaction.sourceAccountNumber,
+                                      fallback: transaction.accountNumber,
+                                    ),
+                                  ),
+                                  _DetailsLine(
+                                    'To',
+                                    _partyLabel(
+                                      transaction.destinationCustomerName,
+                                      transaction.destinationAccountNumber,
+                                      fallback: '-',
+                                    ),
+                                  ),
+                                  _DetailsLine(
+                                    'Description',
+                                    transaction.description,
+                                  ),
+                                ],
+                              ),
+                            ];
+                            if (constraints.maxWidth < 680) {
+                              return Column(
+                                children: [
+                                  panels.first,
+                                  const SizedBox(height: 14),
+                                  panels.last,
+                                ],
+                              );
+                            }
+                            return Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(child: panels.first),
+                                const SizedBox(width: 14),
+                                Expanded(child: panels.last),
+                              ],
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 14),
+                        _DetailsPanel(
+                          title: 'Documents',
+                          children: [
+                            if (transaction.documentsRequestNote != null &&
+                                transaction.documentsRequestNote!.isNotEmpty)
+                              _DetailsLine(
+                                'Requested',
+                                transaction.documentsRequestNote!,
+                              ),
+                            if (transaction.documents.isEmpty)
+                              Text(
+                                'No uploaded proof documents yet.',
+                                style: TextStyle(color: _adminMuted(context)),
+                              )
+                            else
+                              ...transaction.documents.map(
+                                (document) => ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: const Icon(
+                                    Icons.description_outlined,
+                                  ),
+                                  title: Text(document.fileName),
+                                  subtitle: Text(
+                                    '${document.contentType} - ${_formatBytes(document.sizeBytes)}',
+                                  ),
+                                  trailing: OutlinedButton(
+                                    onPressed: () => _openDocument(document),
+                                    child: const Text('Preview'),
+                                  ),
+                                ),
+                              ),
+                            if (_selectedDocument != null) ...[
+                              const SizedBox(height: 12),
+                              _TransactionDocumentPreview(
+                                document: _selectedDocument!,
+                                future: _documentPreviewFuture!,
+                              ),
+                            ],
+                            const SizedBox(height: 14),
+                            TextField(
+                              controller: _noteController,
+                              enabled: _activeAction == null,
+                              maxLines: 3,
+                              maxLength: 500,
+                              decoration: const InputDecoration(
+                                labelText: 'Admin note / document request',
+                                prefixIcon: Icon(Icons.note_alt_outlined),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  alignment: WrapAlignment.end,
+                  children: [
+                    SizedBox(
+                      width: 210,
+                      child: ElevatedButton.icon(
+                        onPressed: canReview && _activeAction == null
+                            ? () => _submitReviewAction('documents')
+                            : null,
+                        icon: _activeAction == 'documents'
+                            ? const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.upload_file_outlined),
+                        label: const Text('Request documents'),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 120,
+                      child: ElevatedButton(
+                        onPressed: canReview && _activeAction == null
+                            ? () => _submitReviewAction('approve')
+                            : null,
+                        child: _activeAction == 'approve'
+                            ? const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text('Approve'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    SizedBox(
+                      width: 120,
+                      child: ElevatedButton(
+                        onPressed: canReview && _activeAction == null
+                            ? () => _submitReviewAction('reject')
+                            : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFDC2626),
+                          foregroundColor: Colors.white,
+                        ),
+                        child: _activeAction == 'reject'
+                            ? const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text('Reject'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TransactionDocumentPreview extends StatelessWidget {
+  const _TransactionDocumentPreview({
+    required this.document,
+    required this.future,
+  });
+
+  final AdminTransactionDocument document;
+  final Future<Uint8List> future;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Uint8List>(
+      future: future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Padding(
+            padding: EdgeInsets.all(18),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Text(
+            snapshot.error.toString(),
+            style: const TextStyle(color: AppTheme.error),
+          );
+        }
+
+        final bytes = snapshot.requireData;
+        final contentType = _previewTransactionContentType(
+          document,
+        ).toLowerCase();
+        if (contentType.startsWith('image/')) {
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Image.memory(
+              bytes,
+              height: 260,
+              width: double.infinity,
+              fit: BoxFit.contain,
+            ),
+          );
+        }
+
+        if (contentType.startsWith('text/') ||
+            document.fileName.toLowerCase().endsWith('.txt')) {
+          return Container(
+            width: double.infinity,
+            constraints: const BoxConstraints(maxHeight: 260),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: _adminSurface(context),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _adminBorder(context)),
+            ),
+            child: SingleChildScrollView(
+              child: SelectableText(
+                utf8.decode(bytes, allowMalformed: true),
+                style: TextStyle(color: _adminText(context)),
+              ),
+            ),
+          );
+        }
+
+        return Text(
+          'Document opened in browser (${_formatBytes(bytes.length)}).',
+          style: TextStyle(color: _adminMuted(context)),
+        );
+      },
+    );
+  }
+}
+
 class _CardRequestDetailsDialog extends StatefulWidget {
   const _CardRequestDetailsDialog({
     required this.request,
@@ -2501,7 +2859,7 @@ class _CardRequestDetailsDialog extends StatefulWidget {
   final Future<void> Function() onReject;
   final Future<void> Function(String note) onRequestDocuments;
   final Future<Uint8List> Function(AdminCardRequestDocument document)
-      onDownloadDocument;
+  onDownloadDocument;
 
   @override
   State<_CardRequestDetailsDialog> createState() =>
@@ -2543,15 +2901,17 @@ class _CardRequestDetailsDialogState extends State<_CardRequestDetailsDialog> {
       if (!opened && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Document loaded below. Browser opening is available on web.'),
+            content: Text(
+              'Document loaded below. Browser opening is available on web.',
+            ),
           ),
         );
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.toString())),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
       }
     }
   }
@@ -2561,10 +2921,12 @@ class _CardRequestDetailsDialogState extends State<_CardRequestDetailsDialog> {
     final request = widget.request;
     final canReview = request.statusValue == 1 || request.statusValue == 4;
     final isDark = _isDark(context);
-    final modalColor =
-        isDark ? const Color(0xFF202033) : const Color(0xFFFFFFFF);
-    final modalBorder =
-        isDark ? const Color(0xFF3B3E5A) : const Color(0xFFE2E8F0);
+    final modalColor = isDark
+        ? const Color(0xFF202033)
+        : const Color(0xFFFFFFFF);
+    final modalBorder = isDark
+        ? const Color(0xFF3B3E5A)
+        : const Color(0xFFE2E8F0);
     final dialogHeight = math.min(
       MediaQuery.sizeOf(context).height - 56,
       760.0,
@@ -2587,156 +2949,170 @@ class _CardRequestDetailsDialogState extends State<_CardRequestDetailsDialog> {
               borderRadius: BorderRadius.circular(18),
               border: Border.all(color: modalBorder),
             ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.credit_card, color: AppTheme.primary),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Card request details',
-                    style: TextStyle(
-                      color: _adminText(context),
-                      fontSize: 24,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
+                Row(
                   children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: _DetailsPanel(
-                            title: 'Customer',
-                            children: [
-                              _DetailsLine('Name', request.customerName),
-                              _DetailsLine('Email', request.customerEmail),
-                              _DetailsLine('Cardholder', request.cardholderName),
-                              _DetailsLine('Currency', request.currency),
-                            ],
-                          ),
+                    const Icon(Icons.credit_card, color: AppTheme.primary),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Card request details',
+                        style: TextStyle(
+                          color: _adminText(context),
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
                         ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: _DetailsPanel(
-                            title: 'Request',
-                            children: [
-                              _DetailsLine('Status', request.status),
-                              _DetailsLine('Document ID', request.documentNumber),
-                              _DetailsLine('Delivery', request.deliveryAddress),
-                              _DetailsLine('Created', _formatDate(request.createdAtUtc)),
-                              if (request.note.isNotEmpty)
-                                _DetailsLine('Note', request.note),
-                            ],
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                    const SizedBox(height: 14),
-                    _DetailsPanel(
-                      title: 'Document check',
-                      children: [
-                        if (request.documentsRequestNote != null &&
-                            request.documentsRequestNote!.isNotEmpty)
-                          _DetailsLine(
-                            'Admin requested',
-                            request.documentsRequestNote!,
-                          ),
-                        if (request.documents.isEmpty)
-                          Text(
-                            'No uploaded documents yet.',
-                            style: TextStyle(color: _adminMuted(context)),
-                          )
-                        else
-                          ...request.documents.map(
-                            (document) => ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              leading: const Icon(Icons.description_outlined),
-                              title: Text(document.fileName),
-                              subtitle: Text(
-                                '${document.contentType} - ${_formatBytes(document.sizeBytes)}',
-                              ),
-                              trailing: OutlinedButton(
-                                onPressed: () => _openDocument(document),
-                                child: const Text('Preview'),
-                              ),
-                            ),
-                          ),
-                        if (_selectedDocument != null) ...[
-                          const SizedBox(height: 12),
-                          _DocumentPreview(
-                            document: _selectedDocument!,
-                            future: _documentPreviewFuture!,
-                          ),
-                        ],
-                        const SizedBox(height: 14),
-                        TextField(
-                          controller: _documentNoteController,
-                          maxLines: 2,
-                          decoration: const InputDecoration(
-                            labelText: 'Message for customer',
-                            prefixIcon: Icon(Icons.note_alt_outlined),
-                          ),
-                        ),
-                      ],
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close),
                     ),
                   ],
                 ),
-              ),
-            ),
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                SizedBox(
-                  width: 210,
-                  child: ElevatedButton.icon(
-                    onPressed: canReview
-                        ? () => widget.onRequestDocuments(
-                              _documentNoteController.text.trim(),
-                            )
-                        : null,
-                    icon: const Icon(Icons.upload_file_outlined),
-                    label: const Text('Request documents'),
-                  ),
-                ),
-                const Spacer(),
-                SizedBox(
-                  width: 120,
-                  child: ElevatedButton(
-                    onPressed: canReview ? widget.onApprove : null,
-                    child: const Text('Approve'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                SizedBox(
-                  width: 120,
-                  child: ElevatedButton(
-                    onPressed: canReview ? widget.onReject : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFDC2626),
-                      foregroundColor: Colors.white,
+                const SizedBox(height: 16),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: _DetailsPanel(
+                                title: 'Customer',
+                                children: [
+                                  _DetailsLine('Name', request.customerName),
+                                  _DetailsLine('Email', request.customerEmail),
+                                  _DetailsLine(
+                                    'Cardholder',
+                                    request.cardholderName,
+                                  ),
+                                  _DetailsLine('Currency', request.currency),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: _DetailsPanel(
+                                title: 'Request',
+                                children: [
+                                  _DetailsLine('Status', request.status),
+                                  _DetailsLine(
+                                    'Document ID',
+                                    request.documentNumber,
+                                  ),
+                                  _DetailsLine(
+                                    'Delivery',
+                                    request.deliveryAddress,
+                                  ),
+                                  _DetailsLine(
+                                    'Created',
+                                    _formatDate(request.createdAtUtc),
+                                  ),
+                                  if (request.note.isNotEmpty)
+                                    _DetailsLine('Note', request.note),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        _DetailsPanel(
+                          title: 'Document check',
+                          children: [
+                            if (request.documentsRequestNote != null &&
+                                request.documentsRequestNote!.isNotEmpty)
+                              _DetailsLine(
+                                'Admin requested',
+                                request.documentsRequestNote!,
+                              ),
+                            if (request.documents.isEmpty)
+                              Text(
+                                'No uploaded documents yet.',
+                                style: TextStyle(color: _adminMuted(context)),
+                              )
+                            else
+                              ...request.documents.map(
+                                (document) => ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: const Icon(
+                                    Icons.description_outlined,
+                                  ),
+                                  title: Text(document.fileName),
+                                  subtitle: Text(
+                                    '${document.contentType} - ${_formatBytes(document.sizeBytes)}',
+                                  ),
+                                  trailing: OutlinedButton(
+                                    onPressed: () => _openDocument(document),
+                                    child: const Text('Preview'),
+                                  ),
+                                ),
+                              ),
+                            if (_selectedDocument != null) ...[
+                              const SizedBox(height: 12),
+                              _DocumentPreview(
+                                document: _selectedDocument!,
+                                future: _documentPreviewFuture!,
+                              ),
+                            ],
+                            const SizedBox(height: 14),
+                            TextField(
+                              controller: _documentNoteController,
+                              maxLines: 2,
+                              decoration: const InputDecoration(
+                                labelText: 'Message for customer',
+                                prefixIcon: Icon(Icons.note_alt_outlined),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                    child: const Text('Reject'),
                   ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    SizedBox(
+                      width: 210,
+                      child: ElevatedButton.icon(
+                        onPressed: canReview
+                            ? () => widget.onRequestDocuments(
+                                _documentNoteController.text.trim(),
+                              )
+                            : null,
+                        icon: const Icon(Icons.upload_file_outlined),
+                        label: const Text('Request documents'),
+                      ),
+                    ),
+                    const Spacer(),
+                    SizedBox(
+                      width: 120,
+                      child: ElevatedButton(
+                        onPressed: canReview ? widget.onApprove : null,
+                        child: const Text('Approve'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    SizedBox(
+                      width: 120,
+                      child: ElevatedButton(
+                        onPressed: canReview ? widget.onReject : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFDC2626),
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Reject'),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
           ),
         ),
       ),
@@ -2745,10 +3121,7 @@ class _CardRequestDetailsDialogState extends State<_CardRequestDetailsDialog> {
 }
 
 class _DetailsPanel extends StatelessWidget {
-  const _DetailsPanel({
-    required this.title,
-    required this.children,
-  });
+  const _DetailsPanel({required this.title, required this.children});
 
   final String title;
   final List<Widget> children;
@@ -2821,10 +3194,7 @@ class _DetailsLine extends StatelessWidget {
 }
 
 class _DocumentPreview extends StatelessWidget {
-  const _DocumentPreview({
-    required this.document,
-    required this.future,
-  });
+  const _DocumentPreview({required this.document, required this.future});
 
   final AdminCardRequestDocument document;
   final Future<Uint8List> future;
@@ -3035,10 +3405,7 @@ class _CustomerRow extends StatelessWidget {
 }
 
 class _CustomerStatusMenu extends StatelessWidget {
-  const _CustomerStatusMenu({
-    required this.customer,
-    required this.onChanged,
-  });
+  const _CustomerStatusMenu({required this.customer, required this.onChanged});
 
   final AdminCustomer customer;
   final void Function(AdminCustomer customer, int status) onChanged;
@@ -3098,7 +3465,9 @@ class _CustomerStatusBadge extends StatelessWidget {
 }
 
 class _TableHeader extends StatelessWidget {
-  const _TableHeader();
+  const _TableHeader({this.showActions = false});
+
+  final bool showActions;
 
   @override
   Widget build(BuildContext context) {
@@ -3113,15 +3482,16 @@ class _TableHeader extends StatelessWidget {
         color: headerColor,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
       ),
-      child: const Row(
+      child: Row(
         children: [
-          _HeaderCell('SL No', flex: 1),
-          _HeaderCell('Date', flex: 2),
-          _HeaderCell('Reference', flex: 3),
-          _HeaderCell('From', flex: 4),
-          _HeaderCell('To', flex: 4),
-          _HeaderCell('Amount', flex: 2),
-          _HeaderCell('Status', flex: 2),
+          const _HeaderCell('SL No', flex: 1),
+          const _HeaderCell('Date', flex: 2),
+          const _HeaderCell('Reference', flex: 3),
+          const _HeaderCell('From', flex: 4),
+          const _HeaderCell('To', flex: 4),
+          const _HeaderCell('Amount', flex: 2),
+          const _HeaderCell('Status', flex: 2),
+          if (showActions) const _HeaderCell('Actions', flex: 2),
         ],
       ),
     );
@@ -3137,7 +3507,9 @@ class _HeaderCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = _isDark(context);
-    final headerColor = isDark ? const Color(0xFF87A7FF) : const Color(0xFF5A77B8);
+    final headerColor = isDark
+        ? const Color(0xFF87A7FF)
+        : const Color(0xFF5A77B8);
 
     return Expanded(
       flex: flex,
@@ -3157,10 +3529,14 @@ class _TransactionRow extends StatelessWidget {
   const _TransactionRow({
     required this.index,
     required this.transaction,
+    this.showActions = false,
+    this.onView,
   });
 
   final int index;
   final AdminTransaction transaction;
+  final bool showActions;
+  final ValueChanged<AdminTransaction>? onView;
 
   @override
   Widget build(BuildContext context) {
@@ -3195,10 +3571,7 @@ class _TransactionRow extends StatelessWidget {
             flex: 2,
             child: Text(
               _formatAdminAmount(transaction.amount),
-              style: TextStyle(
-                color: textColor,
-                fontWeight: FontWeight.w800,
-              ),
+              style: TextStyle(color: textColor, fontWeight: FontWeight.w800),
             ),
           ),
           Expanded(
@@ -3208,6 +3581,18 @@ class _TransactionRow extends StatelessWidget {
               child: _StatusBadge(status: transaction.status),
             ),
           ),
+          if (showActions)
+            Expanded(
+              flex: 2,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  onPressed: onView == null ? null : () => onView!(transaction),
+                  icon: const Icon(Icons.visibility_outlined, size: 18),
+                  label: const Text('View'),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -3228,10 +3613,7 @@ class _TableText extends StatelessWidget {
         value,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: _adminText(context),
-          fontSize: 13,
-        ),
+        style: TextStyle(color: _adminText(context), fontSize: 13),
       ),
     );
   }
@@ -3293,7 +3675,9 @@ class _StatusBadge extends StatelessWidget {
       child: Text(
         status,
         style: TextStyle(
-          color: isCompleted ? const Color(0xFF16834A) : const Color(0xFFB7791F),
+          color: isCompleted
+              ? const Color(0xFF16834A)
+              : const Color(0xFFB7791F),
           fontWeight: FontWeight.w700,
           fontSize: 12,
         ),
@@ -3340,27 +3724,48 @@ class _CardRequestStatusBadge extends StatelessWidget {
 }
 
 class _AdminErrorState extends StatelessWidget {
-  const _AdminErrorState({
-    required this.message,
-    required this.onRetry,
-  });
+  const _AdminErrorState({required this.message, required this.onRetry});
 
   final String message;
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
+    final displayMessage = message
+        .replaceFirst(RegExp(r'^(ApiException|Exception):\s*'), '')
+        .trim();
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(message, textAlign: TextAlign.center),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: onRetry,
-            child: const Text('Try again'),
-          ),
-        ],
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 460),
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: _adminSurface(context),
+          border: Border.all(color: _adminBorder(context)),
+          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.cloud_off_outlined,
+              size: 34,
+              color: AppTheme.error,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              displayMessage.isEmpty
+                  ? 'Data could not be loaded. Please try again.'
+                  : displayMessage,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Try again'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -3396,7 +3801,9 @@ class _CustomerEditDialogState extends State<_CustomerEditDialog> {
   @override
   void initState() {
     super.initState();
-    _firstNameController = TextEditingController(text: widget.customer.firstName);
+    _firstNameController = TextEditingController(
+      text: widget.customer.firstName,
+    );
     _lastNameController = TextEditingController(text: widget.customer.lastName);
     _phoneController = TextEditingController(text: widget.customer.phoneNumber);
   }
@@ -3458,11 +3865,18 @@ class _CustomerEditDialogState extends State<_CustomerEditDialog> {
   }
 }
 
-String _partyLabel(String? name, String? accountNumber, {required String fallback}) {
+String _partyLabel(
+  String? name,
+  String? accountNumber, {
+  required String fallback,
+}) {
   final cleanName = name?.trim();
   final cleanAccount = accountNumber?.trim();
 
-  if (cleanName != null && cleanName.isNotEmpty && cleanAccount != null && cleanAccount.isNotEmpty) {
+  if (cleanName != null &&
+      cleanName.isNotEmpty &&
+      cleanAccount != null &&
+      cleanAccount.isNotEmpty) {
     return '$cleanName ($cleanAccount)';
   }
 
@@ -3513,6 +3927,7 @@ String _statusFilterLabel(int? status) {
     2 => 'Completed',
     3 => 'Failed',
     4 => 'Cancelled',
+    5 => 'Documents requested',
     _ => 'All statuses',
   };
 }
@@ -3551,6 +3966,33 @@ String _formatBytes(int bytes) {
 }
 
 String _previewContentType(AdminCardRequestDocument document) {
+  final contentType = document.contentType.trim();
+  if (contentType.isNotEmpty &&
+      contentType.toLowerCase() != 'application/octet-stream') {
+    return contentType;
+  }
+
+  final fileName = document.fileName.toLowerCase();
+  if (fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) {
+    return 'image/jpeg';
+  }
+
+  if (fileName.endsWith('.png')) {
+    return 'image/png';
+  }
+
+  if (fileName.endsWith('.pdf')) {
+    return 'application/pdf';
+  }
+
+  if (fileName.endsWith('.txt')) {
+    return 'text/plain';
+  }
+
+  return 'application/octet-stream';
+}
+
+String _previewTransactionContentType(AdminTransactionDocument document) {
   final contentType = document.contentType.trim();
   if (contentType.isNotEmpty &&
       contentType.toLowerCase() != 'application/octet-stream') {

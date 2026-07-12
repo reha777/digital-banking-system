@@ -22,6 +22,23 @@ namespace BankingApp.Domain.Entities
 
         public TransactionStatus Status { get; set; }
 
+        public bool IsHighRiskReview { get; set; }
+
+        public string? ReviewReason { get; set; }
+
+        public string? DocumentsRequestNote { get; set; }
+
+        public DateTime? DocumentsRequestedAtUtc { get; set; }
+
+        public string? AdminNote { get; set; }
+
+        public DateTime? ReviewedAtUtc { get; set; }
+
+        public Guid? ReviewedByUserId { get; set; }
+
         public DateTime CreatedAtUtc { get; set; }
+
+        public ICollection<TransactionDocument> Documents { get; set; } =
+            new List<TransactionDocument>();
     }
 }
