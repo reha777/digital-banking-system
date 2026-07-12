@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import '../../core/api_client.dart';
 import '../../core/mobile_api_endpoints.dart';
 import 'transaction_models.dart';
@@ -49,5 +51,22 @@ class TransactionService {
     );
 
     return MoneyTransferResult.fromJson(json);
+  }
+
+  Future<BankTransaction> uploadDocument({
+    required String token,
+    required String transactionId,
+    required String fileName,
+    required Uint8List bytes,
+  }) async {
+    final json = await _apiClient.postMultipartBytes(
+      '${MobileApiEndpoints.transactions}/$transactionId/documents',
+      fieldName: 'file',
+      fileName: fileName,
+      bytes: bytes,
+      token: token,
+    );
+
+    return BankTransaction.fromJson(json);
   }
 }

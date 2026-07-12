@@ -40,7 +40,11 @@ class BankTransaction {
     required this.amount,
     required this.description,
     required this.status,
+    required this.statusValue,
+    required this.isHighRiskReview,
     required this.createdAtUtc,
+    this.documentsRequestNote,
+    this.documents = const [],
     this.sourceAccountNumber,
     this.destinationAccountNumber,
   });
@@ -53,7 +57,13 @@ class BankTransaction {
       referenceNumber: json['referenceNumber']?.toString() ?? '',
       amount: (json['amount'] as num? ?? 0).toDouble(),
       description: json['description']?.toString() ?? '',
+      statusValue: _statusValue(json['status']),
       status: _statusLabel(json['status']),
+      isHighRiskReview: json['isHighRiskReview'] as bool? ?? false,
+      documentsRequestNote: json['documentsRequestNote']?.toString(),
+      documents: (json['documents'] as List? ?? [])
+          .map((item) => TransactionDocument.fromJson(item as Map<String, dynamic>))
+          .toList(),
       sourceAccountNumber: json['sourceAccountNumber']?.toString(),
       destinationAccountNumber: json['destinationAccountNumber']?.toString(),
       createdAtUtc: DateTime.tryParse(json['createdAtUtc']?.toString() ?? '') ??
@@ -68,9 +78,34 @@ class BankTransaction {
   final double amount;
   final String description;
   final String status;
+  final int statusValue;
+  final bool isHighRiskReview;
   final DateTime createdAtUtc;
+  final String? documentsRequestNote;
+  final List<TransactionDocument> documents;
   final String? sourceAccountNumber;
   final String? destinationAccountNumber;
+}
+
+class TransactionDocument {
+  const TransactionDocument({
+    required this.id,
+    required this.fileName,
+    required this.uploadedAtUtc,
+  });
+
+  factory TransactionDocument.fromJson(Map<String, dynamic> json) {
+    return TransactionDocument(
+      id: json['id']?.toString() ?? '',
+      fileName: json['fileName']?.toString() ?? 'Document',
+      uploadedAtUtc: DateTime.tryParse(json['uploadedAtUtc']?.toString() ?? '') ??
+          DateTime.now().toUtc(),
+    );
+  }
+
+  final String id;
+  final String fileName;
+  final DateTime uploadedAtUtc;
 }
 
 String _statusLabel(Object? value) {
@@ -79,8 +114,22 @@ String _statusLabel(Object? value) {
     '2' => 'Completed',
     '3' => 'Failed',
     '4' => 'Cancelled',
+    '5' => 'Documents requested',
+    'DocumentsRequested' => 'Documents requested',
     final label when label != null && label.isNotEmpty => label,
     _ => 'Unknown',
+  };
+}
+
+int _statusValue(Object? value) {
+  return switch (value?.toString()) {
+    'Pending' => 1,
+    'Completed' => 2,
+    'Failed' => 3,
+    'Cancelled' => 4,
+    'DocumentsRequested' => 5,
+    final label when label != null => int.tryParse(label) ?? 0,
+    _ => 0,
   };
 }
 

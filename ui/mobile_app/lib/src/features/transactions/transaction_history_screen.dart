@@ -1,3 +1,6 @@
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/api_client.dart';
@@ -215,10 +218,55 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
             );
           }
 
-          return TransactionHistoryTile(transaction: _transactions[index]);
+          return TransactionHistoryTile(
+            transaction: _transactions[index],
+            onUploadDocument: _uploadDocument,
+          );
         },
       ),
     );
+  }
+
+  Future<void> _uploadDocument(BankTransaction transaction) async {
+    final token = widget.session.token;
+    if (token == null) {
+      setState(() => _errorMessage = 'Sesija je istekla. Prijavite se ponovo.');
+      return;
+    }
+
+    final result = await FilePicker.pickFiles(
+      allowMultiple: false,
+      withData: true,
+      type: FileType.custom,
+      allowedExtensions: const ['jpg', 'jpeg', 'png', 'pdf', 'txt'],
+    );
+
+    final file = result?.files.single;
+    final bytes = file?.bytes;
+    if (file == null || bytes == null || bytes.isEmpty) {
+      return;
+    }
+
+    try {
+      await _transactionService.uploadDocument(
+        token: token,
+        transactionId: transaction.id,
+        fileName: file.name,
+        bytes: Uint8List.fromList(bytes),
+      );
+      await _loadFirstPage();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Document uploaded.')),
+        );
+      }
+    } on ApiException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.message)),
+        );
+      }
+    }
   }
 }
 
@@ -257,9 +305,11 @@ class TransactionHistoryTile extends StatelessWidget {
   const TransactionHistoryTile({
     super.key,
     required this.transaction,
+    this.onUploadDocument,
   });
 
   final BankTransaction transaction;
+  final ValueChanged<BankTransaction>? onUploadDocument;
 
   @override
   Widget build(BuildContext context) {
@@ -284,18 +334,64 @@ class TransactionHistoryTile extends StatelessWidget {
           fontWeight: FontWeight.w800,
         ),
       ),
-      subtitle: Text(
-        _transactionSubtitle(transaction),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: Theme.of(context).textTheme.bodySmall,
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _transactionSubtitle(transaction),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          _ReviewHint(transaction: transaction),
+        ],
       ),
-      trailing: Text(
-        '${isIncoming ? '' : '- '}\$${_formatMoney(transaction.amount.abs())}',
-        style: TextStyle(
-          color: isIncoming ? AppTheme.primary : (isDark ? Colors.white : AppTheme.textDark),
-          fontSize: 14,
-          fontWeight: FontWeight.w800,
+      trailing: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            '${isIncoming ? '' : '- '}\$${_formatMoney(transaction.amount.abs())}',
+            style: TextStyle(
+              color: isIncoming ? AppTheme.primary : (isDark ? Colors.white : AppTheme.textDark),
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          if (transaction.statusValue == 5)
+            TextButton(
+              onPressed: onUploadDocument == null
+                  ? null
+                  : () => onUploadDocument!(transaction),
+              child: const Text('Upload'),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReviewHint extends StatelessWidget {
+  const _ReviewHint({required this.transaction});
+
+  final BankTransaction transaction;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!transaction.isHighRiskReview) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Text(
+        transaction.documentsRequestNote?.isNotEmpty == true
+            ? transaction.documentsRequestNote!
+            : 'High-risk transfer is waiting for admin review.',
+        style: const TextStyle(
+          color: Color(0xFFF59E0B),
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );

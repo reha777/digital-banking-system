@@ -59,7 +59,14 @@ class AdminTransaction {
     required this.amount,
     required this.description,
     required this.status,
+    required this.statusValue,
+    required this.isHighRiskReview,
     required this.createdAtUtc,
+    this.reviewReason,
+    this.documentsRequestNote,
+    this.adminNote,
+    this.reviewedAtUtc,
+    this.documents = const [],
     this.sourceAccountNumber,
     this.destinationAccountNumber,
     this.sourceCustomerName,
@@ -73,7 +80,16 @@ class AdminTransaction {
       referenceNumber: json['referenceNumber']?.toString() ?? '',
       amount: (json['amount'] as num? ?? 0).toDouble(),
       description: json['description']?.toString() ?? '',
+      statusValue: _statusValue(json['status']),
       status: _statusLabel(json['status']),
+      isHighRiskReview: json['isHighRiskReview'] as bool? ?? false,
+      reviewReason: json['reviewReason']?.toString(),
+      documentsRequestNote: json['documentsRequestNote']?.toString(),
+      adminNote: json['adminNote']?.toString(),
+      reviewedAtUtc: DateTime.tryParse(json['reviewedAtUtc']?.toString() ?? ''),
+      documents: (json['documents'] as List? ?? [])
+          .map((item) => AdminTransactionDocument.fromJson(item as Map<String, dynamic>))
+          .toList(),
       sourceAccountNumber: json['sourceAccountNumber']?.toString(),
       destinationAccountNumber: json['destinationAccountNumber']?.toString(),
       sourceCustomerName: json['sourceCustomerName']?.toString(),
@@ -89,11 +105,45 @@ class AdminTransaction {
   final double amount;
   final String description;
   final String status;
+  final int statusValue;
+  final bool isHighRiskReview;
   final DateTime createdAtUtc;
+  final String? reviewReason;
+  final String? documentsRequestNote;
+  final String? adminNote;
+  final DateTime? reviewedAtUtc;
+  final List<AdminTransactionDocument> documents;
   final String? sourceAccountNumber;
   final String? destinationAccountNumber;
   final String? sourceCustomerName;
   final String? destinationCustomerName;
+}
+
+class AdminTransactionDocument {
+  const AdminTransactionDocument({
+    required this.id,
+    required this.fileName,
+    required this.contentType,
+    required this.sizeBytes,
+    required this.uploadedAtUtc,
+  });
+
+  factory AdminTransactionDocument.fromJson(Map<String, dynamic> json) {
+    return AdminTransactionDocument(
+      id: json['id']?.toString() ?? '',
+      fileName: json['fileName']?.toString() ?? '',
+      contentType: json['contentType']?.toString() ?? '',
+      sizeBytes: json['sizeBytes'] as int? ?? 0,
+      uploadedAtUtc: DateTime.tryParse(json['uploadedAtUtc']?.toString() ?? '') ??
+          DateTime.now().toUtc(),
+    );
+  }
+
+  final String id;
+  final String fileName;
+  final String contentType;
+  final int sizeBytes;
+  final DateTime uploadedAtUtc;
 }
 
 String _statusLabel(Object? value) {
@@ -102,7 +152,21 @@ String _statusLabel(Object? value) {
     '2' => 'Completed',
     '3' => 'Failed',
     '4' => 'Cancelled',
+    '5' => 'Documents requested',
+    'DocumentsRequested' => 'Documents requested',
     final label when label != null && label.isNotEmpty => label,
     _ => 'Unknown',
+  };
+}
+
+int _statusValue(Object? value) {
+  return switch (value?.toString()) {
+    'Pending' => 1,
+    'Completed' => 2,
+    'Failed' => 3,
+    'Cancelled' => 4,
+    'DocumentsRequested' => 5,
+    final label when label != null => int.tryParse(label) ?? 0,
+    _ => 0,
   };
 }

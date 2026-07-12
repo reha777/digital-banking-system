@@ -11,6 +11,8 @@ namespace BankingApp.Application.Transactions
 
         public TransactionStatus? Status { get; set; }
 
+        public bool? HighRiskOnly { get; set; }
+
         public DateTime? DateFrom { get; set; }
 
         public DateTime? DateTo { get; set; }

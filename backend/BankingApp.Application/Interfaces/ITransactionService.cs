@@ -17,6 +17,16 @@ namespace BankingApp.Application.Interfaces
 
         Task<TransactionResponse> UpdateAsync(Guid id, TransactionUpdateRequest request, CancellationToken cancellationToken = default);
 
+        Task<TransactionResponse> ApproveReviewAsync(Guid id, TransactionReviewRequest request, CancellationToken cancellationToken = default);
+
+        Task<TransactionResponse> RejectReviewAsync(Guid id, TransactionReviewRequest request, CancellationToken cancellationToken = default);
+
+        Task<TransactionResponse> RequestDocumentsAsync(Guid id, TransactionDocumentsRequest request, CancellationToken cancellationToken = default);
+
+        Task<TransactionResponse> UploadDocumentAsync(Guid id, TransactionDocumentUploadRequest request, CancellationToken cancellationToken = default);
+
+        Task<TransactionDocumentDownloadResponse> DownloadDocumentAsync(Guid transactionId, Guid documentId, CancellationToken cancellationToken = default);
+
         Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
     }
 }

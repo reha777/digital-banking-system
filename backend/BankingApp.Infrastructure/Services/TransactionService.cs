@@ -13,6 +13,8 @@ namespace BankingApp.Infrastructure.Services
         BankingAppDbContext dbContext,
         ICurrentUserService currentUserService) : ITransactionService
     {
+        private const decimal HighRiskReviewThreshold = 10000m;
+
         public async Task<PagedResult<TransactionResponse>> GetAsync(
             TransactionQueryRequest request,
             CancellationToken cancellationToken = default)
@@ -20,6 +22,7 @@ namespace BankingApp.Infrastructure.Services
             var query = dbContext.Transactions
                 .AsNoTracking()
                 .Include(transaction => transaction.Account)
+                .Include(transaction => transaction.Documents)
                 .AsQueryable();
 
             query = ApplyQuery(request, query);
@@ -146,8 +149,7 @@ namespace BankingApp.Infrastructure.Services
                 ? $"Transfer to {destinationAccount.AccountNumber}"
                 : request.Description.Trim();
 
-            sourceAccount.Balance -= request.Amount;
-            destinationAccount.Balance += request.Amount;
+            var requiresReview = request.Amount > HighRiskReviewThreshold;
 
             var debitTransaction = new Transaction
             {
@@ -158,39 +160,59 @@ namespace BankingApp.Infrastructure.Services
                 ReferenceNumber = referenceNumber,
                 Amount = -request.Amount,
                 Description = description,
-                Status = TransactionStatus.Completed,
+                Status = requiresReview ? TransactionStatus.Pending : TransactionStatus.Completed,
+                IsHighRiskReview = requiresReview,
+                ReviewReason = requiresReview
+                    ? $"Transfer amount exceeds {HighRiskReviewThreshold:N2} review threshold."
+                    : null,
                 CreatedAtUtc = createdAtUtc
             };
 
-            var creditTransaction = new Transaction
+            Transaction? creditTransaction = null;
+            if (!requiresReview)
             {
-                Id = Guid.NewGuid(),
-                AccountId = destinationAccount.Id,
-                SourceAccountId = sourceAccount.Id,
-                DestinationAccountId = destinationAccount.Id,
-                ReferenceNumber = referenceNumber,
-                Amount = request.Amount,
-                Description = $"Transfer from {sourceAccount.AccountNumber}",
-                Status = TransactionStatus.Completed,
-                CreatedAtUtc = createdAtUtc
-            };
+                sourceAccount.Balance -= request.Amount;
+                destinationAccount.Balance += request.Amount;
 
-            dbContext.Transactions.AddRange(debitTransaction, creditTransaction);
+                creditTransaction = new Transaction
+                {
+                    Id = Guid.NewGuid(),
+                    AccountId = destinationAccount.Id,
+                    SourceAccountId = sourceAccount.Id,
+                    DestinationAccountId = destinationAccount.Id,
+                    ReferenceNumber = referenceNumber,
+                    Amount = request.Amount,
+                    Description = $"Transfer from {sourceAccount.AccountNumber}",
+                    Status = TransactionStatus.Completed,
+                    CreatedAtUtc = createdAtUtc
+                };
+            }
+
+            dbContext.Transactions.Add(debitTransaction);
+            if (creditTransaction is not null)
+            {
+                dbContext.Transactions.Add(creditTransaction);
+            }
             await dbContext.SaveChangesAsync(cancellationToken);
 
             debitTransaction.Account = sourceAccount;
-            creditTransaction.Account = destinationAccount;
+            if (creditTransaction is not null)
+            {
+                creditTransaction.Account = destinationAccount;
+            }
 
             return new MoneyTransferResponse
             {
                 ReferenceNumber = referenceNumber,
-                Status = TransactionStatus.Completed,
+                Status = debitTransaction.Status,
                 Amount = request.Amount,
                 Currency = sourceAccount.Currency,
                 SourceAccount = ToTransferAccountResponse(sourceAccount),
                 DestinationAccount = ToTransferAccountResponse(destinationAccount),
                 DebitTransaction = ToResponse(debitTransaction, sourceAccount, destinationAccount),
-                CreditTransaction = ToResponse(creditTransaction, sourceAccount, destinationAccount),
+                CreditTransaction = creditTransaction is null
+                    ? new TransactionResponse()
+                    : ToResponse(creditTransaction, sourceAccount, destinationAccount),
                 CreatedAtUtc = createdAtUtc
             };
         }
@@ -208,6 +230,199 @@ namespace BankingApp.Infrastructure.Services
             await dbContext.SaveChangesAsync(cancellationToken);
 
             return ToResponse(transaction);
+        }
+
+        public async Task<TransactionResponse> ApproveReviewAsync(
+            Guid id,
+            TransactionReviewRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var transaction = await GetReviewTransactionAsync(id, cancellationToken);
+
+            if (transaction.Status is not (TransactionStatus.Pending or TransactionStatus.DocumentsRequested))
+            {
+                throw new BusinessException("Samo transakcija koja ceka review moze biti odobrena.");
+            }
+
+            var sourceAccount = await dbContext.Accounts
+                .FirstOrDefaultAsync(account => account.Id == transaction.SourceAccountId, cancellationToken)
+                ?? throw new NotFoundException("Racun posiljaoca nije pronadjen.");
+
+            var destinationAccount = await dbContext.Accounts
+                .FirstOrDefaultAsync(account => account.Id == transaction.DestinationAccountId, cancellationToken)
+                ?? throw new NotFoundException("Racun primaoca nije pronadjen.");
+
+            var amount = Math.Abs(transaction.Amount);
+            if (sourceAccount.Balance < amount)
+            {
+                throw new BusinessException("Nedovoljno sredstava za odobrenje transakcije.");
+            }
+
+            sourceAccount.Balance -= amount;
+            destinationAccount.Balance += amount;
+
+            transaction.Status = TransactionStatus.Completed;
+            transaction.AdminNote = request.AdminNote?.Trim();
+            transaction.ReviewedAtUtc = DateTime.UtcNow;
+            transaction.ReviewedByUserId = currentUserService.UserId;
+
+            var creditTransaction = new Transaction
+            {
+                Id = Guid.NewGuid(),
+                AccountId = destinationAccount.Id,
+                SourceAccountId = sourceAccount.Id,
+                DestinationAccountId = destinationAccount.Id,
+                ReferenceNumber = transaction.ReferenceNumber,
+                Amount = amount,
+                Description = $"Transfer from {sourceAccount.AccountNumber}",
+                Status = TransactionStatus.Completed,
+                CreatedAtUtc = DateTime.UtcNow
+            };
+
+            dbContext.Transactions.Add(creditTransaction);
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            transaction.Account = sourceAccount;
+            var response = ToResponse(transaction, sourceAccount, destinationAccount);
+            response.AdminNote = transaction.AdminNote;
+            response.ReviewedAtUtc = transaction.ReviewedAtUtc;
+            response.Documents = transaction.Documents.Select(ToDocumentResponse).ToList();
+            return response;
+        }
+
+        public async Task<TransactionResponse> RejectReviewAsync(
+            Guid id,
+            TransactionReviewRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var transaction = await GetReviewTransactionAsync(id, cancellationToken);
+
+            if (transaction.Status is not (TransactionStatus.Pending or TransactionStatus.DocumentsRequested))
+            {
+                throw new BusinessException("Samo transakcija koja ceka review moze biti odbijena.");
+            }
+
+            transaction.Status = TransactionStatus.Failed;
+            transaction.AdminNote = request.AdminNote?.Trim();
+            transaction.ReviewedAtUtc = DateTime.UtcNow;
+            transaction.ReviewedByUserId = currentUserService.UserId;
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            var response = ToResponse(transaction);
+            await PopulateTransferDetailsAsync([response], cancellationToken);
+            return response;
+        }
+
+        public async Task<TransactionResponse> RequestDocumentsAsync(
+            Guid id,
+            TransactionDocumentsRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var transaction = await GetReviewTransactionAsync(id, cancellationToken);
+
+            if (transaction.Status is not (TransactionStatus.Pending or TransactionStatus.DocumentsRequested))
+            {
+                throw new BusinessException("Dokumenti se mogu traziti samo za transakciju koja ceka review.");
+            }
+
+            transaction.Status = TransactionStatus.DocumentsRequested;
+            transaction.DocumentsRequestNote = request.AdminNote?.Trim();
+            transaction.DocumentsRequestedAtUtc = DateTime.UtcNow;
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            var response = ToResponse(transaction);
+            await PopulateTransferDetailsAsync([response], cancellationToken);
+            return response;
+        }
+
+        public async Task<TransactionResponse> UploadDocumentAsync(
+            Guid id,
+            TransactionDocumentUploadRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            if (request.Content.Length == 0)
+            {
+                throw new BusinessException("Dokument ne moze biti prazan.");
+            }
+
+            if (request.Content.Length > 5 * 1024 * 1024)
+            {
+                throw new BusinessException("Dokument moze biti maksimalno 5 MB.");
+            }
+
+            var transaction = await dbContext.Transactions
+                .Include(item => item.Account)
+                .Include(item => item.Documents)
+                .FirstOrDefaultAsync(
+                    item =>
+                        item.Id == id &&
+                        item.Account.UserId == currentUserService.UserId &&
+                        item.IsHighRiskReview,
+                    cancellationToken);
+
+            if (transaction is null)
+            {
+                throw new NotFoundException("Transakcija nije pronadjena.");
+            }
+
+            if (transaction.Status != TransactionStatus.DocumentsRequested)
+            {
+                throw new BusinessException("Dokumenti se mogu dodati tek nakon sto ih admin zatrazi.");
+            }
+
+            var document = new TransactionDocument
+            {
+                Id = Guid.NewGuid(),
+                TransactionId = transaction.Id,
+                FileName = request.FileName.Trim(),
+                ContentType = request.ContentType.Trim(),
+                SizeBytes = request.Content.LongLength,
+                Content = request.Content,
+                UploadedAtUtc = DateTime.UtcNow
+            };
+
+            dbContext.TransactionDocuments.Add(document);
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            transaction.Documents.Add(document);
+            var response = ToResponse(transaction);
+            await PopulateTransferDetailsAsync([response], cancellationToken);
+            return response;
+        }
+
+        public async Task<TransactionDocumentDownloadResponse> DownloadDocumentAsync(
+            Guid transactionId,
+            Guid documentId,
+            CancellationToken cancellationToken = default)
+        {
+            var query = dbContext.TransactionDocuments
+                .AsNoTracking()
+                .Include(document => document.Transaction)
+                .ThenInclude(transaction => transaction.Account)
+                .Where(document =>
+                    document.Id == documentId &&
+                    document.TransactionId == transactionId);
+
+            if (!currentUserService.IsAdmin)
+            {
+                query = query.Where(document =>
+                    document.Transaction.Account.UserId == currentUserService.UserId);
+            }
+
+            var document = await query.FirstOrDefaultAsync(cancellationToken);
+            if (document is null)
+            {
+                throw new NotFoundException("Dokument nije pronadjen.");
+            }
+
+            return new TransactionDocumentDownloadResponse
+            {
+                FileName = document.FileName,
+                ContentType = document.ContentType,
+                Content = document.Content
+            };
         }
 
         public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
@@ -251,6 +466,11 @@ namespace BankingApp.Infrastructure.Services
             if (request.Status.HasValue)
             {
                 query = query.Where(transaction => transaction.Status == request.Status.Value);
+            }
+
+            if (request.HighRiskOnly == true)
+            {
+                query = query.Where(transaction => transaction.IsHighRiskReview);
             }
 
             if (request.DateFrom.HasValue)
@@ -302,9 +522,33 @@ namespace BankingApp.Infrastructure.Services
         private async Task<Transaction> GetOwnedTransactionAsync(Guid id, CancellationToken cancellationToken)
         {
             var transaction = await ApplyOwnershipFilter(dbContext.Transactions.Include(item => item.Account))
+                .Include(item => item.Documents)
                 .FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
 
             return transaction ?? throw new NotFoundException("Transakcija nije pronadjena.");
+        }
+
+        private async Task<Transaction> GetReviewTransactionAsync(
+            Guid id,
+            CancellationToken cancellationToken)
+        {
+            if (!currentUserService.IsAdmin)
+            {
+                throw new BusinessException("Samo admin moze pregledati high-risk transakcije.");
+            }
+
+            var transaction = await dbContext.Transactions
+                .Include(item => item.Account)
+                .Include(item => item.Documents)
+                .FirstOrDefaultAsync(
+                    item =>
+                        item.Id == id &&
+                        item.IsHighRiskReview &&
+                        item.SourceAccountId.HasValue &&
+                        item.DestinationAccountId.HasValue,
+                    cancellationToken);
+
+            return transaction ?? throw new NotFoundException("Transakcija za review nije pronadjena.");
         }
 
         private static string CreateReferenceNumber()
@@ -325,7 +569,29 @@ namespace BankingApp.Infrastructure.Services
                 Amount = transaction.Amount,
                 Description = transaction.Description,
                 Status = transaction.Status,
-                CreatedAtUtc = transaction.CreatedAtUtc
+                IsHighRiskReview = transaction.IsHighRiskReview,
+                ReviewReason = transaction.ReviewReason,
+                DocumentsRequestNote = transaction.DocumentsRequestNote,
+                DocumentsRequestedAtUtc = transaction.DocumentsRequestedAtUtc,
+                AdminNote = transaction.AdminNote,
+                ReviewedAtUtc = transaction.ReviewedAtUtc,
+                CreatedAtUtc = transaction.CreatedAtUtc,
+                Documents = transaction.Documents
+                    .OrderByDescending(document => document.UploadedAtUtc)
+                    .Select(ToDocumentResponse)
+                    .ToList()
+            };
+        }
+
+        private static TransactionDocumentResponse ToDocumentResponse(TransactionDocument document)
+        {
+            return new TransactionDocumentResponse
+            {
+                Id = document.Id,
+                FileName = document.FileName,
+                ContentType = document.ContentType,
+                SizeBytes = document.SizeBytes,
+                UploadedAtUtc = document.UploadedAtUtc
             };
         }
 
