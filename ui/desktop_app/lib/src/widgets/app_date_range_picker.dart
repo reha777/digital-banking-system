@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 import '../core/app_theme.dart';
 
@@ -29,12 +30,12 @@ class AppDateRangePicker extends StatelessWidget {
       constraints: const BoxConstraints(minWidth: 220),
       child: OutlinedButton.icon(
         onPressed: enabled ? () => _open(context) : null,
-        icon: const Icon(Icons.date_range_outlined, size: 19),
+        icon: const Icon(LucideIcons.calendarRange, size: 19),
         label: Expanded(
           child: Text(
             hasRange
                 ? '${_formatDate(dateFrom!)} - ${_formatDate(dateTo!)}'
-                : 'Odaberite razdoblje',
+                : 'Select date range',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -46,7 +47,7 @@ class AppDateRangePicker extends StatelessWidget {
   Future<void> _open(BuildContext context) async {
     final result = await showDialog<_DateRangeResult>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (context) => _DateRangePickerDialog(
         initialFrom: dateFrom,
         initialTo: dateTo,
@@ -181,7 +182,7 @@ class _DateRangePickerDialogState extends State<_DateRangePickerDialog> {
                       borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
                     ),
                     child: const Icon(
-                      Icons.calendar_month_outlined,
+                      LucideIcons.calendarRange,
                       color: AppTheme.primary,
                     ),
                   ),
@@ -204,7 +205,7 @@ class _DateRangePickerDialogState extends State<_DateRangePickerDialog> {
                   ),
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close),
+                    icon: const Icon(LucideIcons.x),
                     tooltip: 'Odustani',
                   ),
                 ],
@@ -275,7 +276,7 @@ class _DateRangePickerDialogState extends State<_DateRangePickerDialog> {
                             ),
                           )
                         : null,
-                    icon: const Icon(Icons.check, size: 18),
+                    icon: const Icon(LucideIcons.check, size: 18),
                     label: const Text('Primijeni'),
                   ),
                 ],
@@ -308,8 +309,8 @@ class _DateSelectionField extends StatelessWidget {
         isEmpty: value == null,
         decoration: InputDecoration(
           labelText: label,
-          prefixIcon: const Icon(Icons.event_outlined),
-          suffixIcon: const Icon(Icons.arrow_drop_down),
+          prefixIcon: const Icon(LucideIcons.calendarDays),
+          suffixIcon: const Icon(LucideIcons.chevronDown),
           enabled: onPressed != null,
         ),
         child: Text(value == null ? 'dd.mm.gggg' : _formatDate(value!)),

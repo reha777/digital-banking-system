@@ -5,7 +5,7 @@ import 'core/app_theme.dart';
 import 'core/theme_controller.dart';
 import 'features/auth/admin_login_screen.dart';
 import 'features/auth/auth_session.dart';
-import 'features/dashboard/admin_dashboard_screen.dart';
+import 'features/admin_shell/admin_shell_screen.dart';
 
 class BankingDesktopApp extends StatefulWidget {
   const BankingDesktopApp({super.key});
@@ -28,10 +28,7 @@ class _BankingDesktopAppState extends State<BankingDesktopApp> {
   }
 
   Future<void> _initializeApp() async {
-    await Future.wait([
-      _session.initialize(),
-      _themeController.initialize(),
-    ]);
+    await Future.wait([_session.initialize(), _themeController.initialize()]);
   }
 
   @override
@@ -55,7 +52,7 @@ class _BankingDesktopAppState extends State<BankingDesktopApp> {
               }
 
               return _session.isAuthenticated
-                  ? AdminDashboardScreen(
+                  ? AdminShellScreen(
                       session: _session,
                       themeController: _themeController,
                     )

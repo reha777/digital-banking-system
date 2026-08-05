@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
 import '../../core/theme_controller.dart';
-import '../dashboard/admin_dashboard_screen.dart';
+import '../admin_shell/admin_shell_screen.dart';
 import 'auth_session.dart';
 import 'widgets/admin_auth_widgets.dart';
 
@@ -23,7 +23,9 @@ class AdminLoginScreen extends StatefulWidget {
 
 class _AdminLoginScreenState extends State<AdminLoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController(text: 'admin@bankingapp.local');
+  final _emailController = TextEditingController(
+    text: 'admin@bankingapp.local',
+  );
   final _passwordController = TextEditingController(text: 'test');
   bool _isPasswordVisible = false;
   bool _isLoading = false;
@@ -101,7 +103,9 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                     validator: _validatePassword,
                     suffix: IconButton(
                       onPressed: () {
-                        setState(() => _isPasswordVisible = !_isPasswordVisible);
+                        setState(
+                          () => _isPasswordVisible = !_isPasswordVisible,
+                        );
                       },
                       icon: Icon(
                         _isPasswordVisible
@@ -109,7 +113,9 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                             : Icons.visibility_outlined,
                         size: 18,
                       ),
-                      tooltip: _isPasswordVisible ? 'Hide password' : 'Show password',
+                      tooltip: _isPasswordVisible
+                          ? 'Hide password'
+                          : 'Show password',
                     ),
                   ),
                   if (_errorMessage != null) ...[
@@ -154,7 +160,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
 
       Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
-          builder: (_) => AdminDashboardScreen(
+          builder: (_) => AdminShellScreen(
             session: widget.session,
             themeController: widget.themeController,
           ),

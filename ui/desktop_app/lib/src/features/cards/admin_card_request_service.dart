@@ -14,10 +14,7 @@ class AdminCardRequestService {
     int? status,
   }) async {
     final query = _buildFiltersQuery(search: search, status: status);
-    query.addAll({
-      'page': page.toString(),
-      'pageSize': pageSize.toString(),
-    });
+    query.addAll({'page': page.toString(), 'pageSize': pageSize.toString()});
 
     final uri = Uri(path: '/api/admin/card-requests', queryParameters: query);
     final json = await _apiClient.getJson(uri.toString(), token: token);
@@ -30,7 +27,10 @@ class AdminCardRequestService {
     int? status,
   }) async {
     final query = _buildFiltersQuery(search: search, status: status);
-    final uri = Uri(path: '/api/admin/card-requests/summary', queryParameters: query);
+    final uri = Uri(
+      path: '/api/admin/card-requests/summary',
+      queryParameters: query,
+    );
     final json = await _apiClient.getJson(uri.toString(), token: token);
     return AdminCardRequestSummary.fromJson(json);
   }
@@ -85,10 +85,7 @@ class AdminCardRequestService {
     );
   }
 
-  Map<String, String> _buildFiltersQuery({
-    String? search,
-    int? status,
-  }) {
+  Map<String, String> _buildFiltersQuery({String? search, int? status}) {
     final query = <String, String>{};
 
     if (search != null && search.trim().isNotEmpty) {

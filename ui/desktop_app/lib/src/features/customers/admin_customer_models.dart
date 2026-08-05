@@ -81,7 +81,8 @@ class AdminCustomer {
       statusValue: _statusValue(json['status']),
       accountCount: json['accountCount'] as int? ?? 0,
       totalBalance: (json['totalBalance'] as num? ?? 0).toDouble(),
-      createdAtUtc: DateTime.tryParse(json['createdAtUtc']?.toString() ?? '') ??
+      createdAtUtc:
+          DateTime.tryParse(json['createdAtUtc']?.toString() ?? '') ??
           DateTime.now().toUtc(),
     );
   }
