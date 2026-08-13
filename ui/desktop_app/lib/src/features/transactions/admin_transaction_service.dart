@@ -23,10 +23,7 @@ class AdminTransactionService {
       dateTo: dateTo,
       highRiskOnly: highRiskOnly,
     );
-    query.addAll({
-      'page': page.toString(),
-      'pageSize': pageSize.toString(),
-    });
+    query.addAll({'page': page.toString(), 'pageSize': pageSize.toString()});
 
     final uri = Uri(path: '/api/transactions', queryParameters: query);
     final json = await _apiClient.getJson(uri.toString(), token: token);
@@ -104,11 +101,9 @@ class AdminTransactionService {
     required String id,
     String? adminNote,
   }) async {
-    final json = await _apiClient.postJson(
-      '/api/transactions/$id/approve',
-      {'adminNote': adminNote},
-      token: token,
-    );
+    final json = await _apiClient.postJson('/api/transactions/$id/approve', {
+      'adminNote': adminNote,
+    }, token: token);
     return AdminTransaction.fromJson(json);
   }
 
@@ -117,11 +112,9 @@ class AdminTransactionService {
     required String id,
     String? adminNote,
   }) async {
-    final json = await _apiClient.postJson(
-      '/api/transactions/$id/reject',
-      {'adminNote': adminNote},
-      token: token,
-    );
+    final json = await _apiClient.postJson('/api/transactions/$id/reject', {
+      'adminNote': adminNote,
+    }, token: token);
     return AdminTransaction.fromJson(json);
   }
 

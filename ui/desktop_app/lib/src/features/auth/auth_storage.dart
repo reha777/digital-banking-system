@@ -15,8 +15,14 @@ class AuthStorage {
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString(_tokenKey, result.token);
     await preferences.setString(_refreshTokenKey, result.refreshToken);
-    await preferences.setString(_tokenExpiresAtKey, result.tokenExpiresAtUtc.toIso8601String());
-    await preferences.setString(_refreshTokenExpiresAtKey, result.refreshTokenExpiresAtUtc.toIso8601String());
+    await preferences.setString(
+      _tokenExpiresAtKey,
+      result.tokenExpiresAtUtc.toIso8601String(),
+    );
+    await preferences.setString(
+      _refreshTokenExpiresAtKey,
+      result.refreshTokenExpiresAtUtc.toIso8601String(),
+    );
     await preferences.setString(_userKey, result.encodeUser());
   }
 
@@ -25,7 +31,9 @@ class AuthStorage {
     final token = preferences.getString(_tokenKey);
     final refreshToken = preferences.getString(_refreshTokenKey);
     final tokenExpiresAt = preferences.getString(_tokenExpiresAtKey);
-    final refreshTokenExpiresAt = preferences.getString(_refreshTokenExpiresAtKey);
+    final refreshTokenExpiresAt = preferences.getString(
+      _refreshTokenExpiresAtKey,
+    );
     final userJson = preferences.getString(_userKey);
 
     if (token == null ||

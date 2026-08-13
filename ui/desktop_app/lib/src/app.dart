@@ -5,7 +5,9 @@ import 'core/app_theme.dart';
 import 'core/theme_controller.dart';
 import 'features/auth/admin_login_screen.dart';
 import 'features/auth/auth_session.dart';
-import 'features/dashboard/admin_dashboard_screen.dart';
+import 'features/admin_shell/admin_shell_screen.dart';
+import 'features/settings/admin_settings_controller.dart';
+import 'features/settings/admin_settings_service.dart';
 
 class BankingDesktopApp extends StatefulWidget {
   const BankingDesktopApp({super.key});
@@ -18,12 +20,17 @@ class _BankingDesktopAppState extends State<BankingDesktopApp> {
   late final AuthSession _session;
   late final ThemeController _themeController;
   late final Future<void> _initializeAppFuture;
+  late final AdminSettingsController _settingsController;
 
   @override
   void initState() {
     super.initState();
     _session = AuthSession(ApiClient());
     _themeController = ThemeController();
+    _settingsController = AdminSettingsController(
+      AdminSettingsService(ApiClient()),
+      _themeController,
+    );
     _initializeAppFuture = _initializeApp();
   }
 
@@ -31,7 +38,11 @@ class _BankingDesktopAppState extends State<BankingDesktopApp> {
     await Future.wait([
       _session.initialize(),
       _themeController.initialize(),
+      _settingsController.initializeCache(),
     ]);
+    if (_session.isAuthenticated) {
+      await _settingsController.load(_session.token!);
+    }
   }
 
   @override
@@ -55,13 +66,15 @@ class _BankingDesktopAppState extends State<BankingDesktopApp> {
               }
 
               return _session.isAuthenticated
-                  ? AdminDashboardScreen(
+                  ? AdminShellScreen(
                       session: _session,
                       themeController: _themeController,
+                      settingsController: _settingsController,
                     )
                   : AdminLoginScreen(
                       session: _session,
                       themeController: _themeController,
+                      settingsController: _settingsController,
                     );
             },
           ),

@@ -9,7 +9,9 @@ class AdminCardRequestPage {
   factory AdminCardRequestPage.fromJson(Map<String, dynamic> json) {
     return AdminCardRequestPage(
       items: (json['items'] as List? ?? [])
-          .map((item) => AdminCardRequest.fromJson(item as Map<String, dynamic>))
+          .map(
+            (item) => AdminCardRequest.fromJson(item as Map<String, dynamic>),
+          )
           .toList(),
       page: json['page'] as int? ?? 1,
       pageSize: json['pageSize'] as int? ?? 20,
@@ -90,7 +92,10 @@ class AdminCardRequest {
       status: _statusLabel(statusValue, json['status']),
       statusValue: statusValue,
       documents: (json['documents'] as List? ?? [])
-          .map((item) => AdminCardRequestDocument.fromJson(item as Map<String, dynamic>))
+          .map(
+            (item) =>
+                AdminCardRequestDocument.fromJson(item as Map<String, dynamic>),
+          )
           .toList(),
       adminNote: json['adminNote']?.toString(),
       documentsRequestNote: json['documentsRequestNote']?.toString(),
@@ -99,7 +104,8 @@ class AdminCardRequest {
       ),
       approvedAccountNumber: json['approvedAccountNumber']?.toString(),
       approvedMaskedCardNumber: json['approvedMaskedCardNumber']?.toString(),
-      createdAtUtc: DateTime.tryParse(json['createdAtUtc']?.toString() ?? '') ??
+      createdAtUtc:
+          DateTime.tryParse(json['createdAtUtc']?.toString() ?? '') ??
           DateTime.now().toUtc(),
       reviewedAtUtc: DateTime.tryParse(json['reviewedAtUtc']?.toString() ?? ''),
     );
@@ -140,7 +146,8 @@ class AdminCardRequestDocument {
       fileName: json['fileName']?.toString() ?? '',
       contentType: json['contentType']?.toString() ?? '',
       sizeBytes: json['sizeBytes'] as int? ?? 0,
-      uploadedAtUtc: DateTime.tryParse(json['uploadedAtUtc']?.toString() ?? '') ??
+      uploadedAtUtc:
+          DateTime.tryParse(json['uploadedAtUtc']?.toString() ?? '') ??
           DateTime.now().toUtc(),
     );
   }

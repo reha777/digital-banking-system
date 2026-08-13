@@ -1,9 +1,11 @@
 import '../../core/api_client.dart';
+import 'package:flutter/foundation.dart';
 import 'auth_models.dart';
 import 'auth_storage.dart';
 
-class AuthSession {
-  AuthSession(this._apiClient, {AuthStorage? storage}) : _storage = storage ?? AuthStorage();
+class AuthSession extends ChangeNotifier {
+  AuthSession(this._apiClient, {AuthStorage? storage})
+    : _storage = storage ?? AuthStorage();
 
   final ApiClient _apiClient;
   final AuthStorage _storage;
@@ -18,7 +20,8 @@ class AuthSession {
 
   Future<void> initialize() async {
     final stored = await _storage.read();
-    if (stored == null || stored.refreshTokenExpiresAtUtc.isBefore(DateTime.now().toUtc())) {
+    if (stored == null ||
+        stored.refreshTokenExpiresAtUtc.isBefore(DateTime.now().toUtc())) {
       await _storage.clear();
       return;
     }
@@ -34,7 +37,9 @@ class AuthSession {
     refreshTokenExpiresAtUtc = stored.refreshTokenExpiresAtUtc;
     user = stored.user;
 
-    if (tokenExpiresAtUtc!.isBefore(DateTime.now().toUtc().add(const Duration(minutes: 1)))) {
+    if (tokenExpiresAtUtc!.isBefore(
+      DateTime.now().toUtc().add(const Duration(minutes: 1)),
+    )) {
       await refresh();
     }
   }
@@ -89,6 +94,38 @@ class AuthSession {
     refreshTokenExpiresAtUtc = null;
     user = null;
     await _storage.clear();
+    notifyListeners();
+  }
+
+  Future<void> updateProfile({
+    required String firstName,
+    required String lastName,
+  }) async {
+    final current = user;
+    if (current == null ||
+        token == null ||
+        refreshToken == null ||
+        tokenExpiresAtUtc == null ||
+        refreshTokenExpiresAtUtc == null) {
+      return;
+    }
+    user = AuthUser(
+      id: current.id,
+      firstName: firstName,
+      lastName: lastName,
+      email: current.email,
+      role: current.role,
+    );
+    await _storage.save(
+      AuthResult(
+        token: token!,
+        tokenExpiresAtUtc: tokenExpiresAtUtc!,
+        refreshToken: refreshToken!,
+        refreshTokenExpiresAtUtc: refreshTokenExpiresAtUtc!,
+        user: user!,
+      ),
+    );
+    notifyListeners();
   }
 
   Future<AuthResult> _applyAdmin(AuthResult result) async {
@@ -103,6 +140,7 @@ class AuthSession {
     refreshTokenExpiresAtUtc = result.refreshTokenExpiresAtUtc;
     user = result.user;
     await _storage.save(result);
+    notifyListeners();
     return result;
   }
 }

@@ -11,13 +11,8 @@ class ApiClient {
 
   final http.Client _httpClient = http.Client();
 
-  Future<Map<String, dynamic>> getJson(
-    String path, {
-    String? token,
-  }) async {
-    final headers = <String, String>{
-      'Accept': 'application/json',
-    };
+  Future<Map<String, dynamic>> getJson(String path, {String? token}) async {
+    final headers = <String, String>{'Accept': 'application/json'};
 
     if (token != null) {
       headers['Authorization'] = 'Bearer $token';
@@ -39,13 +34,8 @@ class ApiClient {
     return decoded;
   }
 
-  Future<Uint8List> getBytes(
-    String path, {
-    String? token,
-  }) async {
-    final headers = <String, String>{
-      'Accept': '*/*',
-    };
+  Future<Uint8List> getBytes(String path, {String? token}) async {
+    final headers = <String, String>{'Accept': '*/*'};
 
     if (token != null) {
       headers['Authorization'] = 'Bearer $token';
@@ -159,13 +149,8 @@ class ApiClient {
     return decoded;
   }
 
-  Future<void> delete(
-    String path, {
-    String? token,
-  }) async {
-    final headers = <String, String>{
-      'Accept': 'application/json',
-    };
+  Future<void> delete(String path, {String? token}) async {
+    final headers = <String, String>{'Accept': 'application/json'};
 
     if (token != null) {
       headers['Authorization'] = 'Bearer $token';
