@@ -15,9 +15,17 @@ import '../widgets/customer_summary_cards.dart';
 import '../widgets/customers_table.dart';
 
 class CustomersPage extends StatefulWidget {
-  const CustomersPage({super.key, required this.token, this.showHeader = true});
+  const CustomersPage({
+    super.key,
+    required this.token,
+    required this.defaultPageSize,
+    required this.dateFormatter,
+    this.showHeader = true,
+  });
 
   final String token;
+  final int defaultPageSize;
+  final String Function(DateTime) dateFormatter;
   final bool showHeader;
 
   @override
@@ -31,12 +39,13 @@ class _CustomersPageState extends State<CustomersPage> {
   late Future<_CustomersData> _customersFuture;
   Timer? _searchDebounce;
   int _page = 1;
-  int _pageSize = 10;
+  late int _pageSize;
   int? _status;
 
   @override
   void initState() {
     super.initState();
+    _pageSize = widget.defaultPageSize;
     _service = AdminCustomerService(ApiClient());
     _customersFuture = _loadCustomers();
   }
@@ -193,8 +202,8 @@ class _CustomersPageState extends State<CustomersPage> {
           searchController: _searchController,
           status: _status,
           onSearchChanged: _onSearchChanged,
-          onStatusChanged: (status) {
-            _status = status;
+          onStatusChanged: (value) {
+            _status = value;
             _refreshFromFirstPage();
           },
           onRefresh: _refresh,
@@ -205,7 +214,8 @@ class _CustomersPageState extends State<CustomersPage> {
           child: FutureBuilder<_CustomersData>(
             future: _customersFuture,
             builder: (context, snapshot) {
-              if (snapshot.connectionState != ConnectionState.done) {
+              if (snapshot.connectionState != ConnectionState.done &&
+                  !snapshot.hasData) {
                 return const AppLoadingState();
               }
               if (snapshot.hasError) {
@@ -227,10 +237,13 @@ class _CustomersPageState extends State<CustomersPage> {
 
               return Column(
                 children: [
+                  if (snapshot.connectionState != ConnectionState.done)
+                    const LinearProgressIndicator(minHeight: 2),
                   CustomerSummaryCards(summary: data.summary),
                   const SizedBox(height: 16),
                   Expanded(
                     child: CustomersTable(
+                      dateFormatter: widget.dateFormatter,
                       page: data.page,
                       pageSize: _pageSize,
                       controller: _tableScrollController,

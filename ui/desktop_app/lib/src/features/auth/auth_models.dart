@@ -56,7 +56,9 @@ class AuthResult {
       token: json['token']?.toString() ?? '',
       tokenExpiresAtUtc: DateTime.parse(json['tokenExpiresAtUtc'].toString()),
       refreshToken: json['refreshToken']?.toString() ?? '',
-      refreshTokenExpiresAtUtc: DateTime.parse(json['refreshTokenExpiresAtUtc'].toString()),
+      refreshTokenExpiresAtUtc: DateTime.parse(
+        json['refreshTokenExpiresAtUtc'].toString(),
+      ),
       user: AuthUser.fromJson(json['user'] as Map<String, dynamic>),
     );
   }

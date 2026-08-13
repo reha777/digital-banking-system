@@ -1,6 +1,8 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import '../../../core/app_theme.dart';
+import '../../../widgets/app_status_badge.dart';
 import '../admin_card_request_models.dart';
 import 'card_document_preview.dart';
 
@@ -66,7 +68,7 @@ class _CardRequestDetailsDialogState extends State<CardRequestDetailsDialog> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Card request details',
+                      'Card Request - Details',
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                   ),
@@ -75,6 +77,16 @@ class _CardRequestDetailsDialogState extends State<CardRequestDetailsDialog> {
                     tooltip: 'Close',
                     icon: const Icon(LucideIcons.x),
                   ),
+                ],
+              ),
+              Row(
+                children: [
+                  Text(
+                    request.id,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(width: 10),
+                  AppStatusBadge(status: request.status),
                 ],
               ),
               const SizedBox(height: 16),
@@ -187,19 +199,22 @@ class _CardRequestDetailsDialogState extends State<CardRequestDetailsDialog> {
                       label: const Text('Request documents'),
                     ),
                     FilledButton.icon(
-                      onPressed: canReview
-                          ? () => _run(widget.onApprove)
-                          : null,
-                      icon: const Icon(LucideIcons.check, size: 18),
-                      label: const Text('Approve'),
-                    ),
-                    FilledButton.icon(
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(0xFFDC2626),
                       ),
                       onPressed: canReview ? () => _run(widget.onReject) : null,
                       icon: const Icon(LucideIcons.x, size: 18),
                       label: const Text('Reject'),
+                    ),
+                    FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppTheme.success,
+                      ),
+                      onPressed: canReview
+                          ? () => _run(widget.onApprove)
+                          : null,
+                      icon: const Icon(LucideIcons.check, size: 18),
+                      label: const Text('Approve'),
                     ),
                   ],
                 ),

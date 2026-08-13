@@ -5,6 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../core/app_theme.dart';
 import '../../../core/document_opener.dart';
+import '../../../widgets/app_status_badge.dart';
 import '../admin_transaction_models.dart';
 import 'transaction_document_preview.dart';
 
@@ -132,7 +133,7 @@ class _TransactionReviewDialogState extends State<TransactionReviewDialog> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'High-risk transaction review',
+                      'Transaction Review - Details',
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                   ),
@@ -145,81 +146,113 @@ class _TransactionReviewDialogState extends State<TransactionReviewDialog> {
                   ),
                 ],
               ),
+              Row(
+                children: [
+                  Text(
+                    transaction.referenceNumber,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(width: 10),
+                  AppStatusBadge(status: transaction.status),
+                ],
+              ),
               const SizedBox(height: 14),
               Expanded(
                 child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Wrap(
-                        spacing: 18,
-                        runSpacing: 8,
-                        children: [
-                          _Info('Reference', transaction.referenceNumber),
-                          _Info('Status', transaction.status),
-                          _Info(
-                            'Amount',
-                            '\$${transaction.amount.toStringAsFixed(2)}',
-                          ),
-                          _Info(
-                            'From',
-                            transaction.sourceCustomerName ??
-                                transaction.sourceAccountNumber ??
-                                transaction.accountNumber,
-                          ),
-                          _Info(
-                            'To',
-                            transaction.destinationCustomerName ??
-                                transaction.destinationAccountNumber ??
-                                '-',
-                          ),
-                          _Info(
-                            'Reason',
-                            transaction.reviewReason ?? 'High value transfer',
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 18),
-                      Text(
-                        'Documents',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      if (transaction.documents.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 12),
-                          child: Text('No uploaded proof documents yet.'),
-                        )
-                      else
-                        ...transaction.documents.map(
-                          (document) => ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: const Icon(LucideIcons.fileText),
-                            title: Text(document.fileName),
-                            subtitle: Text(document.contentType),
-                            trailing: OutlinedButton.icon(
-                              onPressed: () => _openDocument(document),
-                              icon: const Icon(LucideIcons.eye, size: 18),
-                              label: const Text('Preview'),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final information = _ReviewPanel(
+                        title: 'Transaction information',
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          spacing: 18,
+                          children: [
+                            _Info('Reference', transaction.referenceNumber),
+                            _Info('Status', transaction.status),
+                            _Info(
+                              'Amount',
+                              '\$${transaction.amount.toStringAsFixed(2)}',
                             ),
-                          ),
+                            _Info(
+                              'From',
+                              transaction.sourceCustomerName ??
+                                  transaction.sourceAccountNumber ??
+                                  transaction.accountNumber,
+                            ),
+                            _Info(
+                              'To',
+                              transaction.destinationCustomerName ??
+                                  transaction.destinationAccountNumber ??
+                                  '-',
+                            ),
+                            _Info(
+                              'Reason',
+                              transaction.reviewReason ?? 'High value transfer',
+                            ),
+                          ],
                         ),
-                      if (_selected != null && _preview != null)
-                        TransactionDocumentPreview(
-                          document: _selected!,
-                          future: _preview!,
+                      );
+                      final documents = _ReviewPanel(
+                        title: 'Documents',
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (transaction.documents.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 12),
+                                child: Text('No uploaded proof documents yet.'),
+                              )
+                            else
+                              ...transaction.documents.map(
+                                (document) => ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: const Icon(LucideIcons.fileText),
+                                  title: Text(document.fileName),
+                                  subtitle: Text(document.contentType),
+                                  trailing: OutlinedButton.icon(
+                                    onPressed: () => _openDocument(document),
+                                    icon: const Icon(LucideIcons.eye, size: 18),
+                                    label: const Text('Preview'),
+                                  ),
+                                ),
+                              ),
+                            if (_selected != null && _preview != null)
+                              TransactionDocumentPreview(
+                                document: _selected!,
+                                future: _preview!,
+                              ),
+                            const SizedBox(height: 14),
+                            TextField(
+                              controller: _noteController,
+                              enabled: _activeAction == null,
+                              maxLines: 3,
+                              maxLength: 500,
+                              decoration: const InputDecoration(
+                                labelText: 'Admin note',
+                                alignLabelWithHint: true,
+                              ),
+                            ),
+                          ],
                         ),
-                      const SizedBox(height: 14),
-                      TextField(
-                        controller: _noteController,
-                        enabled: _activeAction == null,
-                        maxLines: 3,
-                        maxLength: 500,
-                        decoration: const InputDecoration(
-                          labelText: 'Admin note / document request',
-                          prefixIcon: Icon(LucideIcons.pencil),
-                        ),
-                      ),
-                    ],
+                      );
+                      if (constraints.maxWidth < 720) {
+                        return Column(
+                          children: [
+                            information,
+                            const SizedBox(height: 14),
+                            documents,
+                          ],
+                        );
+                      }
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: information),
+                          const SizedBox(width: 14),
+                          Expanded(child: documents),
+                        ],
+                      );
+                    },
                   ),
                 ),
               ),
@@ -240,16 +273,6 @@ class _TransactionReviewDialogState extends State<TransactionReviewDialog> {
                     label: const Text('Request documents'),
                   ),
                   FilledButton.icon(
-                    onPressed: canReview && _activeAction == null
-                        ? () => _submit('approve')
-                        : null,
-                    icon: _ActionIcon(
-                      active: _activeAction == 'approve',
-                      icon: LucideIcons.check,
-                    ),
-                    label: const Text('Approve'),
-                  ),
-                  FilledButton.icon(
                     style: FilledButton.styleFrom(
                       backgroundColor: AppTheme.error,
                     ),
@@ -262,6 +285,19 @@ class _TransactionReviewDialogState extends State<TransactionReviewDialog> {
                     ),
                     label: const Text('Reject'),
                   ),
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppTheme.success,
+                    ),
+                    onPressed: canReview && _activeAction == null
+                        ? () => _submit('approve')
+                        : null,
+                    icon: _ActionIcon(
+                      active: _activeAction == 'approve',
+                      icon: LucideIcons.check,
+                    ),
+                    label: const Text('Approve'),
+                  ),
                 ],
               ),
             ],
@@ -270,6 +306,32 @@ class _TransactionReviewDialogState extends State<TransactionReviewDialog> {
       ),
     );
   }
+}
+
+class _ReviewPanel extends StatelessWidget {
+  const _ReviewPanel({required this.title, required this.child});
+  final String title;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surfaceContainerLowest,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(
+        color: Theme.of(context).dividerTheme.color ?? AppTheme.border,
+      ),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 12),
+        child,
+      ],
+    ),
+  );
 }
 
 class _Info extends StatelessWidget {

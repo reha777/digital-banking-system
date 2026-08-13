@@ -10,6 +10,7 @@ class CardRequestsTable extends StatelessWidget {
     super.key,
     required this.page,
     required this.pageSize,
+    required this.dateFormatter,
     required this.controller,
     required this.onDetails,
     required this.onPageSelected,
@@ -17,6 +18,7 @@ class CardRequestsTable extends StatelessWidget {
   });
   final AdminCardRequestPage page;
   final int pageSize;
+  final String Function(DateTime) dateFormatter;
   final ScrollController controller;
   final ValueChanged<AdminCardRequest> onDetails;
   final ValueChanged<int> onPageSelected;
@@ -45,6 +47,7 @@ class CardRequestsTable extends StatelessWidget {
                     ? _DesktopRow(
                         index: ((page.page - 1) * page.pageSize) + index + 1,
                         request: page.items[index],
+                        dateFormatter: dateFormatter,
                         onDetails: onDetails,
                       )
                     : _CompactRow(
@@ -105,10 +108,12 @@ class _DesktopRow extends StatelessWidget {
   const _DesktopRow({
     required this.index,
     required this.request,
+    required this.dateFormatter,
     required this.onDetails,
   });
   final int index;
   final AdminCardRequest request;
+  final String Function(DateTime) dateFormatter;
   final ValueChanged<AdminCardRequest> onDetails;
   @override
   Widget build(BuildContext context) => Container(
@@ -142,7 +147,7 @@ class _DesktopRow extends StatelessWidget {
         _Cell('${request.currency} card for ${request.cardholderName}', 3),
         _Cell(_shorten(request.documentNumber, 18), 3),
         _Cell(_shorten(request.deliveryAddress, 30), 4),
-        _Cell(_date(request.createdAtUtc), 2),
+        _Cell(dateFormatter(request.createdAtUtc), 2),
         Expanded(
           flex: 2,
           child: Align(
@@ -225,7 +230,3 @@ Color _divider(BuildContext context) =>
     : const Color(0xFFEFF2F7);
 String _shorten(String value, int max) =>
     value.length <= max ? value : '${value.substring(0, max - 1)}...';
-String _date(DateTime value) {
-  final local = value.toLocal();
-  return '${local.day.toString().padLeft(2, '0')}.${local.month.toString().padLeft(2, '0')}.${local.year}.';
-}

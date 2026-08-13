@@ -53,10 +53,8 @@ class CardRequestFilters extends StatelessWidget {
             child: DropdownButtonFormField<int?>(
               key: ValueKey(status),
               initialValue: status,
-              decoration: const InputDecoration(
-                prefixIcon: Icon(LucideIcons.listFilter),
-                labelText: 'Status',
-              ),
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Status'),
               items: const [
                 DropdownMenuItem(value: null, child: Text('All statuses')),
                 DropdownMenuItem(value: 1, child: Text('Pending')),

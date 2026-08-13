@@ -35,28 +35,34 @@ class AdminSidebar extends StatelessWidget {
         Row(
           children: [
             Container(
-              width: 42,
-              height: 42,
+              width: 36,
+              height: 36,
               decoration: BoxDecoration(
                 color: AppTheme.primary,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(LucideIcons.landmark, color: Colors.white),
+              child: const Icon(
+                LucideIcons.shieldCheck,
+                color: Colors.white,
+                size: 21,
+              ),
             ),
             if (!compact) ...[
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               const Text(
-                'BankPick',
+                'Banking Admin',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 21,
-                  fontWeight: FontWeight.w800,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],
           ],
         ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 18),
+        Divider(color: Colors.white.withValues(alpha: .1), height: 1),
+        const SizedBox(height: 18),
         _SidebarItem(
           icon: LucideIcons.layoutDashboard,
           title: 'Dashboard',
@@ -92,107 +98,157 @@ class AdminSidebar extends StatelessWidget {
           compact: compact,
           onTap: () => onSectionSelected(AdminSection.cardRequests),
         ),
+        const SizedBox(height: 10),
+        Divider(color: Colors.white.withValues(alpha: .1), height: 1),
+        if (!compact) ...[
+          const SizedBox(height: 18),
+          const Padding(
+            padding: EdgeInsets.only(left: 10, bottom: 10),
+            child: Text(
+              'SYSTEM',
+              style: TextStyle(
+                color: Colors.white54,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ] else
+          const SizedBox(height: 12),
+        _SidebarItem(
+          icon: LucideIcons.barChart3,
+          title: 'Reports',
+          active: false,
+          compact: compact,
+          onTap: () => _unavailable(context, 'Reports'),
+        ),
+        _SidebarItem(
+          icon: LucideIcons.settings,
+          title: 'Settings',
+          active: selectedSection == AdminSection.settings,
+          compact: compact,
+          onTap: () => onSectionSelected(AdminSection.settings),
+        ),
+        _SidebarItem(
+          icon: LucideIcons.history,
+          title: 'Audit Logs',
+          active: false,
+          compact: compact,
+          onTap: () => _unavailable(context, 'Audit Logs'),
+        ),
         const Spacer(),
         AnimatedBuilder(
           animation: themeController,
-          builder: (context, _) {
-            if (compact) {
-              return IconButton(
-                onPressed: () =>
-                    themeController.toggleDarkMode(!themeController.isDarkMode),
-                tooltip: themeController.isDarkMode
-                    ? 'Use light mode'
-                    : 'Use dark mode',
-                icon: Icon(
-                  themeController.isDarkMode
-                      ? LucideIcons.moon
-                      : LucideIcons.sun,
-                  color: Colors.white70,
-                ),
-              );
-            }
-            return Container(
-              width: double.infinity,
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1F2937),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    themeController.isDarkMode
-                        ? LucideIcons.moon
-                        : LucideIcons.sun,
-                    color: Colors.white70,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Text(
-                      'Dark mode',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  Switch(
-                    value: themeController.isDarkMode,
-                    onChanged: themeController.toggleDarkMode,
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-        if (!compact)
-          Container(
+          builder: (context, _) => Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(14),
+            padding: EdgeInsets.all(compact ? 8 : 12),
             decoration: BoxDecoration(
-              color: const Color(0xFF1F2937),
+              color: const Color(0xFF172235),
               borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.white.withValues(alpha: .08)),
             ),
-            child: Row(
-              children: [
-                const CircleAvatar(
-                  backgroundColor: Color(0xFF374151),
-                  child: Icon(LucideIcons.user, color: Colors.white70),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    userName.isEmpty ? 'Admin' : userName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white),
+            child: compact
+                ? Column(
+                    children: [
+                      IconButton(
+                        onPressed: () => themeController.toggleDarkMode(
+                          !themeController.isDarkMode,
+                        ),
+                        tooltip: themeController.isDarkMode
+                            ? 'Use light mode'
+                            : 'Use dark mode',
+                        icon: Icon(
+                          themeController.isDarkMode
+                              ? LucideIcons.sun
+                              : LucideIcons.moon,
+                          color: Colors.white70,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: onLogout,
+                        tooltip: 'Sign out $userName',
+                        icon: const Icon(
+                          LucideIcons.logOut,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      const CircleAvatar(
+                        radius: 19,
+                        backgroundColor: Color(0xFF334155),
+                        child: Icon(
+                          LucideIcons.user,
+                          color: Colors.white70,
+                          size: 19,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              userName.isEmpty ? 'Admin' : userName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const Text(
+                              'Administrator',
+                              style: TextStyle(
+                                color: Colors.white54,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => themeController.toggleDarkMode(
+                          !themeController.isDarkMode,
+                        ),
+                        tooltip: themeController.isDarkMode
+                            ? 'Use light mode'
+                            : 'Use dark mode',
+                        icon: Icon(
+                          themeController.isDarkMode
+                              ? LucideIcons.sun
+                              : LucideIcons.moon,
+                          color: Colors.white70,
+                          size: 18,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: onLogout,
+                        tooltip: 'Sign out',
+                        icon: const Icon(
+                          LucideIcons.logOut,
+                          color: Colors.white54,
+                          size: 18,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
-            ),
           ),
-        const SizedBox(height: 12),
-        if (compact)
-          IconButton(
-            onPressed: onLogout,
-            tooltip: 'Sign out $userName',
-            icon: const Icon(LucideIcons.logOut, color: Colors.white70),
-          )
-        else
-          TextButton.icon(
-            onPressed: onLogout,
-            icon: const Icon(LucideIcons.logOut),
-            label: const Text('Sign out'),
-            style: TextButton.styleFrom(foregroundColor: Colors.white70),
-          ),
+        ),
       ],
     ),
   );
+
+  void _unavailable(BuildContext context, String section) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('$section is not available yet.')));
+  }
 }
 
-class _SidebarItem extends StatelessWidget {
+class _SidebarItem extends StatefulWidget {
   const _SidebarItem({
     required this.icon,
     required this.title,
@@ -206,31 +262,48 @@ class _SidebarItem extends StatelessWidget {
   final bool compact;
   final VoidCallback onTap;
   @override
+  State<_SidebarItem> createState() => _SidebarItemState();
+}
+
+class _SidebarItemState extends State<_SidebarItem> {
+  bool _hovered = false;
+  @override
   Widget build(BuildContext context) {
     final item = AnimatedContainer(
       duration: const Duration(milliseconds: 180),
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: active ? AppTheme.primary : Colors.transparent,
+        color: widget.active
+            ? AppTheme.primary
+            : _hovered
+            ? Colors.white.withValues(alpha: .07)
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
       ),
       child: ListTile(
-        contentPadding: compact ? EdgeInsets.zero : null,
-        horizontalTitleGap: compact ? 0 : 16,
+        contentPadding: widget.compact ? EdgeInsets.zero : null,
+        horizontalTitleGap: widget.compact ? 0 : 16,
         dense: true,
-        onTap: onTap,
-        leading: compact ? null : Icon(icon, color: Colors.white),
-        title: compact
-            ? Center(child: Icon(icon, color: Colors.white))
+        onTap: widget.onTap,
+        leading: widget.compact ? null : Icon(widget.icon, color: Colors.white),
+        title: widget.compact
+            ? Center(child: Icon(widget.icon, color: Colors.white))
             : Text(
-                title,
+                widget.title,
                 style: TextStyle(
                   color: Colors.white,
-                  fontWeight: active ? FontWeight.w800 : FontWeight.w500,
+                  fontWeight: widget.active ? FontWeight.w800 : FontWeight.w500,
                 ),
               ),
       ),
     );
-    return compact ? Tooltip(message: title, child: item) : item;
+    final hoverable = MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: item,
+    );
+    return widget.compact
+        ? Tooltip(message: widget.title, child: hoverable)
+        : hoverable;
   }
 }

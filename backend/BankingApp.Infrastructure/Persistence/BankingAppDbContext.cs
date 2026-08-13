@@ -24,6 +24,8 @@ namespace BankingApp.Infrastructure.Persistence
         public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
         public DbSet<AccessTokenRevocation> AccessTokenRevocations => Set<AccessTokenRevocation>();
+        public DbSet<SystemSettings> SystemSettings => Set<SystemSettings>();
+        public DbSet<AdminUserPreferences> AdminUserPreferences => Set<AdminUserPreferences>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -38,7 +40,38 @@ namespace BankingApp.Infrastructure.Persistence
             ConfigureCardRequestDocuments(modelBuilder);
             ConfigureRefreshTokens(modelBuilder);
             ConfigureAccessTokenRevocations(modelBuilder);
+            ConfigureSettings(modelBuilder);
             SeedData(modelBuilder);
+        }
+
+        private static void ConfigureSettings(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<SystemSettings>(entity =>
+            {
+                entity.ToTable("SystemSettings");
+                entity.HasKey(value => value.Id);
+                entity.Property(value => value.SystemName).HasMaxLength(120).IsRequired();
+                entity.Property(value => value.SystemShortName).HasMaxLength(20).IsRequired();
+                entity.Property(value => value.CompanyName).HasMaxLength(160).IsRequired();
+                entity.Property(value => value.CompanyEmail).HasMaxLength(256).IsRequired();
+                entity.Property(value => value.CompanyPhone).HasMaxLength(30).IsRequired();
+                entity.Property(value => value.Timezone).HasMaxLength(80).IsRequired();
+            });
+
+            modelBuilder.Entity<AdminUserPreferences>(entity =>
+            {
+                entity.ToTable("AdminUserPreferences");
+                entity.HasKey(value => value.Id);
+                entity.Property(value => value.ThemeMode).HasMaxLength(10).IsRequired();
+                entity.Property(value => value.SidebarStyle).HasMaxLength(12).IsRequired();
+                entity.Property(value => value.DateFormat).HasMaxLength(20).IsRequired();
+                entity.Property(value => value.TimeFormat).HasMaxLength(10).IsRequired();
+                entity.Property(value => value.FirstDayOfWeek).HasMaxLength(10).IsRequired();
+                entity.Property(value => value.NumberFormat).HasMaxLength(20).IsRequired();
+                entity.Property(value => value.Timezone).HasMaxLength(80).IsRequired();
+                entity.HasIndex(value => value.UserId).IsUnique();
+                entity.HasOne(value => value.User).WithOne().HasForeignKey<AdminUserPreferences>(value => value.UserId).OnDelete(DeleteBehavior.Cascade);
+            });
         }
 
         private static void ConfigureUsers(ModelBuilder modelBuilder)

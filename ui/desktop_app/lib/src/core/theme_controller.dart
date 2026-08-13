@@ -16,6 +16,7 @@ class ThemeController extends ChangeNotifier {
     _themeMode = switch (storedValue) {
       'light' => ThemeMode.light,
       'dark' => ThemeMode.dark,
+      'system' => ThemeMode.system,
       _ => ThemeMode.light,
     };
     notifyListeners();

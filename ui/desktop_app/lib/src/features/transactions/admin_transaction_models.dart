@@ -9,7 +9,9 @@ class AdminTransactionPage {
   factory AdminTransactionPage.fromJson(Map<String, dynamic> json) {
     return AdminTransactionPage(
       items: (json['items'] as List? ?? [])
-          .map((item) => AdminTransaction.fromJson(item as Map<String, dynamic>))
+          .map(
+            (item) => AdminTransaction.fromJson(item as Map<String, dynamic>),
+          )
           .toList(),
       page: json['page'] as int? ?? 1,
       pageSize: json['pageSize'] as int? ?? 20,
@@ -88,13 +90,17 @@ class AdminTransaction {
       adminNote: json['adminNote']?.toString(),
       reviewedAtUtc: DateTime.tryParse(json['reviewedAtUtc']?.toString() ?? ''),
       documents: (json['documents'] as List? ?? [])
-          .map((item) => AdminTransactionDocument.fromJson(item as Map<String, dynamic>))
+          .map(
+            (item) =>
+                AdminTransactionDocument.fromJson(item as Map<String, dynamic>),
+          )
           .toList(),
       sourceAccountNumber: json['sourceAccountNumber']?.toString(),
       destinationAccountNumber: json['destinationAccountNumber']?.toString(),
       sourceCustomerName: json['sourceCustomerName']?.toString(),
       destinationCustomerName: json['destinationCustomerName']?.toString(),
-      createdAtUtc: DateTime.tryParse(json['createdAtUtc']?.toString() ?? '') ??
+      createdAtUtc:
+          DateTime.tryParse(json['createdAtUtc']?.toString() ?? '') ??
           DateTime.now().toUtc(),
     );
   }
@@ -134,7 +140,8 @@ class AdminTransactionDocument {
       fileName: json['fileName']?.toString() ?? '',
       contentType: json['contentType']?.toString() ?? '',
       sizeBytes: json['sizeBytes'] as int? ?? 0,
-      uploadedAtUtc: DateTime.tryParse(json['uploadedAtUtc']?.toString() ?? '') ??
+      uploadedAtUtc:
+          DateTime.tryParse(json['uploadedAtUtc']?.toString() ?? '') ??
           DateTime.now().toUtc(),
     );
   }

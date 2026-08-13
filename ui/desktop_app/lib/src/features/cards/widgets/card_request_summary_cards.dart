@@ -29,10 +29,19 @@ class CardRequestSummaryCards extends StatelessWidget {
       const SizedBox(width: 14),
       Expanded(
         child: AppSummaryCard(
-          title: 'Approved / rejected',
-          value: '${summary.approvedRequests + summary.rejectedRequests}',
+          title: 'Approved',
+          value: '${summary.approvedRequests}',
           icon: LucideIcons.clipboardCheck,
           tone: const Color(0xFF16A34A),
+        ),
+      ),
+      const SizedBox(width: 14),
+      Expanded(
+        child: AppSummaryCard(
+          title: 'Rejected',
+          value: '${summary.rejectedRequests}',
+          icon: LucideIcons.xCircle,
+          tone: const Color(0xFFDC2626),
         ),
       ),
     ],

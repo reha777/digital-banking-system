@@ -19,9 +19,13 @@ class CardRequestsPage extends StatefulWidget {
   const CardRequestsPage({
     super.key,
     required this.token,
+    required this.defaultPageSize,
+    required this.dateFormatter,
     this.showHeader = true,
   });
   final String token;
+  final int defaultPageSize;
+  final String Function(DateTime) dateFormatter;
   final bool showHeader;
   @override
   State<CardRequestsPage> createState() => _CardRequestsPageState();
@@ -34,11 +38,12 @@ class _CardRequestsPageState extends State<CardRequestsPage> {
   late Future<_CardRequestsData> _future;
   Timer? _debounce;
   int _page = 1;
-  int _pageSize = 10;
+  late int _pageSize;
   int? _status;
   @override
   void initState() {
     super.initState();
+    _pageSize = widget.defaultPageSize;
     _service = AdminCardRequestService(ApiClient());
     _future = _load();
   }
@@ -251,7 +256,8 @@ class _CardRequestsPageState extends State<CardRequestsPage> {
         child: FutureBuilder<_CardRequestsData>(
           future: _future,
           builder: (_, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
+            if (snapshot.connectionState != ConnectionState.done &&
+                !snapshot.hasData) {
               return const AppLoadingState();
             }
             if (snapshot.hasError) {
@@ -271,10 +277,13 @@ class _CardRequestsPageState extends State<CardRequestsPage> {
             }
             return Column(
               children: [
+                if (snapshot.connectionState != ConnectionState.done)
+                  const LinearProgressIndicator(minHeight: 2),
                 CardRequestSummaryCards(summary: data.summary),
                 const SizedBox(height: 16),
                 Expanded(
                   child: CardRequestsTable(
+                    dateFormatter: widget.dateFormatter,
                     page: data.page,
                     pageSize: _pageSize,
                     controller: _tableController,

@@ -5,6 +5,7 @@ import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
 import 'admin_dashboard_models.dart';
 import 'admin_dashboard_service.dart';
+import '../settings/admin_formatters.dart';
 
 class AdminDashboardOverview extends StatefulWidget {
   const AdminDashboardOverview({
@@ -84,27 +85,30 @@ class _AdminDashboardOverviewState extends State<AdminDashboardOverview> {
                   children: [
                     _DashboardStat(
                       width: cardWidth,
-                      icon: LucideIcons.users,
-                      label: 'Total customers',
-                      value: '${data.totalCustomers}',
+                      icon: LucideIcons.circleDollarSign,
+                      label: 'Total transaction volume',
+                      value: AdminFormatters.number(
+                        data.totalTransferred,
+                        currency: true,
+                      ),
                     ),
                     _DashboardStat(
                       width: cardWidth,
                       icon: LucideIcons.receipt,
-                      label: 'Total transactions',
+                      label: 'Transactions',
                       value: '${data.totalTransactions}',
-                    ),
-                    _DashboardStat(
-                      width: cardWidth,
-                      icon: LucideIcons.circleDollarSign,
-                      label: 'Total transferred',
-                      value: '\$${data.totalTransferred.toStringAsFixed(2)}',
                     ),
                     _DashboardStat(
                       width: cardWidth,
                       icon: LucideIcons.shieldAlert,
                       label: 'Pending reviews',
                       value: '${data.pendingReviews}',
+                    ),
+                    _DashboardStat(
+                      width: cardWidth,
+                      icon: LucideIcons.creditCard,
+                      label: 'Card requests',
+                      value: '${data.pendingCardRequests}',
                     ),
                   ],
                 ),
@@ -236,7 +240,9 @@ class _RecentTransactions extends StatelessWidget {
                       item.destinationAccountNumber ??
                       '-',
                 ),
-                trailing: Text('\$${item.amount.toStringAsFixed(2)}'),
+                trailing: Text(
+                  AdminFormatters.number(item.amount, currency: true),
+                ),
               ),
             ),
         ],
@@ -327,6 +333,37 @@ class _AttentionItem extends StatelessWidget {
 class _DashboardLoading extends StatelessWidget {
   const _DashboardLoading();
   @override
-  Widget build(BuildContext context) =>
-      const Center(child: CircularProgressIndicator());
+  Widget build(BuildContext context) => Column(
+    children: [
+      Row(
+        children: [
+          for (var index = 0; index < 4; index++) ...[
+            if (index > 0) const SizedBox(width: 14),
+            Expanded(
+              child: Container(
+                height: 92,
+                decoration: BoxDecoration(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest.withValues(alpha: .45),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+      const SizedBox(height: 18),
+      Expanded(
+        child: Container(
+          decoration: BoxDecoration(
+            color: Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest.withValues(alpha: .32),
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+    ],
+  );
 }

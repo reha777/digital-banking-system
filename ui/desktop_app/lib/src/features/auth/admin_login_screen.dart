@@ -4,6 +4,7 @@ import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
 import '../../core/theme_controller.dart';
 import '../admin_shell/admin_shell_screen.dart';
+import '../settings/admin_settings_controller.dart';
 import 'auth_session.dart';
 import 'widgets/admin_auth_widgets.dart';
 
@@ -12,10 +13,12 @@ class AdminLoginScreen extends StatefulWidget {
     super.key,
     required this.session,
     required this.themeController,
+    required this.settingsController,
   });
 
   final AuthSession session;
   final ThemeController themeController;
+  final AdminSettingsController settingsController;
 
   @override
   State<AdminLoginScreen> createState() => _AdminLoginScreenState();
@@ -153,6 +156,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
+      await widget.settingsController.load(widget.session.token!);
 
       if (!mounted) {
         return;
@@ -163,6 +167,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
           builder: (_) => AdminShellScreen(
             session: widget.session,
             themeController: widget.themeController,
+            settingsController: widget.settingsController,
           ),
         ),
       );

@@ -44,7 +44,10 @@ class AdminAuthField extends StatelessWidget {
             color: AppTheme.textMuted,
           ),
         ),
-        prefixIconConstraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+        prefixIconConstraints: const BoxConstraints(
+          minWidth: 20,
+          minHeight: 20,
+        ),
         suffixIcon: suffix,
       ),
     );

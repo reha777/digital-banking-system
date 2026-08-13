@@ -4,12 +4,14 @@ import '../../../core/app_theme.dart';
 import '../../../widgets/app_pagination.dart';
 import '../../../widgets/app_status_badge.dart';
 import '../admin_customer_models.dart';
+import '../../settings/admin_formatters.dart';
 
 class CustomersTable extends StatelessWidget {
   const CustomersTable({
     super.key,
     required this.page,
     required this.pageSize,
+    required this.dateFormatter,
     required this.controller,
     required this.onEdit,
     required this.onDelete,
@@ -19,6 +21,7 @@ class CustomersTable extends StatelessWidget {
   });
   final AdminCustomerPage page;
   final int pageSize;
+  final String Function(DateTime) dateFormatter;
   final ScrollController controller;
   final ValueChanged<AdminCustomer> onEdit;
   final ValueChanged<AdminCustomer> onDelete;
@@ -50,6 +53,7 @@ class CustomersTable extends StatelessWidget {
                     ? _DesktopRow(
                         index: ((page.page - 1) * page.pageSize) + index + 1,
                         customer: page.items[index],
+                        dateFormatter: dateFormatter,
                         onEdit: onEdit,
                         onDelete: onDelete,
                         onStatusChanged: onStatusChanged,
@@ -114,12 +118,14 @@ class _DesktopRow extends StatelessWidget {
   const _DesktopRow({
     required this.index,
     required this.customer,
+    required this.dateFormatter,
     required this.onEdit,
     required this.onDelete,
     required this.onStatusChanged,
   });
   final int index;
   final AdminCustomer customer;
+  final String Function(DateTime) dateFormatter;
   final ValueChanged<AdminCustomer> onEdit;
   final ValueChanged<AdminCustomer> onDelete;
   final void Function(AdminCustomer, int) onStatusChanged;
@@ -172,8 +178,11 @@ class _DesktopRow extends StatelessWidget {
         ),
         _Cell(customer.phoneNumber, 4),
         _Cell('${customer.accountCount}', 2),
-        _Cell('\$${customer.totalBalance.abs().toStringAsFixed(2)}', 2),
-        _Cell(_date(customer.createdAtUtc), 2),
+        _Cell(
+          AdminFormatters.number(customer.totalBalance.abs(), currency: true),
+          2,
+        ),
+        _Cell(dateFormatter(customer.createdAtUtc), 2),
         Expanded(
           flex: 2,
           child: Align(
@@ -311,9 +320,4 @@ String _initials(AdminCustomer c) {
   final value =
       '${c.firstName.isEmpty ? '' : c.firstName[0]}${c.lastName.isEmpty ? '' : c.lastName[0]}';
   return value.isEmpty ? 'C' : value.toUpperCase();
-}
-
-String _date(DateTime value) {
-  final local = value.toLocal();
-  return '${local.day.toString().padLeft(2, '0')}.${local.month.toString().padLeft(2, '0')}.${local.year}.';
 }

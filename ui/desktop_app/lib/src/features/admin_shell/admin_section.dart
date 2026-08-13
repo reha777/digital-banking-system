@@ -4,4 +4,5 @@ enum AdminSection {
   transactionReviews,
   customers,
   cardRequests,
+  settings,
 }

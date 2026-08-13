@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 import '../core/app_theme.dart';
 
@@ -26,24 +27,24 @@ class AdminModal extends StatelessWidget {
   Widget build(BuildContext context) {
     final actionColor = primaryColor ?? AppTheme.primary;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surfaceColor = isDark ? AppTheme.darkSurface : const Color(0xFFF4F5FB);
+    final surfaceColor = isDark ? AppTheme.darkSurface : Colors.white;
     final textColor = isDark ? Colors.white : AppTheme.textDark;
-    final borderColor = isDark ? const Color(0xFF303244) : const Color(0xFF9CA3AF);
+    final borderColor = isDark ? const Color(0xFF303244) : AppTheme.border;
 
     return Dialog(
       backgroundColor: Colors.transparent,
       child: Container(
         width: width,
-        padding: const EdgeInsets.all(26),
+        padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
           color: surfaceColor,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: borderColor),
           boxShadow: [
             BoxShadow(
               color: const Color(0xFF0F172A).withValues(alpha: 0.18),
-              blurRadius: 34,
-              offset: const Offset(0, 18),
+              blurRadius: 28,
+              offset: const Offset(0, 14),
             ),
           ],
         ),
@@ -51,46 +52,51 @@ class AdminModal extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: TextStyle(
-                color: textColor,
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 20),
-            ...children,
-            const SizedBox(height: 26),
             Row(
               children: [
                 Expanded(
-                  child: ElevatedButton(
-                    onPressed: onPrimary,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: actionColor,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size.fromHeight(46),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
                     ),
-                    child: Text(primaryLabel),
                   ),
                 ),
-                const SizedBox(width: 12),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  tooltip: 'Close',
+                  icon: const Icon(LucideIcons.x, size: 20),
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            ...children,
+            const SizedBox(height: 22),
+            Row(
+              children: [
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () => Navigator.of(context).pop(),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: textColor,
-                      minimumSize: const Size.fromHeight(46),
+                      minimumSize: const Size.fromHeight(44),
                       side: BorderSide(color: borderColor),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
                     ),
                     child: Text(cancelLabel),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: onPrimary,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: actionColor,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size.fromHeight(44),
+                    ),
+                    child: Text(primaryLabel),
                   ),
                 ),
               ],

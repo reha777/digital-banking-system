@@ -11,16 +11,22 @@ import '../../../widgets/app_page_states.dart';
 import '../../../widgets/app_pagination.dart';
 import '../../../widgets/app_status_badge.dart';
 import '../../../widgets/app_summary_card.dart';
+import '../../../widgets/app_status_tabs.dart';
 import '../admin_transaction_models.dart';
 import '../admin_transaction_service.dart';
+import '../../settings/admin_formatters.dart';
 
 class TransactionsPage extends StatefulWidget {
   const TransactionsPage({
     super.key,
     required this.token,
+    required this.defaultPageSize,
+    required this.dateFormatter,
     this.showHeader = true,
   });
   final String token;
+  final int defaultPageSize;
+  final String Function(DateTime) dateFormatter;
   final bool showHeader;
 
   @override
@@ -34,13 +40,14 @@ class _TransactionsPageState extends State<TransactionsPage> {
   late Future<_TransactionsData> _future;
   Timer? _debounce;
   int _page = 1;
-  int _pageSize = 10;
+  late int _pageSize;
   int? _status;
   DateTimeRange? _dateRange;
 
   @override
   void initState() {
     super.initState();
+    _pageSize = widget.defaultPageSize;
     _service = AdminTransactionService(ApiClient());
     _future = _load();
   }
@@ -123,12 +130,29 @@ class _TransactionsPageState extends State<TransactionsPage> {
           onRefresh: _refresh,
           onReset: _resetFilters,
         ),
+        const SizedBox(height: 8),
+        AppStatusTabs<int?>(
+          value: _status,
+          tabs: const [
+            AppStatusTab(value: null, label: 'All'),
+            AppStatusTab(value: 1, label: 'Pending'),
+            AppStatusTab(value: 2, label: 'Completed'),
+            AppStatusTab(value: 3, label: 'Failed'),
+            AppStatusTab(value: 4, label: 'Cancelled'),
+            AppStatusTab(value: 5, label: 'Documents requested'),
+          ],
+          onChanged: (value) {
+            _status = value;
+            _refresh(firstPage: true);
+          },
+        ),
         const SizedBox(height: 18),
         Expanded(
           child: FutureBuilder<_TransactionsData>(
             future: _future,
             builder: (context, snapshot) {
-              if (snapshot.connectionState != ConnectionState.done) {
+              if (snapshot.connectionState != ConnectionState.done &&
+                  !snapshot.hasData) {
                 return const AppLoadingState();
               }
               if (snapshot.hasError) return AppErrorState(onRetry: _refresh);
@@ -143,6 +167,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
               }
               return Column(
                 children: [
+                  if (snapshot.connectionState != ConnectionState.done)
+                    const LinearProgressIndicator(minHeight: 2),
                   _TransactionSummary(summary: data.summary),
                   const SizedBox(height: 16),
                   Expanded(
@@ -150,6 +176,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
                       page: data.page,
                       controller: _scrollController,
                       pageSize: _pageSize,
+                      dateFormatter: widget.dateFormatter,
                       onPageSelected: (value) {
                         _page = value;
                         _refresh();
@@ -219,16 +246,15 @@ class _TransactionFilters extends StatelessWidget {
             child: DropdownButtonFormField<int?>(
               key: ValueKey(status),
               initialValue: status,
-              decoration: const InputDecoration(
-                prefixIcon: Icon(LucideIcons.listFilter),
-                labelText: 'Status',
-              ),
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Status'),
               items: const [
                 DropdownMenuItem(value: null, child: Text('All statuses')),
                 DropdownMenuItem(value: 1, child: Text('Pending')),
                 DropdownMenuItem(value: 2, child: Text('Completed')),
                 DropdownMenuItem(value: 3, child: Text('Failed')),
                 DropdownMenuItem(value: 4, child: Text('Cancelled')),
+                DropdownMenuItem(value: 5, child: Text('Documents requested')),
               ],
               onChanged: onStatusChanged,
             ),
@@ -285,7 +311,10 @@ class _TransactionSummary extends StatelessWidget {
       Expanded(
         child: AppSummaryCard(
           title: 'Total transferred',
-          value: '\$${summary.totalTransferred.toStringAsFixed(2)}',
+          value: AdminFormatters.number(
+            summary.totalTransferred,
+            currency: true,
+          ),
           icon: LucideIcons.circleDollarSign,
           tone: const Color(0xFF7C3AED),
         ),
@@ -299,12 +328,14 @@ class _TransactionsTable extends StatelessWidget {
     required this.page,
     required this.controller,
     required this.pageSize,
+    required this.dateFormatter,
     required this.onPageSelected,
     required this.onPageSizeChanged,
   });
   final AdminTransactionPage page;
   final ScrollController controller;
   final int pageSize;
+  final String Function(DateTime) dateFormatter;
   final ValueChanged<int> onPageSelected;
   final ValueChanged<int> onPageSizeChanged;
   @override
@@ -348,7 +379,7 @@ class _TransactionsTable extends StatelessWidget {
                       return _TransactionTableRow(
                         values: [
                           '${((page.page - 1) * page.pageSize) + index + 1}.',
-                          _date(item.createdAtUtc),
+                          dateFormatter(item.createdAtUtc),
                           item.referenceNumber,
                           item.sourceCustomerName ??
                               item.sourceAccountNumber ??
@@ -356,7 +387,7 @@ class _TransactionsTable extends StatelessWidget {
                           item.destinationCustomerName ??
                               item.destinationAccountNumber ??
                               '-',
-                          '\$${item.amount.toStringAsFixed(2)}',
+                          AdminFormatters.number(item.amount, currency: true),
                           item.status,
                         ],
                         status: item.status,
@@ -445,11 +476,6 @@ class _TransactionsData {
   const _TransactionsData({required this.page, required this.summary});
   final AdminTransactionPage page;
   final AdminTransactionSummary summary;
-}
-
-String _date(DateTime value) {
-  final local = value.toLocal();
-  return '${local.day.toString().padLeft(2, '0')}.${local.month.toString().padLeft(2, '0')}.${local.year}.';
 }
 
 Color _pageBorder(BuildContext context) =>

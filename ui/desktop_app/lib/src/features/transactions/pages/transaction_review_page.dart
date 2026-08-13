@@ -11,17 +11,23 @@ import '../../../widgets/app_page_header.dart';
 import '../../../widgets/app_page_states.dart';
 import '../../../widgets/app_pagination.dart';
 import '../../../widgets/app_status_badge.dart';
+import '../../../widgets/app_status_tabs.dart';
 import '../admin_transaction_models.dart';
 import '../admin_transaction_service.dart';
 import '../widgets/transaction_review_dialog.dart';
+import '../../settings/admin_formatters.dart';
 
 class TransactionReviewPage extends StatefulWidget {
   const TransactionReviewPage({
     super.key,
     required this.token,
+    required this.defaultPageSize,
+    required this.dateFormatter,
     this.showHeader = true,
   });
   final String token;
+  final int defaultPageSize;
+  final String Function(DateTime) dateFormatter;
   final bool showHeader;
   @override
   State<TransactionReviewPage> createState() => _TransactionReviewPageState();
@@ -34,13 +40,14 @@ class _TransactionReviewPageState extends State<TransactionReviewPage> {
   late Future<_ReviewData> _future;
   Timer? _debounce;
   int _page = 1;
-  int _pageSize = 10;
+  late int _pageSize;
   int? _status;
   DateTimeRange? _dateRange;
 
   @override
   void initState() {
     super.initState();
+    _pageSize = widget.defaultPageSize;
     _service = AdminTransactionService(ApiClient());
     _future = _load();
   }
@@ -206,14 +213,12 @@ class _TransactionReviewPageState extends State<TransactionReviewPage> {
               ),
             ),
             SizedBox(
-              width: 220,
+              width: 190,
               child: DropdownButtonFormField<int?>(
                 key: ValueKey(_status),
                 initialValue: _status,
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(LucideIcons.listFilter),
-                  labelText: 'Status',
-                ),
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Status'),
                 items: const [
                   DropdownMenuItem(value: null, child: Text('All statuses')),
                   DropdownMenuItem(value: 1, child: Text('Pending')),
@@ -258,12 +263,28 @@ class _TransactionReviewPageState extends State<TransactionReviewPage> {
           ],
         ),
       ),
+      const SizedBox(height: 8),
+      AppStatusTabs<int?>(
+        value: _status,
+        tabs: const [
+          AppStatusTab(value: null, label: 'All'),
+          AppStatusTab(value: 1, label: 'Pending'),
+          AppStatusTab(value: 5, label: 'Documents requested'),
+          AppStatusTab(value: 2, label: 'Completed'),
+          AppStatusTab(value: 3, label: 'Failed'),
+        ],
+        onChanged: (value) {
+          _status = value;
+          _refresh(firstPage: true);
+        },
+      ),
       const SizedBox(height: 18),
       Expanded(
         child: FutureBuilder<_ReviewData>(
           future: _future,
           builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
+            if (snapshot.connectionState != ConnectionState.done &&
+                !snapshot.hasData) {
               return const AppLoadingState();
             }
             if (snapshot.hasError) return AppErrorState(onRetry: _refresh);
@@ -278,6 +299,8 @@ class _TransactionReviewPageState extends State<TransactionReviewPage> {
             }
             return Column(
               children: [
+                if (snapshot.connectionState != ConnectionState.done)
+                  const LinearProgressIndicator(minHeight: 2),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
@@ -288,6 +311,7 @@ class _TransactionReviewPageState extends State<TransactionReviewPage> {
                 const SizedBox(height: 10),
                 Expanded(
                   child: _ReviewTable(
+                    dateFormatter: widget.dateFormatter,
                     page: data.page,
                     pageSize: _pageSize,
                     controller: _scrollController,
@@ -315,6 +339,7 @@ class _ReviewTable extends StatelessWidget {
   const _ReviewTable({
     required this.page,
     required this.pageSize,
+    required this.dateFormatter,
     required this.controller,
     required this.onView,
     required this.onPageSelected,
@@ -322,6 +347,7 @@ class _ReviewTable extends StatelessWidget {
   });
   final AdminTransactionPage page;
   final int pageSize;
+  final String Function(DateTime) dateFormatter;
   final ScrollController controller;
   final ValueChanged<AdminTransaction> onView;
   final ValueChanged<int> onPageSelected;
@@ -345,13 +371,12 @@ class _ReviewTable extends StatelessWidget {
               children: [
                 const _ReviewRow(
                   values: [
-                    'SL No',
-                    'Date',
                     'Reference',
-                    'From',
-                    'To',
+                    'Customer',
                     'Amount',
+                    'Review reason',
                     'Status',
+                    'Date',
                     'Actions',
                   ],
                   header: true,
@@ -365,17 +390,12 @@ class _ReviewTable extends StatelessWidget {
                       final item = page.items[index];
                       return _ReviewRow(
                         values: [
-                          '${((page.page - 1) * page.pageSize) + index + 1}.',
-                          _reviewDate(item.createdAtUtc),
                           item.referenceNumber,
-                          item.sourceCustomerName ??
-                              item.sourceAccountNumber ??
-                              item.accountNumber,
-                          item.destinationCustomerName ??
-                              item.destinationAccountNumber ??
-                              '-',
-                          '\$${item.amount.toStringAsFixed(2)}',
+                          item.sourceCustomerName ?? item.accountNumber,
+                          AdminFormatters.number(item.amount, currency: true),
+                          item.reviewReason ?? item.description,
                           item.status,
+                          dateFormatter(item.createdAtUtc),
                           'View',
                         ],
                         status: item.status,
@@ -435,30 +455,31 @@ class _ReviewRow extends StatelessWidget {
       children: [
         for (var i = 0; i < values.length; i++)
           Expanded(
-            flex: const [1, 2, 3, 4, 4, 2, 2, 2][i],
-            child: i == 6 && !header
+            flex: const [3, 3, 2, 4, 2, 2, 2][i],
+            child: i == 4 && !header
                 ? Align(
                     alignment: Alignment.centerLeft,
                     child: AppStatusBadge(status: status!),
                   )
-                : i == 7 && !header
+                : i == 6 && !header
                 ? Align(
                     alignment: Alignment.centerLeft,
-                    child: OutlinedButton.icon(
+                    child: IconButton(
                       onPressed: onView,
+                      tooltip: 'Review details',
                       icon: const Icon(LucideIcons.eye, size: 18),
-                      label: const Text('View'),
                     ),
                   )
                 : Text(
                     values[i],
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
+                    textAlign: i == 2 ? TextAlign.right : TextAlign.left,
                     style: TextStyle(
                       fontSize: header ? 12 : 13,
-                      fontWeight: header
+                      fontWeight: header || i == 2
                           ? FontWeight.w800
-                          : (i == 5 ? FontWeight.w800 : FontWeight.w400),
+                          : FontWeight.w400,
                       color: header
                           ? (Theme.of(context).brightness == Brightness.dark
                                 ? const Color(0xFF87A7FF)
@@ -470,11 +491,6 @@ class _ReviewRow extends StatelessWidget {
       ],
     ),
   );
-}
-
-String _reviewDate(DateTime value) {
-  final local = value.toLocal();
-  return '${local.day.toString().padLeft(2, '0')}.${local.month.toString().padLeft(2, '0')}.${local.year}.';
 }
 
 Color _reviewBorder(BuildContext context) =>
