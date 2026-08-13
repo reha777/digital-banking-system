@@ -26,17 +26,13 @@ class CardService {
     required String deliveryAddress,
     String? note,
   }) async {
-    final json = await _apiClient.postJson(
-      MobileApiEndpoints.cardRequests,
-      {
-        'cardholderName': cardholderName,
-        'currency': currency,
-        'documentNumber': documentNumber,
-        'deliveryAddress': deliveryAddress,
-        'note': note,
-      },
-      token: token,
-    );
+    final json = await _apiClient.postJson(MobileApiEndpoints.cardRequests, {
+      'cardholderName': cardholderName,
+      'currency': currency,
+      'documentNumber': documentNumber,
+      'deliveryAddress': deliveryAddress,
+      'note': note,
+    }, token: token);
 
     return CardRequestModel.fromJson(json);
   }

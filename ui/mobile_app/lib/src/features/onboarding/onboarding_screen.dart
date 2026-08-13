@@ -18,17 +18,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   static const _pages = [
     _OnboardingPageData(
       title: 'Fastest Payment in the world',
-      description: 'Integrate multiple payment methods to help you process quickly.',
+      description:
+          'Integrate multiple payment methods to help you process quickly.',
       assetPath: 'assets/images/onboarding_payment.png',
     ),
     _OnboardingPageData(
       title: 'The most Secure Platform for Customer',
-      description: 'Built-in protection, face recognition and more, keeping you safe.',
+      description:
+          'Built-in protection, face recognition and more, keeping you safe.',
       assetPath: 'assets/images/onboarding_secure.png',
     ),
     _OnboardingPageData(
       title: 'Paying for Everything is Easy and Convenient',
-      description: 'Built-in protection, face recognition and more, keeping you safe.',
+      description:
+          'Built-in protection, face recognition and more, keeping you safe.',
       assetPath: 'assets/images/onboarding_coins.png',
     ),
   ];
@@ -111,10 +114,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 }
 
 class _PageIndicators extends StatelessWidget {
-  const _PageIndicators({
-    required this.count,
-    required this.activeIndex,
-  });
+  const _PageIndicators({required this.count, required this.activeIndex});
 
   final int count;
   final int activeIndex;

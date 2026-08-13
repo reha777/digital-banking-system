@@ -1,33 +1,71 @@
 import 'dart:convert';
 
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'auth_models.dart';
 
+abstract interface class SecureAuthStore {
+  Future<String?> read(String key);
+  Future<void> write(String key, String value);
+  Future<void> delete(String key);
+}
+
+abstract interface class LegacyAuthStore {
+  Future<String?> read(String key);
+  Future<void> delete(String key);
+}
+
 class AuthStorage {
-  static const _tokenKey = 'auth.accessToken';
-  static const _refreshTokenKey = 'auth.refreshToken';
-  static const _tokenExpiresAtKey = 'auth.tokenExpiresAtUtc';
-  static const _refreshTokenExpiresAtKey = 'auth.refreshTokenExpiresAtUtc';
-  static const _userKey = 'auth.user';
+  AuthStorage({SecureAuthStore? secureStore, LegacyAuthStore? legacyStore})
+    : _secureStore = secureStore ?? _FlutterSecureAuthStore(),
+      _legacyStore = legacyStore ?? _SharedPreferencesAuthStore();
+
+  static const tokenKey = 'auth.accessToken';
+  static const refreshTokenKey = 'auth.refreshToken';
+  static const tokenExpiresAtKey = 'auth.tokenExpiresAtUtc';
+  static const refreshTokenExpiresAtKey = 'auth.refreshTokenExpiresAtUtc';
+  static const userKey = 'auth.user';
+  static const _authKeys = [
+    tokenKey,
+    refreshTokenKey,
+    tokenExpiresAtKey,
+    refreshTokenExpiresAtKey,
+    userKey,
+  ];
+
+  final SecureAuthStore _secureStore;
+  final LegacyAuthStore _legacyStore;
 
   Future<void> save(AuthResult result) async {
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.setString(_tokenKey, result.token);
-    await preferences.setString(_refreshTokenKey, result.refreshToken);
-    await preferences.setString(_tokenExpiresAtKey, result.tokenExpiresAtUtc.toIso8601String());
-    await preferences.setString(_refreshTokenExpiresAtKey, result.refreshTokenExpiresAtUtc.toIso8601String());
-    await preferences.setString(_userKey, result.encodeUser());
+    final values = <String, String>{
+      tokenKey: result.token,
+      refreshTokenKey: result.refreshToken,
+      tokenExpiresAtKey: result.tokenExpiresAtUtc.toIso8601String(),
+      refreshTokenExpiresAtKey: result.refreshTokenExpiresAtUtc
+          .toIso8601String(),
+      userKey: result.encodeUser(),
+    };
+
+    for (final entry in values.entries) {
+      await _secureStore.write(entry.key, entry.value);
+    }
+    for (final key in _authKeys) {
+      await _legacyStore.delete(key);
+    }
   }
 
   Future<StoredAuthSession?> read() async {
-    final preferences = await SharedPreferences.getInstance();
-    final token = preferences.getString(_tokenKey);
-    final refreshToken = preferences.getString(_refreshTokenKey);
-    final tokenExpiresAt = preferences.getString(_tokenExpiresAtKey);
-    final refreshTokenExpiresAt = preferences.getString(_refreshTokenExpiresAtKey);
-    final userJson = preferences.getString(_userKey);
+    final values = <String, String?>{};
+    for (final key in _authKeys) {
+      values[key] = await _readAndMigrate(key);
+    }
 
+    final token = values[tokenKey];
+    final refreshToken = values[refreshTokenKey];
+    final tokenExpiresAt = values[tokenExpiresAtKey];
+    final refreshTokenExpiresAt = values[refreshTokenExpiresAtKey];
+    final userJson = values[userKey];
     if (token == null ||
         refreshToken == null ||
         tokenExpiresAt == null ||
@@ -36,22 +74,81 @@ class AuthStorage {
       return null;
     }
 
-    return StoredAuthSession(
-      token: token,
-      refreshToken: refreshToken,
-      tokenExpiresAtUtc: DateTime.parse(tokenExpiresAt),
-      refreshTokenExpiresAtUtc: DateTime.parse(refreshTokenExpiresAt),
-      user: AuthUser.fromJson(jsonDecode(userJson) as Map<String, dynamic>),
-    );
+    try {
+      return StoredAuthSession(
+        token: token,
+        refreshToken: refreshToken,
+        tokenExpiresAtUtc: DateTime.parse(tokenExpiresAt),
+        refreshTokenExpiresAtUtc: DateTime.parse(refreshTokenExpiresAt),
+        user: AuthUser.fromJson(jsonDecode(userJson) as Map<String, dynamic>),
+      );
+    } on FormatException {
+      return null;
+    } on TypeError {
+      return null;
+    }
+  }
+
+  Future<String?> _readAndMigrate(String key) async {
+    final secureValue = await _secureStore.read(key);
+    final legacyValue = await _legacyStore.read(key);
+    if (secureValue != null) {
+      if (legacyValue != null) {
+        await _legacyStore.delete(key);
+      }
+      return secureValue;
+    }
+    if (legacyValue == null) {
+      return null;
+    }
+
+    await _secureStore.write(key, legacyValue);
+    final confirmedValue = await _secureStore.read(key);
+    if (confirmedValue == null) {
+      return legacyValue;
+    }
+    await _legacyStore.delete(key);
+    return confirmedValue;
   }
 
   Future<void> clear() async {
+    for (final key in _authKeys) {
+      await _secureStore.delete(key);
+      await _legacyStore.delete(key);
+    }
+  }
+}
+
+class _FlutterSecureAuthStore implements SecureAuthStore {
+  _FlutterSecureAuthStore()
+    : _storage = const FlutterSecureStorage(
+        aOptions: AndroidOptions(encryptedSharedPreferences: true),
+      );
+
+  final FlutterSecureStorage _storage;
+
+  @override
+  Future<String?> read(String key) => _storage.read(key: key);
+
+  @override
+  Future<void> write(String key, String value) =>
+      _storage.write(key: key, value: value);
+
+  @override
+  Future<void> delete(String key) => _storage.delete(key: key);
+}
+
+class _SharedPreferencesAuthStore implements LegacyAuthStore {
+  @override
+  Future<String?> read(String key) async {
     final preferences = await SharedPreferences.getInstance();
-    await preferences.remove(_tokenKey);
-    await preferences.remove(_refreshTokenKey);
-    await preferences.remove(_tokenExpiresAtKey);
-    await preferences.remove(_refreshTokenExpiresAtKey);
-    await preferences.remove(_userKey);
+    return preferences.getString(key);
+  }
+
+  @override
+  Future<void> delete(String key) async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.remove(key);
   }
 }
 

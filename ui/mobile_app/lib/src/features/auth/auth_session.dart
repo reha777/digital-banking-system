@@ -3,7 +3,13 @@ import 'auth_models.dart';
 import 'auth_storage.dart';
 
 class AuthSession {
-  AuthSession(this._apiClient, {AuthStorage? storage}) : _storage = storage ?? AuthStorage();
+  AuthSession(this._apiClient, {AuthStorage? storage})
+    : _storage = storage ?? AuthStorage() {
+    ApiClient.configureAuth(
+      accessTokenProvider: () => token,
+      refreshSession: refresh,
+    );
+  }
 
   final ApiClient _apiClient;
   final AuthStorage _storage;
@@ -13,12 +19,14 @@ class AuthSession {
   DateTime? tokenExpiresAtUtc;
   DateTime? refreshTokenExpiresAtUtc;
   AuthUser? user;
+  Future<void>? _refreshFuture;
 
   bool get isAuthenticated => token != null && user != null;
 
   Future<void> initialize() async {
     final stored = await _storage.read();
-    if (stored == null || stored.refreshTokenExpiresAtUtc.isBefore(DateTime.now().toUtc())) {
+    if (stored == null ||
+        stored.refreshTokenExpiresAtUtc.isBefore(DateTime.now().toUtc())) {
       await _storage.clear();
       return;
     }
@@ -34,7 +42,9 @@ class AuthSession {
     refreshTokenExpiresAtUtc = stored.refreshTokenExpiresAtUtc;
     user = stored.user;
 
-    if (tokenExpiresAtUtc!.isBefore(DateTime.now().toUtc().add(const Duration(minutes: 1)))) {
+    if (tokenExpiresAtUtc!.isBefore(
+      DateTime.now().toUtc().add(const Duration(minutes: 1)),
+    )) {
       await refresh();
     }
   }
@@ -70,16 +80,44 @@ class AuthSession {
   }
 
   Future<void> refresh() async {
-    final currentRefreshToken = refreshToken;
-    if (currentRefreshToken == null) {
-      return;
+    final inFlight = _refreshFuture;
+    if (inFlight != null) {
+      return inFlight;
     }
 
-    final json = await _apiClient.postJson('/api/auth/refresh', {
-      'refreshToken': currentRefreshToken,
-    });
+    final future = _performRefresh();
+    _refreshFuture = future;
+    try {
+      await future;
+    } finally {
+      if (identical(_refreshFuture, future)) {
+        _refreshFuture = null;
+      }
+    }
+  }
 
-    await _applyCustomer(AuthResult.fromJson(json));
+  Future<void> _performRefresh() async {
+    final currentRefreshToken = refreshToken;
+    final expiry = refreshTokenExpiresAtUtc;
+    if (currentRefreshToken == null ||
+        (expiry != null && expiry.isBefore(DateTime.now().toUtc()))) {
+      await _clearLocalSession();
+      throw ApiException('Sesija je istekla. Prijavite se ponovo.', 401);
+    }
+
+    try {
+      final json = await _apiClient.postJson('/api/auth/refresh', {
+        'refreshToken': currentRefreshToken,
+      }, allowAuthRefresh: false);
+      await _applyCustomer(AuthResult.fromJson(json));
+    } on ApiException catch (error) {
+      if (error.statusCode == 400 ||
+          error.statusCode == 401 ||
+          error.statusCode == 403) {
+        await _clearLocalSession();
+      }
+      rethrow;
+    }
   }
 
   Future<void> logout() async {
@@ -96,6 +134,10 @@ class AuthSession {
       }
     }
 
+    await _clearLocalSession();
+  }
+
+  Future<void> _clearLocalSession() async {
     token = null;
     refreshToken = null;
     tokenExpiresAtUtc = null;
@@ -106,7 +148,10 @@ class AuthSession {
 
   Future<AuthResult> _applyCustomer(AuthResult result) async {
     if (result.user.role == 'Admin') {
-      throw ApiException('Admin korisnici ne mogu pristupiti mobilnoj aplikaciji.', 403);
+      throw ApiException(
+        'Admin korisnici ne mogu pristupiti mobilnoj aplikaciji.',
+        403,
+      );
     }
 
     token = result.token;

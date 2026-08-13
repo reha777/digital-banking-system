@@ -22,7 +22,11 @@ class AuthScaffold extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 20),
-              if (showBackButton) const Align(alignment: Alignment.centerLeft, child: AuthBackButton()),
+              if (showBackButton)
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: AuthBackButton(),
+                ),
               Expanded(child: child),
             ],
           ),
@@ -44,7 +48,9 @@ class AuthBackButton extends StatelessWidget {
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
-        onTap: Navigator.of(context).canPop() ? () => Navigator.of(context).maybePop() : null,
+        onTap: Navigator.of(context).canPop()
+            ? () => Navigator.of(context).maybePop()
+            : null,
         child: const SizedBox(
           width: 42,
           height: 42,
@@ -97,7 +103,10 @@ class AuthTextField extends StatelessWidget {
             color: AppTheme.textMuted,
           ),
         ),
-        prefixIconConstraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+        prefixIconConstraints: const BoxConstraints(
+          minWidth: 20,
+          minHeight: 20,
+        ),
         suffixIcon: suffix,
       ),
     );
@@ -190,10 +199,7 @@ class AuthSwitchPrompt extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Text(text, style: Theme.of(context).textTheme.bodySmall),
-        TextButton(
-          onPressed: onPressed,
-          child: Text(displayActionText),
-        ),
+        TextButton(onPressed: onPressed, child: Text(displayActionText)),
       ],
     );
   }

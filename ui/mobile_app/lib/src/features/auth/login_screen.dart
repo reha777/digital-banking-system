@@ -23,7 +23,9 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController(text: 'mobile@bankingapp.local');
+  final _emailController = TextEditingController(
+    text: 'mobile@bankingapp.local',
+  );
   final _passwordController = TextEditingController(text: 'test');
   bool _isPasswordVisible = false;
   bool _isLoading = false;
@@ -130,8 +132,14 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
     } on ApiException catch (exception) {
+      if (!mounted) {
+        return;
+      }
       setState(() => _errorMessage = exception.message);
     } catch (_) {
+      if (!mounted) {
+        return;
+      }
       setState(
         () => _errorMessage =
             'API nije dostupan. Provjerite da backend radi i da je API_BASE_URL ispravan.',

@@ -129,7 +129,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     final nameParts = _fullNameController.text.trim().split(RegExp(r'\s+'));
     final firstName = nameParts.first;
-    final lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '-';
+    final lastName = nameParts.length > 1
+        ? nameParts.sublist(1).join(' ')
+        : '-';
 
     setState(() {
       _isLoading = true;
@@ -158,8 +160,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       );
     } on ApiException catch (exception) {
+      if (!mounted) {
+        return;
+      }
       setState(() => _errorMessage = exception.message);
     } catch (_) {
+      if (!mounted) {
+        return;
+      }
       setState(
         () => _errorMessage =
             'API nije dostupan. Provjerite da backend radi i da je API_BASE_URL ispravan.',

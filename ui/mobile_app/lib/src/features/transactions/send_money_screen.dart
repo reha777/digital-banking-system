@@ -23,9 +23,13 @@ class SendMoneyScreen extends StatefulWidget {
 
 class _SendMoneyScreenState extends State<SendMoneyScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _destinationController = TextEditingController(text: 'BA-000002-CHECKING');
+  final _destinationController = TextEditingController(
+    text: 'BA-000002-CHECKING',
+  );
   final _amountController = TextEditingController(text: '36.00');
-  final _descriptionController = TextEditingController(text: 'Mobile money transfer');
+  final _descriptionController = TextEditingController(
+    text: 'Mobile money transfer',
+  );
 
   late final TransactionService _transactionService;
   bool _isSubmitting = false;
@@ -68,7 +72,9 @@ class _SendMoneyScreenState extends State<SendMoneyScreen> {
         token: token,
         sourceAccountId: widget.sourceAccount.id,
         destinationAccountNumber: _destinationController.text.trim(),
-        amount: double.parse(_amountController.text.trim().replaceAll(',', '.')),
+        amount: double.parse(
+          _amountController.text.trim().replaceAll(',', '.'),
+        ),
         description: _descriptionController.text.trim(),
       );
 
@@ -78,11 +84,16 @@ class _SendMoneyScreenState extends State<SendMoneyScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Transfer ${result.referenceNumber} je ${result.status}.'),
+          content: Text(
+            'Transfer ${result.referenceNumber} je ${result.status}.',
+          ),
         ),
       );
       Navigator.of(context).pop(true);
     } on ApiException catch (exception) {
+      if (!mounted) {
+        return;
+      }
       setState(() {
         _errorMessage = exception.message;
       });
@@ -262,7 +273,9 @@ class _RecipientPanel extends StatelessWidget {
         children: [
           Text(
             'Send to',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 15),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontSize: 15),
           ),
           TextFormField(
             controller: destinationController,
@@ -291,10 +304,7 @@ class _RecipientPanel extends StatelessWidget {
 }
 
 class _AmountPanel extends StatelessWidget {
-  const _AmountPanel({
-    required this.currency,
-    required this.amountController,
-  });
+  const _AmountPanel({required this.currency, required this.amountController});
 
   final String currency;
   final TextEditingController amountController;
@@ -325,12 +335,11 @@ class _AmountPanel extends StatelessWidget {
           ),
           prefixIconConstraints: const BoxConstraints(minWidth: 72),
         ),
-        style: const TextStyle(
-          fontSize: 24,
-          fontWeight: FontWeight.w800,
-        ),
+        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
         validator: (value) {
-          final amount = double.tryParse((value ?? '').trim().replaceAll(',', '.'));
+          final amount = double.tryParse(
+            (value ?? '').trim().replaceAll(',', '.'),
+          );
           if (amount == null) {
             return 'Unesite validan iznos.';
           }

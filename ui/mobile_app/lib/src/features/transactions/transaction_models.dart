@@ -62,11 +62,15 @@ class BankTransaction {
       isHighRiskReview: json['isHighRiskReview'] as bool? ?? false,
       documentsRequestNote: json['documentsRequestNote']?.toString(),
       documents: (json['documents'] as List? ?? [])
-          .map((item) => TransactionDocument.fromJson(item as Map<String, dynamic>))
+          .map(
+            (item) =>
+                TransactionDocument.fromJson(item as Map<String, dynamic>),
+          )
           .toList(),
       sourceAccountNumber: json['sourceAccountNumber']?.toString(),
       destinationAccountNumber: json['destinationAccountNumber']?.toString(),
-      createdAtUtc: DateTime.tryParse(json['createdAtUtc']?.toString() ?? '') ??
+      createdAtUtc:
+          DateTime.tryParse(json['createdAtUtc']?.toString() ?? '') ??
           DateTime.now().toUtc(),
     );
   }
@@ -85,6 +89,8 @@ class BankTransaction {
   final List<TransactionDocument> documents;
   final String? sourceAccountNumber;
   final String? destinationAccountNumber;
+
+  bool get requiresDocuments => statusValue == 5;
 }
 
 class TransactionDocument {
@@ -98,7 +104,8 @@ class TransactionDocument {
     return TransactionDocument(
       id: json['id']?.toString() ?? '',
       fileName: json['fileName']?.toString() ?? 'Document',
-      uploadedAtUtc: DateTime.tryParse(json['uploadedAtUtc']?.toString() ?? '') ??
+      uploadedAtUtc:
+          DateTime.tryParse(json['uploadedAtUtc']?.toString() ?? '') ??
           DateTime.now().toUtc(),
     );
   }

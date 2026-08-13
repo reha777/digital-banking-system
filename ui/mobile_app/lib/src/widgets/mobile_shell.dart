@@ -29,7 +29,9 @@ class MobileShell extends StatelessWidget {
             color: isDark ? AppTheme.darkSurface : const Color(0xFFF7F7FA),
             boxShadow: [
               BoxShadow(
-                color: isDark ? const Color(0x33000000) : const Color(0x12000000),
+                color: isDark
+                    ? const Color(0x33000000)
+                    : const Color(0x12000000),
                 blurRadius: 16,
                 offset: Offset(0, -5),
               ),
@@ -174,7 +176,9 @@ class CircleIconButton extends StatelessWidget {
       icon: Icon(icon),
       tooltip: tooltip,
       style: IconButton.styleFrom(
-        backgroundColor: isDark ? AppTheme.darkSurface : const Color(0xFFF5F6FA),
+        backgroundColor: isDark
+            ? AppTheme.darkSurface
+            : const Color(0xFFF5F6FA),
         foregroundColor: isDark ? Colors.white : AppTheme.textDark,
       ),
     );

@@ -10,11 +10,7 @@ class TransactionService {
   final ApiClient _apiClient;
 
   Future<List<BankTransaction>> getRecentTransactions(String token) async {
-    final page = await getTransactions(
-      token: token,
-      page: 1,
-      pageSize: 4,
-    );
+    final page = await getTransactions(token: token, page: 1, pageSize: 4);
 
     return page.items;
   }
@@ -39,16 +35,12 @@ class TransactionService {
     required double amount,
     String? description,
   }) async {
-    final json = await _apiClient.postJson(
-      MobileApiEndpoints.sendMoney,
-      {
-        'sourceAccountId': sourceAccountId,
-        'destinationAccountNumber': destinationAccountNumber,
-        'amount': amount,
-        'description': description,
-      },
-      token: token,
-    );
+    final json = await _apiClient.postJson(MobileApiEndpoints.sendMoney, {
+      'sourceAccountId': sourceAccountId,
+      'destinationAccountNumber': destinationAccountNumber,
+      'amount': amount,
+      'description': description,
+    }, token: token);
 
     return MoneyTransferResult.fromJson(json);
   }

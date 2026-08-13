@@ -1,8 +1,5 @@
 class AccountBalanceSummary {
-  const AccountBalanceSummary({
-    required this.totals,
-    required this.accounts,
-  });
+  const AccountBalanceSummary({required this.totals, required this.accounts});
 
   factory AccountBalanceSummary.fromJson(Map<String, dynamic> json) {
     return AccountBalanceSummary(
@@ -24,10 +21,7 @@ class AccountBalanceSummary {
 }
 
 class CurrencyBalance {
-  const CurrencyBalance({
-    required this.currency,
-    required this.balance,
-  });
+  const CurrencyBalance({required this.currency, required this.balance});
 
   factory CurrencyBalance.fromJson(Map<String, dynamic> json) {
     return CurrencyBalance(

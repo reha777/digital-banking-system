@@ -23,7 +23,8 @@ class BankCardModel {
       maskedCardNumber: json['maskedCardNumber']?.toString() ?? '',
       cardholderName: json['cardholderName']?.toString() ?? '',
       cvv: json['cvv']?.toString() ?? '',
-      expiryDate: DateTime.tryParse(json['expiryDate']?.toString() ?? '') ??
+      expiryDate:
+          DateTime.tryParse(json['expiryDate']?.toString() ?? '') ??
           DateTime.now().toUtc(),
       brand: _brandLabel(json['brand']),
       status: _statusLabel(json['status']),
@@ -65,9 +66,13 @@ class CardRequestModel {
       currency: json['currency']?.toString() ?? '',
       documentsRequestNote: json['documentsRequestNote']?.toString(),
       documents: (json['documents'] as List? ?? [])
-          .map((item) => CardRequestDocumentModel.fromJson(item as Map<String, dynamic>))
+          .map(
+            (item) =>
+                CardRequestDocumentModel.fromJson(item as Map<String, dynamic>),
+          )
           .toList(),
-      createdAtUtc: DateTime.tryParse(json['createdAtUtc']?.toString() ?? '') ??
+      createdAtUtc:
+          DateTime.tryParse(json['createdAtUtc']?.toString() ?? '') ??
           DateTime.now().toUtc(),
     );
   }
@@ -79,6 +84,8 @@ class CardRequestModel {
   final String? documentsRequestNote;
   final List<CardRequestDocumentModel> documents;
   final DateTime createdAtUtc;
+
+  bool get requiresDocuments => statusValue == 4;
 }
 
 class CardRequestDocumentModel {
@@ -92,7 +99,8 @@ class CardRequestDocumentModel {
     return CardRequestDocumentModel(
       id: json['id']?.toString() ?? '',
       fileName: json['fileName']?.toString() ?? 'Document',
-      uploadedAtUtc: DateTime.tryParse(json['uploadedAtUtc']?.toString() ?? '') ??
+      uploadedAtUtc:
+          DateTime.tryParse(json['uploadedAtUtc']?.toString() ?? '') ??
           DateTime.now().toUtc(),
     );
   }

@@ -18,10 +18,10 @@ class BankPickLogo extends StatelessWidget {
         Text(
           'BANKPICK',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                letterSpacing: 0,
-                fontWeight: FontWeight.w800,
-                fontSize: 28,
-              ),
+            letterSpacing: 0,
+            fontWeight: FontWeight.w800,
+            fontSize: 28,
+          ),
         ),
       ],
     );
