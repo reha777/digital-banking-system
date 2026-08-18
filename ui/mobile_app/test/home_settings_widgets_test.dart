@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_app/src/core/theme_controller.dart';
 import 'package:mobile_app/src/features/accounts/account_models.dart';
 import 'package:mobile_app/src/features/home/widgets/home_balance_card.dart';
+import 'package:mobile_app/src/features/cards/card_models.dart';
 import 'package:mobile_app/src/features/home/widgets/recent_transactions.dart';
 import 'package:mobile_app/src/features/settings/pages/settings_page.dart';
 import 'package:mobile_app/src/features/transactions/transaction_models.dart';
@@ -28,8 +29,12 @@ void main() {
                   ),
                 ],
               ),
-              card: null,
-              onSendMoney: () {},
+              cards: [testCard],
+              onSendMoney: (_) {},
+              onCardTap: (_) {},
+              hasProfilePhoto: false,
+              accessToken: null,
+              onProfileTap: () {},
             ),
           ),
         ),
@@ -75,20 +80,33 @@ void main() {
     expect(find.text('See All'), findsOneWidget);
   });
 
-  testWidgets('settings keeps theme control and logout', (tester) async {
+  testWidgets('settings keeps theme control', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final controller = ThemeController();
 
     await tester.pumpWidget(
       MaterialApp(
-        home: Scaffold(
-          body: SettingsPage(themeController: controller, onLogout: () {}),
-        ),
+        home: Scaffold(body: SettingsPage(themeController: controller)),
       ),
     );
 
     expect(find.text('Dark mode'), findsOneWidget);
     expect(find.byType(Switch), findsOneWidget);
-    expect(find.text('Sign out'), findsOneWidget);
+    expect(find.text('Sign out'), findsNothing);
   });
 }
+
+final testCard = BankCardModel(
+  id: 'card-1',
+  accountId: 'account-1',
+  accountNumber: 'BA-1',
+  cardNumber: '',
+  maskedCardNumber: '**** **** **** 7852',
+  cardholderName: 'Test Customer',
+  cvv: '',
+  expiryDate: DateTime.utc(2030, 7),
+  brand: 'Mastercard',
+  status: 'Active',
+  balance: 1234.5,
+  currency: 'USD',
+);

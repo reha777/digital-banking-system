@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme_controller.dart';
+import '../../core/api_client.dart';
 import '../../widgets/mobile_shell.dart';
 import '../accounts/account_models.dart';
 import '../auth/auth_session.dart';
 import '../auth/login_screen.dart';
 import '../cards/mobile_cards_screen.dart';
+import '../cards/card_models.dart';
+import '../cards/pages/card_details_screen.dart';
 import '../home/pages/home_page.dart';
 import '../settings/pages/settings_page.dart';
+import '../settings/pages/profile_page.dart';
+import '../settings/settings_service.dart';
 import '../statistics/pages/statistics_page.dart';
 import '../transactions/send_money_screen.dart';
 import '../transactions/transaction_history_screen.dart';
@@ -54,12 +59,41 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
     }
   }
 
+  Future<void> _openCardDetails(BankCardModel card) async {
+    await Navigator.of(context).push<BankCardModel>(
+      MaterialPageRoute(
+        builder: (_) => CardDetailsScreen(session: widget.session, card: card),
+      ),
+    );
+    _homeKey.currentState?.refresh();
+  }
+
   Future<void> _openCardRequest() async {
     await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
         builder: (_) => CardRequestScreen(session: widget.session),
       ),
     );
+  }
+
+  Future<void> _openProfile() async {
+    final user = widget.session.user;
+    if (user == null) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => ProfilePage(
+          user: user,
+          service: SettingsService(ApiClient(), widget.session),
+          onOpenCards: () {
+            Navigator.of(context).popUntil((route) => route.isFirst);
+            setState(() => _selectedIndex = 1);
+          },
+          onProfileUpdated: () => setState(() {}),
+          accessToken: widget.session.token,
+        ),
+      ),
+    );
+    if (mounted) setState(() {});
   }
 
   Future<void> _logout() async {
@@ -99,6 +133,8 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                 onSendMoney: _openSendMoney,
                 onTransactionHistory: _openTransactionHistory,
                 onLogout: _logout,
+                onProfileTap: _openProfile,
+                onCardTap: _openCardDetails,
               ),
             ),
             if (_statisticsVisited)
@@ -136,7 +172,13 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         onLogout: _logout,
         child: SettingsPage(
           themeController: widget.themeController,
-          onLogout: _logout,
+          user: widget.session.user,
+          session: widget.session,
+          onProfileUpdated: () => setState(() {}),
+          onOpenCards: () {
+            Navigator.of(context).popUntil((route) => route.isFirst);
+            setState(() => _selectedIndex = 1);
+          },
         ),
       ),
       _ => const SizedBox.shrink(),

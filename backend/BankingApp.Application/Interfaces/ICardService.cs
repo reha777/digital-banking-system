@@ -8,6 +8,15 @@ namespace BankingApp.Application.Interfaces
         Task<IReadOnlyCollection<CardResponse>> GetMyCardsAsync(
             CancellationToken cancellationToken = default);
 
+        Task<CardSensitiveDataResponse> GetSensitiveDataAsync(
+            Guid id,
+            CancellationToken cancellationToken = default);
+
+        Task<CardResponse> SetFrozenAsync(
+            Guid id,
+            bool frozen,
+            CancellationToken cancellationToken = default);
+
         Task<CardRequestResponse> CreateRequestAsync(
             CardRequestCreateRequest request,
             CancellationToken cancellationToken = default);

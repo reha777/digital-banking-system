@@ -194,7 +194,9 @@ namespace BankingApp.Infrastructure.Services
                     LastName = user.LastName,
                     Email = user.Email,
                     PhoneNumber = user.PhoneNumber,
-                    Role = user.Role
+                    Role = user.Role,
+                    HasProfilePhoto = user.ProfilePhoto is { Length: > 0 },
+                    ProfilePhotoUpdatedAtUtc = user.ProfilePhotoUpdatedAtUtc
                 }
             };
         }

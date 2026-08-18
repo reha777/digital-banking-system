@@ -19,9 +19,13 @@ class TransactionService {
     required String token,
     required int page,
     required int pageSize,
+    String? accountId,
   }) async {
+    final accountQuery = accountId == null
+        ? ''
+        : '&accountId=${Uri.encodeQueryComponent(accountId)}';
     final json = await _apiClient.getJson(
-      '${MobileApiEndpoints.transactions}?page=$page&pageSize=$pageSize',
+      '${MobileApiEndpoints.transactions}?page=$page&pageSize=$pageSize$accountQuery',
       token: token,
     );
 
@@ -33,16 +37,54 @@ class TransactionService {
     required String sourceAccountId,
     required String destinationAccountNumber,
     required double amount,
+    required String currency,
     String? description,
   }) async {
     final json = await _apiClient.postJson(MobileApiEndpoints.sendMoney, {
       'sourceAccountId': sourceAccountId,
       'destinationAccountNumber': destinationAccountNumber,
       'amount': amount,
+      'currency': currency,
       'description': description,
     }, token: token);
 
     return MoneyTransferResult.fromJson(json);
+  }
+
+  Future<MoneyTransferQuote> getTransferQuote({
+    required String token,
+    required String sourceAccountId,
+    required String destinationAccountNumber,
+    required double amount,
+    required String currency,
+  }) async {
+    final json = await _apiClient.postJson(MobileApiEndpoints.transferQuote, {
+      'sourceAccountId': sourceAccountId,
+      'destinationAccountNumber': destinationAccountNumber,
+      'amount': amount,
+      'currency': currency,
+    }, token: token);
+    return MoneyTransferQuote.fromJson(json);
+  }
+
+  Future<List<RecentRecipient>> getRecentRecipients(String token) async {
+    final json = await _apiClient.getJsonList(
+      MobileApiEndpoints.recentRecipients,
+      token: token,
+    );
+    return json.map(RecentRecipient.fromJson).toList();
+  }
+
+  Future<RecentRecipient> lookupRecipient({
+    required String token,
+    required String accountNumber,
+  }) async {
+    final encoded = Uri.encodeQueryComponent(accountNumber.trim());
+    final json = await _apiClient.getJson(
+      '${MobileApiEndpoints.recipientLookup}?accountNumber=$encoded',
+      token: token,
+    );
+    return RecentRecipient.fromJson(json);
   }
 
   Future<BankTransaction> uploadDocument({

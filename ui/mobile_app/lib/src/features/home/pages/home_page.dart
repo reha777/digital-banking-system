@@ -5,6 +5,7 @@ import '../../accounts/account_models.dart';
 import '../../accounts/account_service.dart';
 import '../../auth/auth_session.dart';
 import '../../cards/card_service.dart';
+import '../../cards/card_models.dart';
 import '../../transactions/transaction_service.dart';
 import '../dashboard_data.dart';
 import '../widgets/home_balance_card.dart';
@@ -17,12 +18,16 @@ class HomePage extends StatefulWidget {
     required this.onSendMoney,
     required this.onTransactionHistory,
     required this.onLogout,
+    required this.onProfileTap,
+    required this.onCardTap,
   });
 
   final AuthSession session;
   final ValueChanged<Account> onSendMoney;
   final VoidCallback onTransactionHistory;
   final VoidCallback onLogout;
+  final VoidCallback onProfileTap;
+  final ValueChanged<BankCardModel> onCardTap;
 
   @override
   State<HomePage> createState() => HomePageState();
@@ -98,10 +103,21 @@ class HomePageState extends State<HomePage> {
                 firstName: widget.session.user?.firstName ?? 'Customer',
                 lastName: widget.session.user?.lastName ?? '',
                 summary: data.balance,
-                card: data.primaryCard,
-                onSendMoney: data.balance.primaryAccount == null
-                    ? null
-                    : () => widget.onSendMoney(data.balance.primaryAccount!),
+                cards: data.cards,
+                onSendMoney: (card) => widget.onSendMoney(
+                  Account(
+                    id: card.accountId,
+                    accountNumber: card.accountNumber,
+                    balance: card.balance,
+                    currency: card.currency,
+                  ),
+                ),
+                onCardTap: widget.onCardTap,
+                hasProfilePhoto: widget.session.user?.hasProfilePhoto ?? false,
+                accessToken: widget.session.token,
+                profilePhotoUpdatedAtUtc:
+                    widget.session.user?.profilePhotoUpdatedAtUtc,
+                onProfileTap: widget.onProfileTap,
               ),
               const SizedBox(height: 24),
               RecentTransactions(

@@ -13,6 +13,10 @@ namespace BankingApp.Application.Transactions
 
         public decimal Amount { get; set; }
 
+        [Required]
+        [StringLength(3, MinimumLength = 3)]
+        public string Currency { get; set; } = string.Empty;
+
         [MaxLength(250)]
         public string? Description { get; set; }
     }

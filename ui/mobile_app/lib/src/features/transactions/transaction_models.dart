@@ -146,6 +146,7 @@ class MoneyTransferResult {
     required this.status,
     required this.amount,
     required this.currency,
+    this.quote,
   });
 
   factory MoneyTransferResult.fromJson(Map<String, dynamic> json) {
@@ -154,6 +155,9 @@ class MoneyTransferResult {
       status: json['status']?.toString() ?? '',
       amount: (json['amount'] as num? ?? 0).toDouble(),
       currency: json['currency']?.toString() ?? '',
+      quote: MoneyTransferQuote.fromJson(
+        json['quote'] as Map<String, dynamic>? ?? const {},
+      ),
     );
   }
 
@@ -161,4 +165,77 @@ class MoneyTransferResult {
   final String status;
   final double amount;
   final String currency;
+  final MoneyTransferQuote? quote;
+}
+
+class MoneyTransferQuote {
+  const MoneyTransferQuote({
+    required this.sourceCurrency,
+    required this.transferCurrency,
+    required this.destinationCurrency,
+    required this.amount,
+    required this.exchangeRate,
+    required this.debitAmount,
+    required this.destinationAmount,
+    required this.requiresConversion,
+  });
+
+  factory MoneyTransferQuote.fromJson(Map<String, dynamic> json) =>
+      MoneyTransferQuote(
+        sourceCurrency: json['sourceCurrency']?.toString() ?? '',
+        transferCurrency: json['transferCurrency']?.toString() ?? '',
+        destinationCurrency: json['destinationCurrency']?.toString() ?? '',
+        amount: (json['amount'] as num? ?? 0).toDouble(),
+        exchangeRate: (json['exchangeRate'] as num? ?? 1).toDouble(),
+        debitAmount: (json['debitAmount'] as num? ?? 0).toDouble(),
+        destinationAmount: (json['destinationAmount'] as num? ?? 0).toDouble(),
+        requiresConversion: json['requiresConversion'] as bool? ?? false,
+      );
+
+  final String sourceCurrency;
+  final String transferCurrency;
+  final String destinationCurrency;
+  final double amount;
+  final double exchangeRate;
+  final double debitAmount;
+  final double destinationAmount;
+  final bool requiresConversion;
+}
+
+class RecentRecipient {
+  const RecentRecipient({
+    required this.accountId,
+    required this.firstName,
+    required this.lastName,
+    required this.accountNumber,
+    this.lastUsedAtUtc,
+  });
+
+  factory RecentRecipient.fromJson(Map<String, dynamic> json) =>
+      RecentRecipient(
+        accountId: json['accountId']?.toString() ?? '',
+        firstName: json['firstName']?.toString() ?? '',
+        lastName: json['lastName']?.toString() ?? '',
+        accountNumber: json['accountNumber']?.toString() ?? '',
+        lastUsedAtUtc: DateTime.tryParse(
+          json['lastUsedAtUtc']?.toString() ?? '',
+        ),
+      );
+
+  final String accountId;
+  final String firstName;
+  final String lastName;
+  final String accountNumber;
+  final DateTime? lastUsedAtUtc;
+
+  String get displayName {
+    final value = '$firstName $lastName'.trim();
+    return value.isEmpty ? accountNumber : value;
+  }
+
+  String get initials => [firstName, lastName]
+      .where((value) => value.isNotEmpty)
+      .map((value) => value[0].toUpperCase())
+      .take(2)
+      .join();
 }

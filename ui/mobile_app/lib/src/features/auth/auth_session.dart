@@ -137,6 +137,29 @@ class AuthSession {
     await _clearLocalSession();
   }
 
+  Future<void> updateCurrentUser(AuthUser updatedUser) async {
+    final currentToken = token;
+    final currentRefreshToken = refreshToken;
+    final accessExpiry = tokenExpiresAtUtc;
+    final refreshExpiry = refreshTokenExpiresAtUtc;
+    if (currentToken == null ||
+        currentRefreshToken == null ||
+        accessExpiry == null ||
+        refreshExpiry == null) {
+      throw StateError('Authenticated session is not available.');
+    }
+
+    final result = AuthResult(
+      token: currentToken,
+      tokenExpiresAtUtc: accessExpiry,
+      refreshToken: currentRefreshToken,
+      refreshTokenExpiresAtUtc: refreshExpiry,
+      user: updatedUser,
+    );
+    await _storage.save(result);
+    user = updatedUser;
+  }
+
   Future<void> _clearLocalSession() async {
     token = null;
     refreshToken = null;

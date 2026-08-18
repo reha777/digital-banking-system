@@ -55,6 +55,23 @@ namespace BankingApp.Api.Controllers
             return Ok(response);
         }
 
+        [HttpPost("quote")]
+        public async Task<ActionResult<MoneyTransferQuoteResponse>> Quote(
+            MoneyTransferQuoteRequest request,
+            CancellationToken cancellationToken) =>
+            Ok(await transactionService.QuoteAsync(request, cancellationToken));
+
+        [HttpGet("recent-recipients")]
+        public async Task<ActionResult<IReadOnlyCollection<RecentRecipientResponse>>> GetRecentRecipients(
+            CancellationToken cancellationToken) =>
+            Ok(await transactionService.GetRecentRecipientsAsync(cancellationToken));
+
+        [HttpGet("recipients/lookup")]
+        public async Task<ActionResult<RecentRecipientResponse>> LookupRecipient(
+            [FromQuery] string accountNumber,
+            CancellationToken cancellationToken) =>
+            Ok(await transactionService.LookupRecipientAsync(accountNumber, cancellationToken));
+
         [HttpPut("{id:guid}")]
         public async Task<ActionResult<TransactionResponse>> Update(
             Guid id,
