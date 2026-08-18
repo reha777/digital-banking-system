@@ -194,6 +194,33 @@ void main() {
     await expectLater(session.refresh(), throwsA(isA<ApiException>()));
     expect(refreshCalls, 1);
   });
+
+  test(
+    'profile update synchronizes and persists the AuthSession user',
+    () async {
+      final storage = MemoryAuthStorage();
+      final session = AuthSession(
+        ApiClient(
+          httpClient: MockClient((_) async => http.Response('{}', 200)),
+        ),
+        storage: storage,
+      );
+      _seedSession(session);
+      const updated = AuthUser(
+        id: 'user-1',
+        firstName: 'Updated',
+        lastName: 'Customer',
+        email: 'test@example.com',
+        role: 'Customer',
+        phoneNumber: '+38761123456',
+      );
+
+      await session.updateCurrentUser(updated);
+
+      expect(session.user?.firstName, 'Updated');
+      expect(storage.saved?.user.phoneNumber, '+38761123456');
+    },
+  );
 }
 
 void _seedSession(AuthSession session) {

@@ -18,6 +18,12 @@ namespace BankingApp.Domain.Entities
 
         public decimal Amount { get; set; }
 
+        public decimal? TransferAmount { get; set; }
+
+        public string? TransferCurrency { get; set; }
+
+        public decimal? DestinationAmount { get; set; }
+
         public string Description { get; set; } = string.Empty;
 
         public TransactionStatus Status { get; set; }

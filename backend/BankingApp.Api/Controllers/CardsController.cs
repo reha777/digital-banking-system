@@ -20,6 +20,24 @@ namespace BankingApp.Api.Controllers
             return Ok(response);
         }
 
+        [HttpGet("{id:guid}/sensitive-data")]
+        public async Task<ActionResult<CardSensitiveDataResponse>> GetSensitiveData(
+            Guid id,
+            CancellationToken cancellationToken) =>
+            Ok(await cardService.GetSensitiveDataAsync(id, cancellationToken));
+
+        [HttpPost("{id:guid}/freeze")]
+        public async Task<ActionResult<CardResponse>> Freeze(
+            Guid id,
+            CancellationToken cancellationToken) =>
+            Ok(await cardService.SetFrozenAsync(id, true, cancellationToken));
+
+        [HttpPost("{id:guid}/unfreeze")]
+        public async Task<ActionResult<CardResponse>> Unfreeze(
+            Guid id,
+            CancellationToken cancellationToken) =>
+            Ok(await cardService.SetFrozenAsync(id, false, cancellationToken));
+
         [HttpGet("requests/my")]
         public async Task<ActionResult<PagedResult<CardRequestResponse>>> GetMyRequests(
             [FromQuery] CardRequestQueryRequest request,

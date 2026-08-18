@@ -1,16 +1,25 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/app_theme.dart';
+import '../../../widgets/profile_avatar.dart';
 
 class HomeProfileHeader extends StatelessWidget {
   const HomeProfileHeader({
     super.key,
     required this.firstName,
     required this.lastName,
+    required this.hasProfilePhoto,
+    required this.accessToken,
+    required this.onProfileTap,
+    this.profilePhotoUpdatedAtUtc,
   });
 
   final String firstName;
   final String lastName;
+  final bool hasProfilePhoto;
+  final String? accessToken;
+  final DateTime? profilePhotoUpdatedAtUtc;
+  final VoidCallback onProfileTap;
 
   @override
   Widget build(BuildContext context) {
@@ -18,28 +27,13 @@ class HomeProfileHeader extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       children: [
-        Container(
-          width: 52,
-          height: 52,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: const LinearGradient(
-              colors: [Color(0xFF1D2144), Color(0xFF0066FF)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            border: Border.all(color: const Color(0xFFEFF1F7), width: 3),
-          ),
-          child: Center(
-            child: Text(
-              firstName.isEmpty ? 'B' : firstName[0].toUpperCase(),
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
+        ProfileAvatar(
+          firstName: firstName,
+          lastName: lastName,
+          hasProfilePhoto: hasProfilePhoto,
+          accessToken: accessToken,
+          photoVersion: profilePhotoUpdatedAtUtc,
+          onTap: onProfileTap,
         ),
         const SizedBox(width: 14),
         Expanded(

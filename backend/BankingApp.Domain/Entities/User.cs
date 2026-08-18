@@ -16,6 +16,12 @@ namespace BankingApp.Domain.Entities
 
         public string PasswordHash { get; set; } = string.Empty;
 
+        public byte[]? ProfilePhoto { get; set; }
+
+        public string? ProfilePhotoContentType { get; set; }
+
+        public DateTime? ProfilePhotoUpdatedAtUtc { get; set; }
+
         public string Role { get; set; } = string.Empty;
 
         public CustomerStatus Status { get; set; } = CustomerStatus.Active;

@@ -65,6 +65,25 @@ class CardRequestTile extends StatelessWidget {
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
+          if (request.statusValue == 3 &&
+              request.adminNote != null &&
+              request.adminNote!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Reason: ${request.adminNote!}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+          if (request.hasSubmittedDocuments) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Documents submitted. Waiting for admin review.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppTheme.primary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
           if (request.documents.isNotEmpty) ...[
             const SizedBox(height: 8),
             ...request.documents.map(

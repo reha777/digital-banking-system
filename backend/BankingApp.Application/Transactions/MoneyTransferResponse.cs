@@ -12,6 +12,8 @@ namespace BankingApp.Application.Transactions
 
         public string Currency { get; set; } = string.Empty;
 
+        public MoneyTransferQuoteResponse Quote { get; set; } = new();
+
         public TransferAccountResponse SourceAccount { get; set; } = new();
 
         public TransferAccountResponse DestinationAccount { get; set; } = new();

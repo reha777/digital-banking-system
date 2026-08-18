@@ -7,6 +7,7 @@ import '../card_models.dart';
 import '../card_service.dart';
 import '../widgets/bank_card.dart';
 import '../widgets/card_requests_panel.dart';
+import 'card_details_screen.dart';
 
 class MobileCardsScreen extends StatefulWidget {
   const MobileCardsScreen({
@@ -59,6 +60,19 @@ class _MobileCardsScreenState extends State<MobileCardsScreen> {
     _refreshCards();
   }
 
+  Future<void> _openDetails(BankCardModel card) async {
+    await Navigator.of(context).push<BankCardModel>(
+      PageRouteBuilder<BankCardModel>(
+        transitionDuration: const Duration(milliseconds: 280),
+        pageBuilder: (_, animation, _) => FadeTransition(
+          opacity: animation,
+          child: CardDetailsScreen(session: widget.session, card: card),
+        ),
+      ),
+    );
+    _refreshCards();
+  }
+
   void _handleDocumentUploaded() {
     if (!mounted) {
       return;
@@ -105,7 +119,10 @@ class _MobileCardsScreenState extends State<MobileCardsScreen> {
                     ...data.cards.map(
                       (card) => Padding(
                         padding: const EdgeInsets.only(bottom: 22),
-                        child: BankCard(card: card),
+                        child: BankCard(
+                          card: card,
+                          onTap: () => _openDetails(card),
+                        ),
                       ),
                     ),
                   if (data.requests.isNotEmpty) ...[

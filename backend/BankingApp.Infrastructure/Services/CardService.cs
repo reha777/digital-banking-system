@@ -27,6 +27,43 @@ namespace BankingApp.Infrastructure.Services
             return cards.Select(ToCardResponse).ToList();
         }
 
+        public async Task<CardSensitiveDataResponse> GetSensitiveDataAsync(
+            Guid id,
+            CancellationToken cancellationToken = default)
+        {
+            var card = await dbContext.BankCards.AsNoTracking()
+                .FirstOrDefaultAsync(item =>
+                    item.Id == id && item.Account.UserId == currentUserService.UserId,
+                    cancellationToken)
+                ?? throw new NotFoundException("Kartica nije pronadjena.");
+
+            return new CardSensitiveDataResponse
+            {
+                Id = card.Id,
+                CardNumber = card.CardNumber,
+                Cvv = card.Cvv
+            };
+        }
+
+        public async Task<CardResponse> SetFrozenAsync(
+            Guid id,
+            bool frozen,
+            CancellationToken cancellationToken = default)
+        {
+            var card = await dbContext.BankCards.Include(item => item.Account)
+                .FirstOrDefaultAsync(item =>
+                    item.Id == id && item.Account.UserId == currentUserService.UserId,
+                    cancellationToken)
+                ?? throw new NotFoundException("Kartica nije pronadjena.");
+
+            if (card.Status == CardStatus.Expired)
+                throw new BusinessException("Istekla kartica ne moze promijeniti status.");
+
+            card.Status = frozen ? CardStatus.Blocked : CardStatus.Active;
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return ToCardResponse(card);
+        }
+
         public async Task<CardRequestResponse> CreateRequestAsync(
             CardRequestCreateRequest request,
             CancellationToken cancellationToken = default)
@@ -409,10 +446,10 @@ namespace BankingApp.Infrastructure.Services
                 Id = card.Id,
                 AccountId = card.AccountId,
                 AccountNumber = card.Account.AccountNumber,
-                CardNumber = card.CardNumber,
+                CardNumber = string.Empty,
                 MaskedCardNumber = MaskCardNumber(card.CardNumber),
                 CardholderName = card.CardholderName,
-                Cvv = card.Cvv,
+                Cvv = string.Empty,
                 ExpiryDate = card.ExpiryDate,
                 Brand = card.Brand,
                 Status = card.Status,

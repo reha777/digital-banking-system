@@ -103,6 +103,25 @@ class ApiClient {
     return decoded;
   }
 
+  Future<Map<String, dynamic>> putJson(
+    String path,
+    Map<String, dynamic> body, {
+    String? token,
+  }) async {
+    final encodedBody = jsonEncode(body);
+    final response = await _sendWithAuthRetry(
+      token: token,
+      send: (currentToken) => _httpClient.put(
+        Uri.parse('$baseUrl$path'),
+        headers: _headers(token: currentToken, json: true),
+        body: encodedBody,
+      ),
+    );
+    final decoded = _decodeMap(response);
+    _throwIfFailed(response, decoded);
+    return decoded;
+  }
+
   Future<Map<String, dynamic>> postMultipartBytes(
     String path, {
     required String fieldName,

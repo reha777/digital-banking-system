@@ -45,6 +45,26 @@ class BankCardModel {
   final String status;
   final double balance;
   final String currency;
+
+  bool get isActive => status == 'Active';
+  bool get isFrozen => status == 'Blocked';
+  bool get canTransfer => isActive;
+
+  BankCardModel copyWith({String? status, String? cardNumber, String? cvv}) =>
+      BankCardModel(
+        id: id,
+        accountId: accountId,
+        accountNumber: accountNumber,
+        cardNumber: cardNumber ?? this.cardNumber,
+        maskedCardNumber: maskedCardNumber,
+        cardholderName: cardholderName,
+        cvv: cvv ?? this.cvv,
+        expiryDate: expiryDate,
+        brand: brand,
+        status: status ?? this.status,
+        balance: balance,
+        currency: currency,
+      );
 }
 
 class CardRequestModel {
@@ -56,6 +76,7 @@ class CardRequestModel {
     required this.documentsRequestNote,
     required this.documents,
     required this.createdAtUtc,
+    this.adminNote,
   });
 
   factory CardRequestModel.fromJson(Map<String, dynamic> json) {
@@ -74,6 +95,7 @@ class CardRequestModel {
       createdAtUtc:
           DateTime.tryParse(json['createdAtUtc']?.toString() ?? '') ??
           DateTime.now().toUtc(),
+      adminNote: json['adminNote']?.toString(),
     );
   }
 
@@ -84,8 +106,10 @@ class CardRequestModel {
   final String? documentsRequestNote;
   final List<CardRequestDocumentModel> documents;
   final DateTime createdAtUtc;
+  final String? adminNote;
 
   bool get requiresDocuments => statusValue == 4;
+  bool get hasSubmittedDocuments => requiresDocuments && documents.isNotEmpty;
 }
 
 class CardRequestDocumentModel {

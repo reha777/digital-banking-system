@@ -102,6 +102,9 @@ namespace BankingApp.Infrastructure.Persistence
                     .HasMaxLength(500)
                     .IsRequired();
 
+                entity.Property(user => user.ProfilePhotoContentType)
+                    .HasMaxLength(20);
+
                 entity.Property(user => user.Role)
                     .HasMaxLength(50)
                     .IsRequired();
@@ -196,6 +199,15 @@ namespace BankingApp.Infrastructure.Persistence
                 entity.Property(transaction => transaction.Amount)
                     .HasPrecision(18, 2)
                     .IsRequired();
+
+                entity.Property(transaction => transaction.TransferAmount)
+                    .HasPrecision(18, 2);
+
+                entity.Property(transaction => transaction.TransferCurrency)
+                    .HasMaxLength(3);
+
+                entity.Property(transaction => transaction.DestinationAmount)
+                    .HasPrecision(18, 2);
 
                 entity.Property(transaction => transaction.Description)
                     .HasMaxLength(250)

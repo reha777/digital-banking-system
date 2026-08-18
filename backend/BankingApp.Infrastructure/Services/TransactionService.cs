@@ -11,7 +11,8 @@ namespace BankingApp.Infrastructure.Services
 {
     public class TransactionService(
         BankingAppDbContext dbContext,
-        ICurrentUserService currentUserService) : ITransactionService
+        ICurrentUserService currentUserService,
+        ICurrencyConversionService currencyConversionService) : ITransactionService
     {
         private const decimal HighRiskReviewThreshold = 10000m;
 
@@ -90,55 +91,29 @@ namespace BankingApp.Infrastructure.Services
                 throw new BusinessException("Admin korisnik ne moze slati novac u ime klijenta.");
             }
 
-            if (request.Amount <= 0)
+            var quote = await QuoteAsync(new MoneyTransferQuoteRequest
             {
-                throw new BusinessException("Iznos za slanje mora biti veci od nule.");
-            }
-
-            var destinationAccountNumber = request.DestinationAccountNumber.Trim();
-            if (string.IsNullOrWhiteSpace(destinationAccountNumber))
-            {
-                throw new BusinessException("Racun primaoca je obavezan.");
-            }
+                SourceAccountId = request.SourceAccountId,
+                DestinationAccountNumber = request.DestinationAccountNumber,
+                Amount = request.Amount,
+                Currency = request.Currency
+            }, cancellationToken);
 
             var sourceAccount = await dbContext.Accounts
                 .FirstOrDefaultAsync(
                     account =>
                         account.Id == request.SourceAccountId &&
                         account.UserId == currentUserService.UserId,
-                    cancellationToken);
-
-            if (sourceAccount is null)
-            {
-                throw new NotFoundException("Racun sa kojeg saljete novac nije pronadjen.");
-            }
+                    cancellationToken)
+                ?? throw new NotFoundException("Racun sa kojeg saljete novac nije pronadjen.");
 
             var destinationAccount = await dbContext.Accounts
                 .FirstOrDefaultAsync(
-                    account => account.AccountNumber == destinationAccountNumber,
-                    cancellationToken);
+                    account => account.AccountNumber == request.DestinationAccountNumber.Trim(),
+                    cancellationToken)
+                ?? throw new NotFoundException("Racun primaoca nije pronadjen.");
 
-            if (destinationAccount is null)
-            {
-                throw new NotFoundException("Racun primaoca nije pronadjen.");
-            }
-
-            if (sourceAccount.Id == destinationAccount.Id)
-            {
-                throw new BusinessException("Novac nije moguce poslati na isti racun.");
-            }
-
-            if (sourceAccount.UserId == destinationAccount.UserId)
-            {
-                throw new BusinessException("Novac nije moguce poslati samom sebi.");
-            }
-
-            if (sourceAccount.Currency != destinationAccount.Currency)
-            {
-                throw new BusinessException("Transfer je moguc samo izmedju racuna iste valute.");
-            }
-
-            if (sourceAccount.Balance < request.Amount)
+            if (sourceAccount.Balance < quote.DebitAmount)
             {
                 throw new BusinessException("Nedovoljno sredstava na racunu.");
             }
@@ -149,7 +124,8 @@ namespace BankingApp.Infrastructure.Services
                 ? $"Transfer to {destinationAccount.AccountNumber}"
                 : request.Description.Trim();
 
-            var requiresReview = request.Amount > HighRiskReviewThreshold;
+            var riskAmountBam = currencyConversionService.ToBam(request.Amount, quote.TransferCurrency);
+            var requiresReview = riskAmountBam > HighRiskReviewThreshold;
 
             var debitTransaction = new Transaction
             {
@@ -158,12 +134,15 @@ namespace BankingApp.Infrastructure.Services
                 SourceAccountId = sourceAccount.Id,
                 DestinationAccountId = destinationAccount.Id,
                 ReferenceNumber = referenceNumber,
-                Amount = -request.Amount,
+                Amount = -quote.DebitAmount,
+                TransferAmount = quote.Amount,
+                TransferCurrency = quote.TransferCurrency,
+                DestinationAmount = quote.DestinationAmount,
                 Description = description,
                 Status = requiresReview ? TransactionStatus.Pending : TransactionStatus.Completed,
                 IsHighRiskReview = requiresReview,
                 ReviewReason = requiresReview
-                    ? $"Transfer amount exceeds {HighRiskReviewThreshold:N2} review threshold."
+                    ? $"Transfer value exceeds {HighRiskReviewThreshold:N2} BAM review threshold."
                     : null,
                 CreatedAtUtc = createdAtUtc
             };
@@ -171,8 +150,8 @@ namespace BankingApp.Infrastructure.Services
             Transaction? creditTransaction = null;
             if (!requiresReview)
             {
-                sourceAccount.Balance -= request.Amount;
-                destinationAccount.Balance += request.Amount;
+                sourceAccount.Balance -= quote.DebitAmount;
+                destinationAccount.Balance += quote.DestinationAmount;
 
                 creditTransaction = new Transaction
                 {
@@ -181,7 +160,10 @@ namespace BankingApp.Infrastructure.Services
                     SourceAccountId = sourceAccount.Id,
                     DestinationAccountId = destinationAccount.Id,
                     ReferenceNumber = referenceNumber,
-                    Amount = request.Amount,
+                    Amount = quote.DestinationAmount,
+                    TransferAmount = quote.Amount,
+                    TransferCurrency = quote.TransferCurrency,
+                    DestinationAmount = quote.DestinationAmount,
                     Description = $"Transfer from {sourceAccount.AccountNumber}",
                     Status = TransactionStatus.Completed,
                     CreatedAtUtc = createdAtUtc
@@ -206,7 +188,8 @@ namespace BankingApp.Infrastructure.Services
                 ReferenceNumber = referenceNumber,
                 Status = debitTransaction.Status,
                 Amount = request.Amount,
-                Currency = sourceAccount.Currency,
+                Currency = quote.TransferCurrency,
+                Quote = quote,
                 SourceAccount = ToTransferAccountResponse(sourceAccount),
                 DestinationAccount = ToTransferAccountResponse(destinationAccount),
                 DebitTransaction = ToResponse(debitTransaction, sourceAccount, destinationAccount),
@@ -216,6 +199,123 @@ namespace BankingApp.Infrastructure.Services
                 CreatedAtUtc = createdAtUtc
             };
         }
+
+        public async Task<MoneyTransferQuoteResponse> QuoteAsync(
+            MoneyTransferQuoteRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            if (currentUserService.IsAdmin)
+                throw new BusinessException("Admin korisnik ne moze slati novac u ime klijenta.");
+            if (request.Amount <= 0)
+                throw new BusinessException("Iznos za slanje mora biti veci od nule.");
+
+            var transferCurrency = request.Currency.Trim().ToUpperInvariant();
+            if (!currencyConversionService.IsSupported(transferCurrency))
+                throw new BusinessException("Valuta nije podrzana. Dozvoljene valute su USD, EUR i BAM.");
+
+            var source = await dbContext.Accounts.AsNoTracking()
+                .FirstOrDefaultAsync(account =>
+                    account.Id == request.SourceAccountId &&
+                    account.UserId == currentUserService.UserId, cancellationToken)
+                ?? throw new NotFoundException("Racun sa kojeg saljete novac nije pronadjen.");
+
+            var cardStatus = await dbContext.BankCards.AsNoTracking()
+                .Where(card => card.AccountId == source.Id)
+                .Select(card => (CardStatus?)card.Status)
+                .SingleOrDefaultAsync(cancellationToken);
+            if (cardStatus.HasValue && cardStatus != CardStatus.Active)
+                throw new BusinessException("Transfer nije dozvoljen sa blokirane ili istekle kartice.");
+
+            var destinationNumber = request.DestinationAccountNumber.Trim();
+            if (string.IsNullOrWhiteSpace(destinationNumber))
+                throw new BusinessException("Racun primaoca je obavezan.");
+            var destination = await dbContext.Accounts.AsNoTracking()
+                .FirstOrDefaultAsync(account => account.AccountNumber == destinationNumber, cancellationToken)
+                ?? throw new NotFoundException("Racun primaoca nije pronadjen.");
+            if (source.Id == destination.Id)
+                throw new BusinessException("Novac nije moguce poslati na isti racun.");
+            if (source.UserId == destination.UserId)
+                throw new BusinessException("Novac nije moguce poslati samom sebi.");
+
+            return new MoneyTransferQuoteResponse
+            {
+                SourceCurrency = source.Currency,
+                TransferCurrency = transferCurrency,
+                DestinationCurrency = destination.Currency,
+                Amount = decimal.Round(request.Amount, 2, MidpointRounding.AwayFromZero),
+                ExchangeRate = currencyConversionService.GetRate(transferCurrency, source.Currency),
+                DebitAmount = currencyConversionService.Convert(request.Amount, transferCurrency, source.Currency),
+                DestinationAmount = currencyConversionService.Convert(request.Amount, transferCurrency, destination.Currency),
+                RequiresConversion = transferCurrency != source.Currency || transferCurrency != destination.Currency
+            };
+        }
+
+        public async Task<IReadOnlyCollection<RecentRecipientResponse>> GetRecentRecipientsAsync(
+            CancellationToken cancellationToken = default)
+        {
+            if (currentUserService.IsAdmin)
+                throw new BusinessException("Admin korisnik nema recent primaoce.");
+
+            var outgoing = await dbContext.Transactions
+                .AsNoTracking()
+                .Where(transaction =>
+                    transaction.Account.UserId == currentUserService.UserId &&
+                    transaction.Amount < 0 &&
+                    (transaction.Status == TransactionStatus.Completed ||
+                        transaction.Status == TransactionStatus.Pending) &&
+                    transaction.DestinationAccountId != null)
+                .OrderByDescending(transaction => transaction.CreatedAtUtc)
+                .Select(transaction => new
+                {
+                    DestinationAccountId = transaction.DestinationAccountId!.Value,
+                    transaction.CreatedAtUtc
+                })
+                .Take(100)
+                .ToListAsync(cancellationToken);
+
+            var latestByAccount = outgoing
+                .GroupBy(item => item.DestinationAccountId)
+                .Select(group => group.First())
+                .Take(8)
+                .ToList();
+            if (latestByAccount.Count == 0) return [];
+
+            var ids = latestByAccount.Select(item => item.DestinationAccountId).ToList();
+            var accounts = await dbContext.Accounts
+                .AsNoTracking()
+                .Include(account => account.User)
+                .Where(account => ids.Contains(account.Id))
+                .ToDictionaryAsync(account => account.Id, cancellationToken);
+
+            return latestByAccount
+                .Where(item => accounts.ContainsKey(item.DestinationAccountId))
+                .Select(item => ToRecipient(accounts[item.DestinationAccountId], item.CreatedAtUtc))
+                .ToList();
+        }
+
+        public async Task<RecentRecipientResponse> LookupRecipientAsync(
+            string accountNumber,
+            CancellationToken cancellationToken = default)
+        {
+            if (currentUserService.IsAdmin)
+                throw new BusinessException("Admin korisnik ne moze traziti primaoce.");
+            var normalized = accountNumber.Trim();
+            if (string.IsNullOrWhiteSpace(normalized))
+                throw new BusinessException("Racun primaoca je obavezan.");
+
+            var account = await dbContext.Accounts
+                .AsNoTracking()
+                .Include(value => value.User)
+                .SingleOrDefaultAsync(value => value.AccountNumber == normalized, cancellationToken)
+                ?? throw new NotFoundException("Racun primaoca nije pronadjen.");
+            if (account.UserId == currentUserService.UserId)
+                throw new BusinessException("Novac nije moguce poslati samom sebi.");
+            return ToRecipient(account, null);
+        }
+
+        private static RecentRecipientResponse ToRecipient(Account account, DateTime? lastUsedAtUtc) =>
+            new(account.Id, account.User.FirstName, account.User.LastName,
+                account.AccountNumber, lastUsedAtUtc);
 
         public async Task<TransactionResponse> UpdateAsync(
             Guid id,
@@ -253,13 +353,14 @@ namespace BankingApp.Infrastructure.Services
                 ?? throw new NotFoundException("Racun primaoca nije pronadjen.");
 
             var amount = Math.Abs(transaction.Amount);
+            var destinationAmount = transaction.DestinationAmount ?? amount;
             if (sourceAccount.Balance < amount)
             {
                 throw new BusinessException("Nedovoljno sredstava za odobrenje transakcije.");
             }
 
             sourceAccount.Balance -= amount;
-            destinationAccount.Balance += amount;
+            destinationAccount.Balance += destinationAmount;
 
             transaction.Status = TransactionStatus.Completed;
             transaction.AdminNote = request.AdminNote?.Trim();
@@ -273,7 +374,10 @@ namespace BankingApp.Infrastructure.Services
                 SourceAccountId = sourceAccount.Id,
                 DestinationAccountId = destinationAccount.Id,
                 ReferenceNumber = transaction.ReferenceNumber,
-                Amount = amount,
+                Amount = destinationAmount,
+                TransferAmount = transaction.TransferAmount,
+                TransferCurrency = transaction.TransferCurrency,
+                DestinationAmount = destinationAmount,
                 Description = $"Transfer from {sourceAccount.AccountNumber}",
                 Status = TransactionStatus.Completed,
                 CreatedAtUtc = DateTime.UtcNow

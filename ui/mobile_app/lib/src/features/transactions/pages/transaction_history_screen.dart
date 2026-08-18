@@ -9,9 +9,14 @@ import '../widgets/transaction_document_upload.dart';
 import '../widgets/transaction_list.dart';
 
 class TransactionHistoryScreen extends StatefulWidget {
-  const TransactionHistoryScreen({super.key, required this.session});
+  const TransactionHistoryScreen({
+    super.key,
+    required this.session,
+    this.accountId,
+  });
 
   final AuthSession session;
+  final String? accountId;
 
   @override
   State<TransactionHistoryScreen> createState() =>
@@ -93,6 +98,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
         token: token,
         page: page,
         pageSize: _pageSize,
+        accountId: widget.accountId,
       );
 
       if (!mounted) {

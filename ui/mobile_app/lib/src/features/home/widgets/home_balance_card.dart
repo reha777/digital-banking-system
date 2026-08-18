@@ -4,33 +4,61 @@ import '../../../core/formatting/date_formatters.dart';
 import '../../../core/formatting/money_formatters.dart';
 import '../../accounts/account_models.dart';
 import '../../cards/card_models.dart';
+import '../../cards/widgets/card_carousel.dart';
 import 'home_profile_header.dart';
 import 'home_quick_actions.dart';
 
-class HomeBalanceCard extends StatelessWidget {
+class HomeBalanceCard extends StatefulWidget {
   const HomeBalanceCard({
     super.key,
     required this.firstName,
     required this.lastName,
     required this.summary,
-    required this.card,
+    required this.cards,
     required this.onSendMoney,
+    required this.hasProfilePhoto,
+    required this.accessToken,
+    required this.onProfileTap,
+    required this.onCardTap,
+    this.profilePhotoUpdatedAtUtc,
   });
 
   final String firstName;
   final String lastName;
   final AccountBalanceSummary summary;
-  final BankCardModel? card;
-  final VoidCallback? onSendMoney;
+  final List<BankCardModel> cards;
+  final ValueChanged<BankCardModel>? onSendMoney;
+  final ValueChanged<BankCardModel> onCardTap;
+  final bool hasProfilePhoto;
+  final String? accessToken;
+  final DateTime? profilePhotoUpdatedAtUtc;
+  final VoidCallback onProfileTap;
+
+  @override
+  State<HomeBalanceCard> createState() => _HomeBalanceCardState();
+}
+
+class _HomeBalanceCardState extends State<HomeBalanceCard> {
+  int _selected = 0;
 
   @override
   Widget build(BuildContext context) {
-    final total = summary.primaryTotal;
-    final account = summary.primaryAccount;
+    final total = widget.summary.primaryTotal;
+    final account = widget.summary.primaryAccount;
+    final selectedCard = widget.cards.isEmpty
+        ? null
+        : widget.cards[_selected.clamp(0, widget.cards.length - 1)];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        HomeProfileHeader(firstName: firstName, lastName: lastName),
+        HomeProfileHeader(
+          firstName: widget.firstName,
+          lastName: widget.lastName,
+          hasProfilePhoto: widget.hasProfilePhoto,
+          accessToken: widget.accessToken,
+          profilePhotoUpdatedAtUtc: widget.profilePhotoUpdatedAtUtc,
+          onProfileTap: widget.onProfileTap,
+        ),
         const SizedBox(height: 20),
         Stack(
           clipBehavior: Clip.none,
@@ -51,18 +79,47 @@ class HomeBalanceCard extends StatelessWidget {
             ),
             Column(
               children: [
-                _HomeAccountCard(
-                  card: card,
-                  accountNumber:
-                      account?.accountNumber ?? 'No account available',
-                  holderName: '$firstName $lastName'.trim().isEmpty
-                      ? 'BankPick Customer'
-                      : '$firstName $lastName'.trim(),
-                  currency: total?.currency ?? account?.currency ?? 'USD',
-                  balance: total?.balance ?? account?.balance ?? 0,
-                ),
+                if (widget.cards.isNotEmpty)
+                  Column(
+                    children: [
+                      CardCarousel(
+                        cards: widget.cards,
+                        onCardChanged: (value) =>
+                            setState(() => _selected = value),
+                        onCardTap: widget.onCardTap,
+                      ),
+                      const SizedBox(height: 10),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 180),
+                        child: Text(
+                          '${selectedCard!.currency} ${formatMoney(selectedCard.balance)}',
+                          key: ValueKey(selectedCard.id),
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  _HomeAccountCard(
+                    card: null,
+                    accountNumber:
+                        account?.accountNumber ?? 'No account available',
+                    holderName:
+                        '${widget.firstName} ${widget.lastName}'.trim().isEmpty
+                        ? 'BankPick Customer'
+                        : '${widget.firstName} ${widget.lastName}'.trim(),
+                    currency: total?.currency ?? account?.currency ?? 'USD',
+                    balance: total?.balance ?? account?.balance ?? 0,
+                  ),
                 const SizedBox(height: 34),
-                HomeQuickActions(onSendMoney: onSendMoney),
+                HomeQuickActions(
+                  onSendMoney:
+                      selectedCard == null ||
+                          !selectedCard.canTransfer ||
+                          widget.onSendMoney == null
+                      ? null
+                      : () => widget.onSendMoney!(selectedCard),
+                ),
               ],
             ),
           ],

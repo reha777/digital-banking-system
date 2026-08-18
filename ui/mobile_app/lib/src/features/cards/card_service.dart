@@ -37,6 +37,35 @@ class CardService {
     return CardRequestModel.fromJson(json);
   }
 
+  Future<BankCardModel> setFrozen({
+    required String token,
+    required String cardId,
+    required bool frozen,
+  }) async {
+    final json = await _apiClient.postJson(
+      frozen
+          ? MobileApiEndpoints.freezeCard(cardId)
+          : MobileApiEndpoints.unfreezeCard(cardId),
+      const {},
+      token: token,
+    );
+    return BankCardModel.fromJson(json);
+  }
+
+  Future<({String cardNumber, String cvv})> revealSensitiveData({
+    required String token,
+    required String cardId,
+  }) async {
+    final json = await _apiClient.getJson(
+      MobileApiEndpoints.cardSensitiveData(cardId),
+      token: token,
+    );
+    return (
+      cardNumber: json['cardNumber']?.toString() ?? '',
+      cvv: json['cvv']?.toString() ?? '',
+    );
+  }
+
   Future<List<CardRequestModel>> getMyRequests(String token) async {
     final json = await _apiClient.getJson(
       '${MobileApiEndpoints.myCardRequests}?page=1&pageSize=20',

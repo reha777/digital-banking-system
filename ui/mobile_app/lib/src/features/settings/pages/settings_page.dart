@@ -1,83 +1,114 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/app_theme.dart';
+import '../../../core/api_client.dart';
 import '../../../core/theme_controller.dart';
+import '../../auth/auth_models.dart';
+import '../../auth/auth_session.dart';
+import '../settings_service.dart';
+import 'change_password_page.dart';
+import 'language_page.dart';
+import 'profile_page.dart';
+import '../widgets/settings_widgets.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({
     super.key,
     required this.themeController,
-    required this.onLogout,
+    this.user,
+    this.session,
+    this.onOpenCards,
+    this.onProfileUpdated,
   });
 
   final ThemeController themeController;
-  final VoidCallback onLogout;
+  final AuthUser? user;
+  final AuthSession? session;
+  final VoidCallback? onOpenCards;
+  final VoidCallback? onProfileUpdated;
+
+  void _push(BuildContext context, Widget page) {
+    Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        pageBuilder: (_, animation, _) =>
+            FadeTransition(opacity: animation, child: page),
+        transitionDuration: const Duration(milliseconds: 180),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final service = session == null
+        ? null
+        : SettingsService(ApiClient(), session!);
     return AnimatedBuilder(
       animation: themeController,
-      builder: (context, _) {
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: isDark ? AppTheme.darkSurface : const Color(0xFFF5F6FA),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: isDark
-                      ? const Color(0xFF25253D)
-                      : const Color(0xFFE7E9F0),
+      builder: (context, _) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SettingsSection(
+            title: 'General',
+            children: [
+              SettingsNavigationTile(
+                label: 'Language',
+                value: 'English',
+                onTap: () => _push(context, const LanguagePage()),
+              ),
+              SettingsNavigationTile(
+                label: 'My Profile',
+                onTap: user == null
+                    ? null
+                    : () => _push(
+                        context,
+                        ProfilePage(
+                          user: user!,
+                          service: service,
+                          onOpenCards: onOpenCards,
+                          onProfileUpdated: onProfileUpdated,
+                          accessToken: session?.token,
+                        ),
+                      ),
+              ),
+              const SettingsNavigationTile(
+                label: 'Contact Us',
+                value: 'Contact details required',
+              ),
+            ],
+          ),
+          const SizedBox(height: 28),
+          SettingsSection(
+            title: 'Security',
+            children: [
+              SettingsNavigationTile(
+                label: 'Change Password',
+                onTap: () => _push(
+                  context,
+                  ChangePasswordPage(onSubmit: service?.changePassword),
                 ),
               ),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 22,
-                    backgroundColor: AppTheme.primary.withValues(alpha: 0.12),
-                    child: Icon(
-                      isDark
-                          ? Icons.dark_mode_outlined
-                          : Icons.light_mode_outlined,
-                      color: AppTheme.primary,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Dark mode',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Switch between light and dark app theme.',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ],
-                    ),
-                  ),
-                  Switch(
-                    value: themeController.isDarkMode,
-                    onChanged: themeController.toggleDarkMode,
-                  ),
-                ],
+              const SettingsNavigationTile(
+                label: 'Privacy Policy',
+                value: 'Content required',
               ),
-            ),
-            const SizedBox(height: 14),
-            OutlinedButton.icon(
-              onPressed: onLogout,
-              icon: const Icon(Icons.logout),
-              label: const Text('Sign out'),
-            ),
-          ],
-        );
-      },
+            ],
+          ),
+          const SizedBox(height: 28),
+          SettingsSection(
+            title: 'Appearance',
+            children: [
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Dark mode'),
+                subtitle: const Text(
+                  'Switch between light and dark app theme.',
+                ),
+                value: themeController.isDarkMode,
+                onChanged: themeController.toggleDarkMode,
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
