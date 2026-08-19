@@ -10,6 +10,7 @@ import '../cards/mobile_cards_screen.dart';
 import '../cards/card_models.dart';
 import '../cards/pages/card_details_screen.dart';
 import '../home/pages/home_page.dart';
+import '../receive/pages/receive_money_page.dart';
 import '../settings/pages/settings_page.dart';
 import '../settings/pages/profile_page.dart';
 import '../settings/settings_service.dart';
@@ -57,6 +58,14 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
     if (selectedIndex != null && mounted) {
       setState(() => _selectedIndex = selectedIndex);
     }
+  }
+
+  Future<void> _openReceiveMoney() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => ReceiveMoneyPage(session: widget.session),
+      ),
+    );
   }
 
   Future<void> _openCardDetails(BankCardModel card) async {
@@ -131,6 +140,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                 key: _homeKey,
                 session: widget.session,
                 onSendMoney: _openSendMoney,
+                onReceiveMoney: _openReceiveMoney,
                 onTransactionHistory: _openTransactionHistory,
                 onLogout: _logout,
                 onProfileTap: _openProfile,

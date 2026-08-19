@@ -1,7 +1,10 @@
 import 'dart:async';
 
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
@@ -11,6 +14,11 @@ import '../auth/auth_session.dart';
 import '../cards/card_models.dart';
 import '../cards/card_service.dart';
 import '../cards/widgets/card_carousel.dart';
+import '../receive/pages/scan_receive_qr_page.dart';
+import '../receive/receive_qr_image_decoder.dart';
+import '../receive/receive_qr_payload.dart';
+import '../receive/receive_recipient_resolver.dart';
+import '../receive/widgets/scan_qr_source_sheet.dart';
 import 'pages/add_recipient_page.dart';
 import 'transaction_models.dart';
 import 'transaction_service.dart';
@@ -55,6 +63,7 @@ class _SendMoneyScreenState extends State<SendMoneyScreen> {
   Timer? _quoteDebounce;
   bool _quoteLoading = false;
   String? _quoteError;
+  bool _qrLookupLoading = false;
 
   bool get _canSubmit =>
       _selectedRecipient != null &&
@@ -195,6 +204,106 @@ class _SendMoneyScreenState extends State<SendMoneyScreen> {
       setState(() => _selectedRecipient = recipient);
       _scheduleQuote();
     }
+  }
+
+  Future<void> _scanQr() async {
+    if (_qrLookupLoading) return;
+    final source = await showModalBottomSheet<QrScanSource>(
+      context: context,
+      builder: (_) => const ScanQrSourceSheet(),
+    );
+    if (source == null || !mounted) return;
+
+    String? rawValue;
+    if (source == QrScanSource.camera) {
+      rawValue = await Navigator.of(context).push<String>(
+        MaterialPageRoute<String>(builder: (_) => const ScanReceiveQrPage()),
+      );
+    } else {
+      rawValue = await _scanFromGallery();
+    }
+    if (rawValue != null && mounted) await _verifyQrRecipient(rawValue);
+  }
+
+  Future<String?> _scanFromGallery() async {
+    try {
+      final result = await FilePicker.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+        withData: kIsWeb,
+      );
+      final file = result?.files.single;
+      if (file == null) return null;
+      if (kIsWeb) {
+        final bytes = file.bytes;
+        final value = bytes == null
+            ? null
+            : const ReceiveQrImageDecoder().decode(bytes);
+        if (value == null && mounted) {
+          _showQrError('No valid QR code was found in the selected image.');
+        }
+        return value;
+      }
+      final path = file.path;
+      if (path == null) return null;
+      final controller = MobileScannerController(
+        autoStart: false,
+        formats: const [BarcodeFormat.qrCode],
+      );
+      try {
+        final capture = await controller.analyzeImage(path);
+        final value = capture?.barcodes
+            .map((barcode) => barcode.rawValue)
+            .whereType<String>()
+            .firstOrNull;
+        if (value == null && mounted) {
+          _showQrError('No valid QR code was found in the selected image.');
+        }
+        return value;
+      } finally {
+        controller.dispose();
+      }
+    } catch (_) {
+      if (mounted) _showQrError('The selected image could not be scanned.');
+      return null;
+    }
+  }
+
+  Future<void> _verifyQrRecipient(String rawValue) async {
+    final token = widget.session.token;
+    if (token == null || _qrLookupLoading) return;
+    setState(() => _qrLookupLoading = true);
+    try {
+      final sourceAccountNumber =
+          _selectedCard?.accountNumber ?? widget.sourceAccount.accountNumber;
+      final recipient = await ReceiveRecipientResolver(_service).resolve(
+        rawValue: rawValue,
+        sourceAccountNumber: sourceAccountNumber,
+        token: token,
+      );
+      if (!mounted) return;
+      setState(() => _selectedRecipient = recipient);
+      _scheduleQuote();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${recipient.displayName} verified')),
+      );
+    } on ReceiveQrPayloadException catch (error) {
+      if (mounted) _showQrError(error.message);
+    } on ApiException catch (error) {
+      if (mounted) {
+        _showQrError(
+          error.statusCode == 404 ? 'Account not found' : error.message,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _qrLookupLoading = false);
+    }
+  }
+
+  void _showQrError(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<MoneyTransferResult> _performTransfer() async {
@@ -346,6 +455,8 @@ class _SendMoneyScreenState extends State<SendMoneyScreen> {
                       loading: snapshot.connectionState != ConnectionState.done,
                       hasError: snapshot.hasError,
                       onAdd: _addRecipient,
+                      onScan: _scanQr,
+                      scanLoading: _qrLookupLoading,
                       onSelected: (recipient) {
                         setState(() => _selectedRecipient = recipient);
                         _scheduleQuote();
