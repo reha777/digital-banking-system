@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/api_client.dart';
+import '../../../core/formatting/account_number_formatters.dart';
 import '../../cards/card_models.dart';
 import '../transaction_models.dart';
 
@@ -71,7 +72,7 @@ class _TransferConfirmationSheetState extends State<TransferConfirmationSheet> {
             icon: LucideIcons.creditCard,
             label: 'FROM',
             title: widget.card.maskedCardNumber,
-            subtitle: widget.card.accountNumber,
+            subtitle: numericAccountNumber(widget.card.accountNumber),
           ),
           if (widget.quote.requiresConversion) ...[
             const SizedBox(height: 12),
@@ -89,7 +90,7 @@ class _TransferConfirmationSheetState extends State<TransferConfirmationSheet> {
             icon: LucideIcons.user,
             label: 'TO',
             title: widget.recipient.displayName,
-            subtitle: widget.recipient.accountNumber,
+            subtitle: numericAccountNumber(widget.recipient.accountNumber),
           ),
           const SizedBox(height: 18),
           _ReviewRow(

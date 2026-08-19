@@ -455,6 +455,7 @@ namespace BankingApp.Infrastructure.Persistence
             var recipientAccountId = Guid.Parse("deed75d2-e898-4c2d-a7e3-2fa1152d7222");
             var demoCardId = Guid.Parse("a8f0f3aa-e7d3-460c-86ff-6cfe0f5105dd");
             var recipientCardId = Guid.Parse("62f3cd21-d263-40ca-ae58-07d13f7c5897");
+            var savingsCardId = Guid.Parse("741fc77c-fec7-4b53-92df-d664d14935e8");
             var initialDepositId = Guid.Parse("b8e0dbf7-536f-4301-99c7-5b3a1e03f450");
             var savingsDepositId = Guid.Parse("fd261404-8751-4faa-bffa-cdf7ea592903");
             var createdAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -543,6 +544,18 @@ namespace BankingApp.Infrastructure.Persistence
                     CardholderName = "Demo Customer",
                     Cvv = "6986",
                     ExpiryDate = new DateTime(2030, 6, 24, 0, 0, 0, DateTimeKind.Utc),
+                    Brand = CardBrand.Mastercard,
+                    Status = CardStatus.Active,
+                    CreatedAtUtc = createdAtUtc
+                },
+                new BankCard
+                {
+                    Id = savingsCardId,
+                    AccountId = savingsAccountId,
+                    CardNumber = "4562444455550001",
+                    CardholderName = "Demo Customer",
+                    Cvv = "315",
+                    ExpiryDate = new DateTime(2030, 12, 24, 0, 0, 0, DateTimeKind.Utc),
                     Brand = CardBrand.Mastercard,
                     Status = CardStatus.Active,
                     CreatedAtUtc = createdAtUtc

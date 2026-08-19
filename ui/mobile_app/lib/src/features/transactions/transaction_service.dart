@@ -20,12 +20,16 @@ class TransactionService {
     required int page,
     required int pageSize,
     String? accountId,
+    DateTime? dateFrom,
+    DateTime? dateTo,
   }) async {
     final accountQuery = accountId == null
         ? ''
         : '&accountId=${Uri.encodeQueryComponent(accountId)}';
+    final dateQuery =
+        '${dateFrom == null ? '' : '&dateFrom=${Uri.encodeQueryComponent(dateFrom.toUtc().toIso8601String())}'}${dateTo == null ? '' : '&dateTo=${Uri.encodeQueryComponent(dateTo.toUtc().toIso8601String())}'}';
     final json = await _apiClient.getJson(
-      '${MobileApiEndpoints.transactions}?page=$page&pageSize=$pageSize$accountQuery',
+      '${MobileApiEndpoints.transactions}?page=$page&pageSize=$pageSize$accountQuery$dateQuery',
       token: token,
     );
 
@@ -65,6 +69,38 @@ class TransactionService {
       'currency': currency,
     }, token: token);
     return MoneyTransferQuote.fromJson(json);
+  }
+
+  Future<MoneyTransferQuote> getInternalTransferQuote({
+    required String token,
+    required String sourceAccountId,
+    required String destinationAccountId,
+    required double amount,
+  }) async {
+    final json = await _apiClient
+        .postJson(MobileApiEndpoints.internalTransferQuote, {
+          'sourceAccountId': sourceAccountId,
+          'destinationAccountId': destinationAccountId,
+          'amount': amount,
+        }, token: token);
+    return MoneyTransferQuote.fromJson(json);
+  }
+
+  Future<MoneyTransferResult> internalTransfer({
+    required String token,
+    required String sourceAccountId,
+    required String destinationAccountId,
+    required double amount,
+    String? description,
+  }) async {
+    final json = await _apiClient
+        .postJson(MobileApiEndpoints.internalTransfer, {
+          'sourceAccountId': sourceAccountId,
+          'destinationAccountId': destinationAccountId,
+          'amount': amount,
+          'description': description,
+        }, token: token);
+    return MoneyTransferResult.fromJson(json);
   }
 
   Future<List<RecentRecipient>> getRecentRecipients(String token) async {

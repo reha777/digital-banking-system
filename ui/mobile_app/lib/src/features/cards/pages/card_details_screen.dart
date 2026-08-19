@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/api_client.dart';
+import '../../../core/formatting/account_number_formatters.dart';
 import '../../../core/formatting/money_formatters.dart';
 import '../../auth/auth_session.dart';
 import '../../transactions/transaction_models.dart';
@@ -153,7 +154,10 @@ class _CardDetailsScreenState extends State<CardDetailsScreen> {
                 'Available balance',
                 '${_card.currency} ${formatMoney(_card.balance)}',
               ),
-              _Info('Account number', _card.accountNumber),
+              _Info(
+                'Account number',
+                numericAccountNumber(_card.accountNumber),
+              ),
               _Info('Status', _card.status),
               _Info('Cardholder', _card.cardholderName),
               _Info(

@@ -40,6 +40,7 @@ class Account {
     required this.accountNumber,
     required this.balance,
     required this.currency,
+    this.accountType = 'Checking',
   });
 
   factory Account.fromJson(Map<String, dynamic> json) {
@@ -48,6 +49,7 @@ class Account {
       accountNumber: json['accountNumber']?.toString() ?? '',
       balance: (json['balance'] as num? ?? 0).toDouble(),
       currency: json['currency']?.toString() ?? '',
+      accountType: _accountTypeLabel(json['accountType']),
     );
   }
 
@@ -55,4 +57,12 @@ class Account {
   final String accountNumber;
   final double balance;
   final String currency;
+  final String accountType;
 }
+
+String _accountTypeLabel(Object? value) => switch (value?.toString()) {
+  '1' => 'Checking',
+  '2' => 'Savings',
+  final label when label != null && label.isNotEmpty => label,
+  _ => 'Checking',
+};
