@@ -11,6 +11,8 @@ class RecipientSelector extends StatelessWidget {
     required this.selected,
     required this.onAdd,
     required this.onSelected,
+    this.onScan,
+    this.scanLoading = false,
     this.loading = false,
     this.hasError = false,
   });
@@ -19,6 +21,8 @@ class RecipientSelector extends StatelessWidget {
   final RecentRecipient? selected;
   final VoidCallback onAdd;
   final ValueChanged<RecentRecipient> onSelected;
+  final VoidCallback? onScan;
+  final bool scanLoading;
   final bool loading;
   final bool hasError;
 
@@ -26,7 +30,24 @@ class RecipientSelector extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text('Send to', style: Theme.of(context).textTheme.titleMedium),
+      Row(
+        children: [
+          Text('Send to', style: Theme.of(context).textTheme.titleMedium),
+          const Spacer(),
+          TextButton.icon(
+            key: const ValueKey('scan-qr'),
+            onPressed: scanLoading ? null : onScan,
+            icon: scanLoading
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(LucideIcons.scanLine, size: 18),
+            label: const Text('Scan QR'),
+          ),
+        ],
+      ),
       const SizedBox(height: 14),
       SizedBox(
         height: 92,

@@ -16,6 +16,7 @@ class HomePage extends StatefulWidget {
     super.key,
     required this.session,
     required this.onSendMoney,
+    required this.onReceiveMoney,
     required this.onTransactionHistory,
     required this.onLogout,
     required this.onProfileTap,
@@ -24,6 +25,7 @@ class HomePage extends StatefulWidget {
 
   final AuthSession session;
   final ValueChanged<Account> onSendMoney;
+  final VoidCallback onReceiveMoney;
   final VoidCallback onTransactionHistory;
   final VoidCallback onLogout;
   final VoidCallback onProfileTap;
@@ -112,6 +114,7 @@ class HomePageState extends State<HomePage> {
                     currency: card.currency,
                   ),
                 ),
+                onReceiveMoney: widget.onReceiveMoney,
                 onCardTap: widget.onCardTap,
                 hasProfilePhoto: widget.session.user?.hasProfilePhoto ?? false,
                 accessToken: widget.session.token,

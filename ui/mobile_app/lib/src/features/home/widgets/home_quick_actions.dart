@@ -3,9 +3,10 @@ import 'package:flutter/material.dart';
 import '../../../core/app_theme.dart';
 
 class HomeQuickActions extends StatelessWidget {
-  const HomeQuickActions({super.key, this.onSendMoney});
+  const HomeQuickActions({super.key, this.onSendMoney, this.onReceiveMoney});
 
   final VoidCallback? onSendMoney;
+  final VoidCallback? onReceiveMoney;
 
   @override
   Widget build(BuildContext context) {
@@ -19,8 +20,12 @@ class HomeQuickActions extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 12),
-        const Expanded(
-          child: _ActionButton(icon: Icons.arrow_downward, label: 'Receive'),
+        Expanded(
+          child: _ActionButton(
+            icon: Icons.arrow_downward,
+            label: 'Receive',
+            onPressed: onReceiveMoney,
+          ),
         ),
         const SizedBox(width: 12),
         const Expanded(

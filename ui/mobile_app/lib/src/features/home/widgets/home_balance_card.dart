@@ -16,6 +16,7 @@ class HomeBalanceCard extends StatefulWidget {
     required this.summary,
     required this.cards,
     required this.onSendMoney,
+    this.onReceiveMoney,
     required this.hasProfilePhoto,
     required this.accessToken,
     required this.onProfileTap,
@@ -28,6 +29,7 @@ class HomeBalanceCard extends StatefulWidget {
   final AccountBalanceSummary summary;
   final List<BankCardModel> cards;
   final ValueChanged<BankCardModel>? onSendMoney;
+  final VoidCallback? onReceiveMoney;
   final ValueChanged<BankCardModel> onCardTap;
   final bool hasProfilePhoto;
   final String? accessToken;
@@ -113,6 +115,7 @@ class _HomeBalanceCardState extends State<HomeBalanceCard> {
                   ),
                 const SizedBox(height: 34),
                 HomeQuickActions(
+                  onReceiveMoney: widget.onReceiveMoney,
                   onSendMoney:
                       selectedCard == null ||
                           !selectedCard.canTransfer ||
