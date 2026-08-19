@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/app_theme.dart';
+import '../../../core/formatting/account_number_formatters.dart';
 import '../../accounts/account_models.dart';
 
 class SendMoneySourceCard extends StatelessWidget {
@@ -32,7 +33,7 @@ class SendMoneySourceCard extends StatelessWidget {
         ),
         const SizedBox(height: 22),
         Text(
-          account.accountNumber,
+          numericAccountNumber(account.accountNumber),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(

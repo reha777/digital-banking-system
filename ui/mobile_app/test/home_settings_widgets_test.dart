@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   testWidgets('home shows balance data and quick actions', (tester) async {
+    var transferTapped = false;
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -31,6 +32,7 @@ void main() {
               ),
               cards: [testCard],
               onSendMoney: (_) {},
+              onTransfer: () => transferTapped = true,
               onCardTap: (_) {},
               hasProfilePhoto: false,
               accessToken: null,
@@ -46,7 +48,11 @@ void main() {
     expect(find.text('Send'), findsOneWidget);
     expect(find.text('Receive'), findsOneWidget);
     expect(find.text('Loan'), findsOneWidget);
-    expect(find.text('Topup'), findsOneWidget);
+    expect(find.text('Transfer'), findsOneWidget);
+    await tester.ensureVisible(find.text('Transfer'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Transfer'));
+    expect(transferTapped, isTrue);
   });
 
   testWidgets('recent transactions reuse the transaction tile', (tester) async {

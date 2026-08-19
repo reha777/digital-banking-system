@@ -250,6 +250,180 @@ namespace BankingApp.Infrastructure.Services
             };
         }
 
+        public async Task<MoneyTransferQuoteResponse> QuoteInternalTransferAsync(
+            InternalTransferQuoteRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            if (currentUserService.IsAdmin)
+                throw new BusinessException("Admin korisnik ne moze prebacivati novac izmedju racuna.");
+            if (request.Amount <= 0)
+                throw new BusinessException("Iznos transfera mora biti veci od nule.");
+            if (request.SourceAccountId == request.DestinationAccountId)
+                throw new BusinessException("Izvorni i odredisni racun moraju biti razliciti.");
+
+            var accounts = await dbContext.Accounts
+                .AsNoTracking()
+                .Where(account =>
+                    account.Id == request.SourceAccountId ||
+                    account.Id == request.DestinationAccountId)
+                .ToListAsync(cancellationToken);
+            var source = accounts.SingleOrDefault(account => account.Id == request.SourceAccountId)
+                ?? throw new NotFoundException("Izvorni racun nije pronadjen.");
+            var destination = accounts.SingleOrDefault(account => account.Id == request.DestinationAccountId)
+                ?? throw new NotFoundException("Odredisni racun nije pronadjen.");
+
+            if (source.UserId != currentUserService.UserId)
+                throw new BusinessException("Izvorni racun ne pripada prijavljenom korisniku.");
+            if (destination.UserId != currentUserService.UserId)
+                throw new BusinessException("Odredisni racun ne pripada prijavljenom korisniku.");
+            return BuildInternalTransferQuote(source, destination, request.Amount);
+        }
+
+        public async Task<MoneyTransferResponse> InternalTransferAsync(
+            InternalTransferRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var strategy = dbContext.Database.CreateExecutionStrategy();
+            return await strategy.ExecuteAsync(async () =>
+            {
+                await using var databaseTransaction = dbContext.Database.IsRelational()
+                    ? await dbContext.Database.BeginTransactionAsync(
+                        System.Data.IsolationLevel.Serializable,
+                        cancellationToken)
+                    : null;
+
+                try
+                {
+                    if (currentUserService.IsAdmin)
+                        throw new BusinessException("Admin korisnik ne moze prebacivati novac izmedju racuna.");
+                    if (request.Amount <= 0)
+                        throw new BusinessException("Iznos transfera mora biti veci od nule.");
+                    if (request.SourceAccountId == request.DestinationAccountId)
+                        throw new BusinessException("Izvorni i odredisni racun moraju biti razliciti.");
+
+                    var accounts = await dbContext.Accounts
+                        .Where(account =>
+                            account.Id == request.SourceAccountId ||
+                            account.Id == request.DestinationAccountId)
+                        .ToListAsync(cancellationToken);
+                    var source = accounts.SingleOrDefault(account => account.Id == request.SourceAccountId)
+                        ?? throw new NotFoundException("Izvorni racun nije pronadjen.");
+                    var destination = accounts.SingleOrDefault(account => account.Id == request.DestinationAccountId)
+                        ?? throw new NotFoundException("Odredisni racun nije pronadjen.");
+
+                    if (source.UserId != currentUserService.UserId ||
+                        destination.UserId != currentUserService.UserId)
+                        throw new BusinessException("Oba racuna moraju pripadati prijavljenom korisniku.");
+
+                    var quote = BuildInternalTransferQuote(source, destination, request.Amount);
+                    var referenceNumber = CreateReferenceNumber();
+                    var createdAtUtc = DateTime.UtcNow;
+                    var description = string.IsNullOrWhiteSpace(request.Description)
+                        ? "Transfer between my accounts"
+                        : request.Description.Trim();
+
+                    source.Balance -= quote.DebitAmount;
+                    destination.Balance += quote.DestinationAmount;
+
+                    var debitTransaction = new Transaction
+                    {
+                        Id = Guid.NewGuid(),
+                        AccountId = source.Id,
+                        SourceAccountId = source.Id,
+                        DestinationAccountId = destination.Id,
+                        ReferenceNumber = referenceNumber,
+                        Amount = -quote.DebitAmount,
+                        TransferAmount = quote.Amount,
+                        TransferCurrency = quote.TransferCurrency,
+                        DestinationAmount = quote.DestinationAmount,
+                        Description = description,
+                        Status = TransactionStatus.Completed,
+                        IsHighRiskReview = false,
+                        CreatedAtUtc = createdAtUtc
+                    };
+                    var creditTransaction = new Transaction
+                    {
+                        Id = Guid.NewGuid(),
+                        AccountId = destination.Id,
+                        SourceAccountId = source.Id,
+                        DestinationAccountId = destination.Id,
+                        ReferenceNumber = referenceNumber,
+                        Amount = quote.DestinationAmount,
+                        TransferAmount = quote.Amount,
+                        TransferCurrency = quote.TransferCurrency,
+                        DestinationAmount = quote.DestinationAmount,
+                        Description = $"Internal transfer from {source.AccountNumber}",
+                        Status = TransactionStatus.Completed,
+                        IsHighRiskReview = false,
+                        CreatedAtUtc = createdAtUtc
+                    };
+
+                    dbContext.Transactions.AddRange(debitTransaction, creditTransaction);
+                    await dbContext.SaveChangesAsync(cancellationToken);
+                    if (databaseTransaction is not null)
+                        await databaseTransaction.CommitAsync(cancellationToken);
+
+                    debitTransaction.Account = source;
+                    creditTransaction.Account = destination;
+                    return new MoneyTransferResponse
+                    {
+                        ReferenceNumber = referenceNumber,
+                        Status = TransactionStatus.Completed,
+                        Amount = quote.Amount,
+                        Currency = quote.TransferCurrency,
+                        Quote = quote,
+                        SourceAccount = ToTransferAccountResponse(source),
+                        DestinationAccount = ToTransferAccountResponse(destination),
+                        DebitTransaction = ToResponse(debitTransaction, source, destination),
+                        CreditTransaction = ToResponse(creditTransaction, source, destination),
+                        CreatedAtUtc = createdAtUtc
+                    };
+                }
+                catch
+                {
+                    if (databaseTransaction is not null)
+                        await databaseTransaction.RollbackAsync(cancellationToken);
+                    dbContext.ChangeTracker.Clear();
+                    throw;
+                }
+            });
+        }
+
+        private MoneyTransferQuoteResponse BuildInternalTransferQuote(
+            Account source,
+            Account destination,
+            decimal requestedAmount)
+        {
+            if (!currencyConversionService.IsSupported(source.Currency) ||
+                !currencyConversionService.IsSupported(destination.Currency))
+                throw new BusinessException("Valuta nije podrzana. Dozvoljene valute su USD, EUR i BAM.");
+
+            var amount = decimal.Round(requestedAmount, 2, MidpointRounding.AwayFromZero);
+            if (amount <= 0)
+                throw new BusinessException("Iznos transfera mora biti najmanje 0.01.");
+            if (source.Balance < amount)
+                throw new BusinessException("Nedovoljno sredstava na racunu.");
+
+            return new MoneyTransferQuoteResponse
+            {
+                SourceCurrency = source.Currency,
+                TransferCurrency = source.Currency,
+                DestinationCurrency = destination.Currency,
+                Amount = amount,
+                ExchangeRate = currencyConversionService.GetRate(
+                    source.Currency,
+                    destination.Currency),
+                DebitAmount = amount,
+                DestinationAmount = currencyConversionService.Convert(
+                    amount,
+                    source.Currency,
+                    destination.Currency),
+                RequiresConversion = !source.Currency.Equals(
+                    destination.Currency,
+                    StringComparison.OrdinalIgnoreCase)
+            };
+        }
+
         public async Task<IReadOnlyCollection<RecentRecipientResponse>> GetRecentRecipientsAsync(
             CancellationToken cancellationToken = default)
         {
@@ -742,6 +916,127 @@ namespace BankingApp.Infrastructure.Services
                 TotalTransferred = await completedQuery
                     .SumAsync(transaction => transaction.Amount < 0 ? -transaction.Amount : transaction.Amount, cancellationToken)
             };
+        }
+
+        public async Task<TransactionStatisticsResponse> GetStatisticsAsync(
+            TransactionStatisticsQuery request,
+            CancellationToken cancellationToken = default)
+        {
+            if (currentUserService.IsAdmin)
+                throw new BusinessException("Statistics je dostupan samo customer korisnicima.");
+
+            var fromUtc = DateTime.SpecifyKind(request.From.Date, DateTimeKind.Utc);
+            var toUtc = DateTime.SpecifyKind(request.To.Date, DateTimeKind.Utc);
+            if (fromUtc == default || toUtc == default || toUtc <= fromUtc)
+                throw new BusinessException("Statistics period nije validan.");
+            if (toUtc > fromUtc.AddMonths(12))
+                throw new BusinessException("Statistics period ne moze biti duzi od 12 mjeseci.");
+
+            var accounts = await dbContext.Accounts
+                .AsNoTracking()
+                .Where(account => account.UserId == currentUserService.UserId)
+                .OrderBy(account => account.AccountNumber)
+                .ToListAsync(cancellationToken);
+
+            if (request.AccountId.HasValue &&
+                accounts.All(account => account.Id != request.AccountId.Value))
+                throw new NotFoundException("Racun za statistics nije pronadjen.");
+
+            var selectedAccounts = request.AccountId.HasValue
+                ? accounts.Where(account => account.Id == request.AccountId.Value).ToList()
+                : accounts;
+            var selectedAccountIds = selectedAccounts.Select(account => account.Id).ToList();
+            var allOwnedAccountIds = accounts.Select(account => account.Id).ToHashSet();
+
+            var transactions = await dbContext.Transactions
+                .AsNoTracking()
+                .Include(transaction => transaction.Account)
+                .Where(transaction =>
+                    selectedAccountIds.Contains(transaction.AccountId) &&
+                    transaction.Status == TransactionStatus.Completed &&
+                    transaction.CreatedAtUtc >= fromUtc &&
+                    transaction.CreatedAtUtc < toUtc)
+                .OrderByDescending(transaction => transaction.CreatedAtUtc)
+                .ToListAsync(cancellationToken);
+
+            if (!request.AccountId.HasValue)
+            {
+                transactions = transactions
+                    .Where(transaction => !(
+                        transaction.SourceAccountId.HasValue &&
+                        transaction.DestinationAccountId.HasValue &&
+                        allOwnedAccountIds.Contains(transaction.SourceAccountId.Value) &&
+                        allOwnedAccountIds.Contains(transaction.DestinationAccountId.Value)))
+                    .ToList();
+            }
+
+            var monthStarts = new List<DateTime>();
+            for (var month = new DateTime(fromUtc.Year, fromUtc.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+                 month < toUtc;
+                 month = month.AddMonths(1))
+            {
+                monthStarts.Add(month);
+            }
+
+            var response = new TransactionStatisticsResponse
+            {
+                FromUtc = fromUtc,
+                ToUtc = toUtc,
+                AccountId = request.AccountId,
+                Accounts = accounts.Select(account => new StatisticsAccountResponse
+                {
+                    Id = account.Id,
+                    AccountNumber = account.AccountNumber,
+                    AccountType = account.AccountType,
+                    Balance = account.Balance,
+                    Currency = account.Currency
+                }).ToList(),
+                CurrencySeries = selectedAccounts
+                    .GroupBy(account => account.Currency)
+                    .OrderBy(group => group.Key)
+                    .Select(group =>
+                    {
+                        var currencyTransactions = transactions
+                            .Where(transaction => transaction.Account.Currency == group.Key)
+                            .ToList();
+                        return new CurrencyStatisticsResponse
+                        {
+                            Currency = group.Key,
+                            Balance = group.Sum(account => account.Balance),
+                            Months = monthStarts.Select(month =>
+                            {
+                                var nextMonth = month.AddMonths(1);
+                                var monthlyTransactions = currencyTransactions
+                                    .Where(transaction =>
+                                        transaction.CreatedAtUtc >= month &&
+                                        transaction.CreatedAtUtc < nextMonth)
+                                    .ToList();
+                                return new MonthlyStatisticsResponse
+                                {
+                                    Year = month.Year,
+                                    Month = month.Month,
+                                    Income = monthlyTransactions
+                                        .Where(transaction => transaction.Amount > 0)
+                                        .Sum(transaction => transaction.Amount),
+                                    Spending = monthlyTransactions
+                                        .Where(transaction => transaction.Amount < 0)
+                                        .Sum(transaction => Math.Abs(transaction.Amount)),
+                                    RecentTransactions = monthlyTransactions
+                                        .Take(5)
+                                        .Select(ToResponse)
+                                        .ToList()
+                                };
+                            }).ToList()
+                        };
+                    }).ToList()
+            };
+
+            var recentResponses = response.CurrencySeries
+                .SelectMany(series => series.Months)
+                .SelectMany(month => month.RecentTransactions)
+                .ToList();
+            await PopulateTransferDetailsAsync(recentResponses, cancellationToken);
+            return response;
         }
 
         private async Task PopulateTransferDetailsAsync(

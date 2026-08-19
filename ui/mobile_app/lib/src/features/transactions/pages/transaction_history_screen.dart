@@ -13,10 +13,14 @@ class TransactionHistoryScreen extends StatefulWidget {
     super.key,
     required this.session,
     this.accountId,
+    this.dateFrom,
+    this.dateTo,
   });
 
   final AuthSession session;
   final String? accountId;
+  final DateTime? dateFrom;
+  final DateTime? dateTo;
 
   @override
   State<TransactionHistoryScreen> createState() =>
@@ -99,6 +103,8 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
         page: page,
         pageSize: _pageSize,
         accountId: widget.accountId,
+        dateFrom: widget.dateFrom,
+        dateTo: widget.dateTo,
       );
 
       if (!mounted) {
@@ -176,7 +182,10 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
               const SizedBox(height: 24),
               Row(
                 children: [
-                  Text('Today', style: Theme.of(context).textTheme.titleMedium),
+                  Text(
+                    widget.dateFrom == null ? 'Today' : 'Selected period',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                   const Spacer(),
                   TextButton(
                     onPressed: _loadFirstPage,

@@ -4,6 +4,7 @@ import '../../core/theme_controller.dart';
 import '../../core/api_client.dart';
 import '../../widgets/mobile_shell.dart';
 import '../accounts/account_models.dart';
+import '../account_transfer/pages/account_transfer_page.dart';
 import '../auth/auth_session.dart';
 import '../auth/login_screen.dart';
 import '../cards/mobile_cards_screen.dart';
@@ -15,6 +16,7 @@ import '../settings/pages/settings_page.dart';
 import '../settings/pages/profile_page.dart';
 import '../settings/settings_service.dart';
 import '../statistics/pages/statistics_page.dart';
+import '../statistics/models/statistics_models.dart';
 import '../transactions/send_money_screen.dart';
 import '../transactions/transaction_history_screen.dart';
 
@@ -60,12 +62,38 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
     }
   }
 
+  Future<void> _openFilteredTransactionHistory(
+    StatisticsHistoryRequest request,
+  ) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => TransactionHistoryScreen(
+          session: widget.session,
+          accountId: request.accountId,
+          dateFrom: request.from,
+          dateTo: request.to,
+        ),
+      ),
+    );
+  }
+
   Future<void> _openReceiveMoney() async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => ReceiveMoneyPage(session: widget.session),
       ),
     );
+  }
+
+  Future<void> _openAccountTransfer() async {
+    final transferred = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => AccountTransferPage(session: widget.session),
+      ),
+    );
+    if (transferred == true && mounted) {
+      _homeKey.currentState?.refresh();
+    }
   }
 
   Future<void> _openCardDetails(BankCardModel card) async {
@@ -141,6 +169,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                 session: widget.session,
                 onSendMoney: _openSendMoney,
                 onReceiveMoney: _openReceiveMoney,
+                onTransfer: _openAccountTransfer,
                 onTransactionHistory: _openTransactionHistory,
                 onLogout: _logout,
                 onProfileTap: _openProfile,
@@ -153,7 +182,13 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                 child: _SectionLayout(
                   title: 'Statistics',
                   onLogout: _logout,
-                  child: StatisticsPage(session: widget.session),
+                  child: SizedBox(
+                    height: MediaQuery.sizeOf(context).height - 180,
+                    child: StatisticsPage(
+                      session: widget.session,
+                      onSeeAll: _openFilteredTransactionHistory,
+                    ),
+                  ),
                 ),
               ),
             if (_selectedIndex == 1 || _selectedIndex == 3) _selectedPage(),

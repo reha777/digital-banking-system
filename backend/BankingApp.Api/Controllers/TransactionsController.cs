@@ -30,6 +30,15 @@ namespace BankingApp.Api.Controllers
             return Ok(response);
         }
 
+        [HttpGet("statistics")]
+        public async Task<ActionResult<TransactionStatisticsResponse>> GetStatistics(
+            [FromQuery] TransactionStatisticsQuery request,
+            CancellationToken cancellationToken)
+        {
+            var response = await transactionService.GetStatisticsAsync(request, cancellationToken);
+            return Ok(response);
+        }
+
         [HttpGet("{id:guid}")]
         public async Task<ActionResult<TransactionResponse>> GetById(Guid id, CancellationToken cancellationToken)
         {
@@ -60,6 +69,18 @@ namespace BankingApp.Api.Controllers
             MoneyTransferQuoteRequest request,
             CancellationToken cancellationToken) =>
             Ok(await transactionService.QuoteAsync(request, cancellationToken));
+
+        [HttpPost("internal-transfer/quote")]
+        public async Task<ActionResult<MoneyTransferQuoteResponse>> QuoteInternalTransfer(
+            InternalTransferQuoteRequest request,
+            CancellationToken cancellationToken) =>
+            Ok(await transactionService.QuoteInternalTransferAsync(request, cancellationToken));
+
+        [HttpPost("internal-transfer")]
+        public async Task<ActionResult<MoneyTransferResponse>> InternalTransfer(
+            InternalTransferRequest request,
+            CancellationToken cancellationToken) =>
+            Ok(await transactionService.InternalTransferAsync(request, cancellationToken));
 
         [HttpGet("recent-recipients")]
         public async Task<ActionResult<IReadOnlyCollection<RecentRecipientResponse>>> GetRecentRecipients(

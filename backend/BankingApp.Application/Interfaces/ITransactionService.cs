@@ -8,6 +8,7 @@ namespace BankingApp.Application.Interfaces
         Task<PagedResult<TransactionResponse>> GetAsync(TransactionQueryRequest request, CancellationToken cancellationToken = default);
 
         Task<TransactionSummaryResponse> GetSummaryAsync(TransactionQueryRequest request, CancellationToken cancellationToken = default);
+        Task<TransactionStatisticsResponse> GetStatisticsAsync(TransactionStatisticsQuery request, CancellationToken cancellationToken = default);
 
         Task<TransactionResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
@@ -16,6 +17,10 @@ namespace BankingApp.Application.Interfaces
         Task<MoneyTransferResponse> SendMoneyAsync(MoneyTransferRequest request, CancellationToken cancellationToken = default);
 
         Task<MoneyTransferQuoteResponse> QuoteAsync(MoneyTransferQuoteRequest request, CancellationToken cancellationToken = default);
+
+        Task<MoneyTransferQuoteResponse> QuoteInternalTransferAsync(InternalTransferQuoteRequest request, CancellationToken cancellationToken = default);
+
+        Task<MoneyTransferResponse> InternalTransferAsync(InternalTransferRequest request, CancellationToken cancellationToken = default);
 
         Task<IReadOnlyCollection<RecentRecipientResponse>> GetRecentRecipientsAsync(CancellationToken cancellationToken = default);
 

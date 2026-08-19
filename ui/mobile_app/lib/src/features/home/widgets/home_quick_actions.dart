@@ -1,12 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/app_theme.dart';
 
 class HomeQuickActions extends StatelessWidget {
-  const HomeQuickActions({super.key, this.onSendMoney, this.onReceiveMoney});
+  const HomeQuickActions({
+    super.key,
+    this.onSendMoney,
+    this.onReceiveMoney,
+    this.onTransfer,
+  });
 
   final VoidCallback? onSendMoney;
   final VoidCallback? onReceiveMoney;
+  final VoidCallback? onTransfer;
 
   @override
   Widget build(BuildContext context) {
@@ -36,11 +43,11 @@ class HomeQuickActions extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 12),
-        const Expanded(
+        Expanded(
           child: _ActionButton(
-            icon: Icons.cloud_upload_outlined,
-            assetPath: 'assets/icons/dashboard/topup.png',
-            label: 'Topup',
+            icon: LucideIcons.arrowRightLeft,
+            label: 'Transfer',
+            onPressed: onTransfer,
           ),
         ),
       ],

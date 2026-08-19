@@ -8,14 +8,20 @@ class SendMoneyAmountField extends StatelessWidget {
     required this.currency,
     required this.controller,
     required this.availableBalance,
-    required this.onChangeCurrency,
+    this.onChangeCurrency,
     this.debitAmount,
+    this.trailingLabel = 'Change Currency?',
+    this.fieldKey = const ValueKey('send-amount'),
+    this.errorText,
   });
   final String currency;
   final TextEditingController controller;
   final double availableBalance;
   final double? debitAmount;
-  final VoidCallback onChangeCurrency;
+  final VoidCallback? onChangeCurrency;
+  final String trailingLabel;
+  final Key fieldKey;
+  final String? errorText;
 
   @override
   Widget build(BuildContext context) {
@@ -31,27 +37,50 @@ class SendMoneyAmountField extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text(
-                'Enter Your Amount',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              const Spacer(),
-              InkWell(
-                key: const ValueKey('change-currency'),
-                onTap: onChangeCurrency,
+              Expanded(
                 child: Text(
-                  'Change Currency?',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: const Color(0xFFFF3D71),
-                    fontWeight: FontWeight.w700,
-                  ),
+                  'Enter Your Amount',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),
+              const SizedBox(width: 12),
+              if (onChangeCurrency == null)
+                Flexible(
+                  child: Text(
+                    trailingLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: const Color(0xFFFF3D71),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                )
+              else
+                Flexible(
+                  child: InkWell(
+                    key: const ValueKey('change-currency'),
+                    onTap: onChangeCurrency,
+                    child: Text(
+                      trailingLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.end,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: const Color(0xFFFF3D71),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 2),
           TextFormField(
-            key: const ValueKey('send-amount'),
+            key: fieldKey,
             controller: controller,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(
@@ -65,6 +94,7 @@ class SendMoneyAmountField extends StatelessWidget {
               errorBorder: InputBorder.none,
               focusedErrorBorder: InputBorder.none,
               contentPadding: const EdgeInsets.only(top: 10),
+              errorText: errorText,
               prefixStyle: TextStyle(
                 color: isDark ? const Color(0xFF9FB1D2) : AppTheme.textDark,
                 fontSize: 26,

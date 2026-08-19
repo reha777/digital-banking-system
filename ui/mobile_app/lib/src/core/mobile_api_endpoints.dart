@@ -6,8 +6,12 @@ class MobileApiEndpoints {
   static const cardRequests = '/api/cards/requests';
   static const myCardRequests = '/api/cards/requests/my';
   static const transactions = '/api/transactions';
+  static const statistics = '/api/transactions/statistics';
   static const sendMoney = '/api/transactions/send-money';
   static const transferQuote = '/api/transactions/quote';
+  static const internalTransfer = '/api/transactions/internal-transfer';
+  static const internalTransferQuote =
+      '/api/transactions/internal-transfer/quote';
   static const recentRecipients = '/api/transactions/recent-recipients';
   static const recipientLookup = '/api/transactions/recipients/lookup';
 
