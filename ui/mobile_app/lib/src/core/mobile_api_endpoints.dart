@@ -14,6 +14,15 @@ class MobileApiEndpoints {
       '/api/transactions/internal-transfer/quote';
   static const recentRecipients = '/api/transactions/recent-recipients';
   static const recipientLookup = '/api/transactions/recipients/lookup';
+  static const loanProducts = '/api/loans/products';
+  static const loanQuote = '/api/loans/quote';
+  static const loanApplications = '/api/loans/applications';
+  static const currentLoanApplication = '/api/loans/applications/current';
+  static const currentLoan = '/api/loans/current';
+  static const recentLoan = '/api/loans/recent';
+  static String loanDetails(String id) => '/api/loans/$id';
+  static String loanPaymentQuote(String id) => '/api/loans/$id/payment-quote';
+  static String loanPayments(String id) => '/api/loans/$id/payments';
 
   static String cardRequestDocuments(String requestId) {
     return '/api/cards/requests/$requestId/documents';

@@ -42,7 +42,39 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('renders semantic Loan transaction labels', (tester) async {
+    final repayment = BankTransaction.fromJson(_json('LoanRepayment', -100));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: TransactionHistoryTile(transaction: repayment)),
+      ),
+    );
+    expect(repayment.type, BankTransactionType.loanRepayment);
+    expect(find.text('Loan Repayment'), findsOneWidget);
+    final disbursement = BankTransaction.fromJson(_json(3, 1000));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: TransactionHistoryTile(transaction: disbursement)),
+      ),
+    );
+    expect(disbursement.type, BankTransactionType.loanDisbursement);
+    expect(find.text('Loan Disbursement'), findsOneWidget);
+  });
 }
+
+Map<String, dynamic> _json(Object type, num amount) => {
+  'id': 'id',
+  'accountId': 'account',
+  'accountNumber': '1234',
+  'referenceNumber': 'REF',
+  'amount': amount,
+  'description': 'Loan operation',
+  'status': 'Completed',
+  'isHighRiskReview': false,
+  'createdAtUtc': '2026-08-20T00:00:00Z',
+  'type': type,
+};
 
 BankTransaction _transaction({
   required String status,

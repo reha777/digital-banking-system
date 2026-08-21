@@ -73,6 +73,12 @@ class TransactionHistoryTile extends StatelessWidget {
 }
 
 String _transactionTitle(BankTransaction transaction) {
+  if (transaction.type == BankTransactionType.loanRepayment) {
+    return 'Loan Repayment';
+  }
+  if (transaction.type == BankTransactionType.loanDisbursement) {
+    return 'Loan Disbursement';
+  }
   final description = transaction.description.trim();
   if (description.isEmpty || description.toLowerCase().contains('transfer')) {
     return 'Money Transfer';
@@ -91,6 +97,12 @@ String _transactionSubtitle(BankTransaction transaction) {
 }
 
 IconData _transactionIcon(BankTransaction transaction, bool isIncoming) {
+  if (transaction.type == BankTransactionType.loanRepayment) {
+    return Icons.payments_outlined;
+  }
+  if (transaction.type == BankTransactionType.loanDisbursement) {
+    return Icons.account_balance_outlined;
+  }
   final text = transaction.description.toLowerCase();
   if (text.contains('grocery')) {
     return Icons.shopping_cart_outlined;

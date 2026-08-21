@@ -6,6 +6,7 @@ import '../auth/admin_login_screen.dart';
 import '../auth/auth_session.dart';
 import '../cards/pages/card_requests_page.dart';
 import '../customers/pages/customers_page.dart';
+import '../loans/pages/loans_page.dart';
 import '../dashboard/admin_dashboard_screen.dart';
 import '../transactions/pages/transaction_review_page.dart';
 import '../transactions/pages/transactions_page.dart';
@@ -149,6 +150,12 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
       dateFormatter: widget.settingsController.formatDate,
     ),
     AdminSection.cardRequests => CardRequestsPage(
+      token: token,
+      defaultPageSize:
+          widget.settingsController.preferences.defaultItemsPerPage,
+      dateFormatter: widget.settingsController.formatDate,
+    ),
+    AdminSection.loans => LoansPage(
       token: token,
       defaultPageSize:
           widget.settingsController.preferences.defaultItemsPerPage,

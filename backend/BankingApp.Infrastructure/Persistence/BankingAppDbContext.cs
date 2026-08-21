@@ -26,6 +26,11 @@ namespace BankingApp.Infrastructure.Persistence
         public DbSet<AccessTokenRevocation> AccessTokenRevocations => Set<AccessTokenRevocation>();
         public DbSet<SystemSettings> SystemSettings => Set<SystemSettings>();
         public DbSet<AdminUserPreferences> AdminUserPreferences => Set<AdminUserPreferences>();
+        public DbSet<LoanProduct> LoanProducts => Set<LoanProduct>();
+        public DbSet<LoanApplication> LoanApplications => Set<LoanApplication>();
+        public DbSet<Loan> Loans => Set<Loan>();
+        public DbSet<LoanInstallment> LoanInstallments => Set<LoanInstallment>();
+        public DbSet<LoanPayment> LoanPayments => Set<LoanPayment>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -41,6 +46,7 @@ namespace BankingApp.Infrastructure.Persistence
             ConfigureRefreshTokens(modelBuilder);
             ConfigureAccessTokenRevocations(modelBuilder);
             ConfigureSettings(modelBuilder);
+            ConfigureLoans(modelBuilder);
             SeedData(modelBuilder);
         }
 
@@ -198,6 +204,13 @@ namespace BankingApp.Infrastructure.Persistence
 
                 entity.Property(transaction => transaction.Amount)
                     .HasPrecision(18, 2)
+                    .IsRequired();
+
+                entity.Property(transaction => transaction.Type)
+                    .HasConversion<string>()
+                    .HasMaxLength(30)
+                    .HasDefaultValue(TransactionType.Transfer)
+                    .HasSentinel((TransactionType)0)
                     .IsRequired();
 
                 entity.Property(transaction => transaction.TransferAmount)
@@ -445,6 +458,114 @@ namespace BankingApp.Infrastructure.Persistence
             });
         }
 
+        private static void ConfigureLoans(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<LoanProduct>(entity =>
+            {
+                entity.ToTable("LoanProducts");
+                entity.HasKey(value => value.Id);
+                entity.Property(value => value.Name).HasMaxLength(120).IsRequired();
+                entity.Property(value => value.Description).HasMaxLength(500).IsRequired();
+                entity.Property(value => value.Currency).HasMaxLength(3).IsRequired();
+                entity.Property(value => value.MinPrincipal).HasPrecision(18, 2).IsRequired();
+                entity.Property(value => value.MaxPrincipal).HasPrecision(18, 2).IsRequired();
+                entity.Property(value => value.AnnualInterestRate).HasPrecision(9, 6).IsRequired();
+                entity.HasIndex(value => value.IsActive);
+                entity.HasIndex(value => value.Currency);
+            });
+
+            modelBuilder.Entity<LoanApplication>(entity =>
+            {
+                entity.ToTable("LoanApplications");
+                entity.HasKey(value => value.Id);
+                entity.Property(value => value.Principal).HasPrecision(18, 2).IsRequired();
+                entity.Property(value => value.Currency).HasMaxLength(3).IsRequired();
+                entity.Property(value => value.AnnualInterestRateSnapshot).HasPrecision(9, 6).IsRequired();
+                entity.Property(value => value.EstimatedMonthlyPayment).HasPrecision(18, 2).IsRequired();
+                entity.Property(value => value.EstimatedTotalRepayment).HasPrecision(18, 2).IsRequired();
+                entity.Property(value => value.EstimatedTotalInterest).HasPrecision(18, 2).IsRequired();
+                entity.Property(value => value.Status).HasConversion<string>().HasMaxLength(25).IsRequired();
+                entity.Property(value => value.AdminNote).HasMaxLength(500);
+                entity.Property(value => value.RowVersion).IsRowVersion();
+                entity.HasIndex(value => new { value.UserId, value.Status });
+                entity.HasIndex(value => new { value.Status, value.SubmittedAtUtc });
+                entity.HasIndex(value => new { value.UserId, value.ClientRequestId }).IsUnique();
+                entity.HasIndex(value => value.UserId).IsUnique().HasFilter("[Status] = N'Pending'");
+                entity.HasOne(value => value.User).WithMany(value => value.LoanApplications)
+                    .HasForeignKey(value => value.UserId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(value => value.LoanProduct).WithMany(value => value.Applications)
+                    .HasForeignKey(value => value.LoanProductId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(value => value.DestinationAccount).WithMany(value => value.LoanApplications)
+                    .HasForeignKey(value => value.DestinationAccountId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<Loan>(entity =>
+            {
+                entity.ToTable("Loans");
+                entity.HasKey(value => value.Id);
+                entity.Property(value => value.OriginalPrincipal).HasPrecision(18, 2).IsRequired();
+                entity.Property(value => value.OutstandingPrincipal).HasPrecision(18, 2).IsRequired();
+                entity.Property(value => value.Currency).HasMaxLength(3).IsRequired();
+                entity.Property(value => value.AnnualInterestRate).HasPrecision(9, 6).IsRequired();
+                entity.Property(value => value.MonthlyPayment).HasPrecision(18, 2).IsRequired();
+                entity.Property(value => value.TotalRepayment).HasPrecision(18, 2).IsRequired();
+                entity.Property(value => value.TotalPaid).HasPrecision(18, 2).IsRequired();
+                entity.Property(value => value.Status).HasConversion<string>().HasMaxLength(25).IsRequired();
+                entity.Property(value => value.RowVersion).IsRowVersion();
+                entity.HasIndex(value => value.LoanApplicationId).IsUnique();
+                entity.HasIndex(value => new { value.UserId, value.Status });
+                entity.HasIndex(value => value.UserId).IsUnique().HasFilter("[Status] = N'Active'");
+                entity.HasOne(value => value.LoanApplication).WithOne(value => value.Loan)
+                    .HasForeignKey<Loan>(value => value.LoanApplicationId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(value => value.User).WithMany(value => value.Loans)
+                    .HasForeignKey(value => value.UserId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(value => value.DestinationAccount).WithMany(value => value.Loans)
+                    .HasForeignKey(value => value.DestinationAccountId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(value => value.DisbursementTransaction).WithMany()
+                    .HasForeignKey(value => value.DisbursementTransactionId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<LoanInstallment>(entity =>
+            {
+                entity.ToTable("LoanInstallments");
+                entity.HasKey(value => value.Id);
+                entity.Property(value => value.ScheduledAmount).HasPrecision(18, 2).IsRequired();
+                entity.Property(value => value.PrincipalAmount).HasPrecision(18, 2).IsRequired();
+                entity.Property(value => value.InterestAmount).HasPrecision(18, 2).IsRequired();
+                entity.Property(value => value.RemainingPrincipalAfter).HasPrecision(18, 2).IsRequired();
+                entity.Property(value => value.Status).HasConversion<string>().HasMaxLength(25).IsRequired();
+                entity.HasIndex(value => new { value.LoanId, value.InstallmentNumber }).IsUnique();
+                entity.HasIndex(value => new { value.LoanId, value.Status, value.DueDateUtc });
+                entity.HasIndex(value => value.LoanPaymentId).IsUnique().HasFilter("[LoanPaymentId] IS NOT NULL");
+                entity.HasOne(value => value.Loan).WithMany(value => value.Installments)
+                    .HasForeignKey(value => value.LoanId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(value => value.Payment).WithMany()
+                    .HasForeignKey(value => value.LoanPaymentId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<LoanPayment>(entity =>
+            {
+                entity.ToTable("LoanPayments");
+                entity.HasKey(value => value.Id);
+                entity.Property(value => value.Amount).HasPrecision(18, 2).IsRequired();
+                entity.Property(value => value.PrincipalAmount).HasPrecision(18, 2).IsRequired();
+                entity.Property(value => value.InterestAmount).HasPrecision(18, 2).IsRequired();
+                entity.Property(value => value.Status).HasConversion<string>().HasMaxLength(25).IsRequired();
+                entity.HasIndex(value => new { value.LoanId, value.PaidAtUtc });
+                entity.HasIndex(value => new { value.LoanId, value.ClientRequestId }).IsUnique();
+                entity.HasIndex(value => value.LoanInstallmentId).IsUnique();
+                entity.HasIndex(value => value.TransactionId).IsUnique();
+                entity.HasOne(value => value.Loan).WithMany(value => value.Payments)
+                    .HasForeignKey(value => value.LoanId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(value => value.LoanInstallment).WithMany()
+                    .HasForeignKey(value => value.LoanInstallmentId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(value => value.SourceAccount).WithMany(value => value.LoanPayments)
+                    .HasForeignKey(value => value.SourceAccountId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(value => value.Transaction).WithMany()
+                    .HasForeignKey(value => value.TransactionId).OnDelete(DeleteBehavior.Restrict);
+            });
+        }
+
         private static void SeedData(ModelBuilder modelBuilder)
         {
             var userId = Guid.Parse("9a99a021-b892-4f5a-bd98-36a5afbf0c79");
@@ -458,6 +579,9 @@ namespace BankingApp.Infrastructure.Persistence
             var savingsCardId = Guid.Parse("741fc77c-fec7-4b53-92df-d664d14935e8");
             var initialDepositId = Guid.Parse("b8e0dbf7-536f-4301-99c7-5b3a1e03f450");
             var savingsDepositId = Guid.Parse("fd261404-8751-4faa-bffa-cdf7ea592903");
+            var bamLoanProductId = Guid.Parse("8f8dc061-237f-4bb4-89c1-32d41dc6f001");
+            var eurLoanProductId = Guid.Parse("8f8dc061-237f-4bb4-89c1-32d41dc6f002");
+            var usdLoanProductId = Guid.Parse("8f8dc061-237f-4bb4-89c1-32d41dc6f003");
             var createdAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
             const string testPasswordHash = "PBKDF2-SHA256.100000.AQIDBAUGBwgJCgsMDQ4PEA==.1n/kUWC8lKsVwbzvVqx46PhnAJHTK4Pvs6t0RwMyEOQ=";
             const string adminPasswordHash = "PBKDF2-SHA256.100000.ERITFBUWFxgZGhscHR4fIA==.3+i0Vv41HWR1ofVLRyJthACrUOkA/W2oSnAkMKm57ak=";
@@ -580,6 +704,7 @@ namespace BankingApp.Infrastructure.Persistence
                     AccountId = checkingAccountId,
                     ReferenceNumber = "TXN-20260101-0001",
                     Amount = 1250.00m,
+                    Type = TransactionType.Transfer,
                     Description = "Initial checking deposit",
                     Status = TransactionStatus.Completed,
                     CreatedAtUtc = createdAtUtc
@@ -590,9 +715,60 @@ namespace BankingApp.Infrastructure.Persistence
                     AccountId = savingsAccountId,
                     ReferenceNumber = "TXN-20260101-0002",
                     Amount = 5000.00m,
+                    Type = TransactionType.Transfer,
                     Description = "Initial savings deposit",
                     Status = TransactionStatus.Completed,
                     CreatedAtUtc = createdAtUtc
+                });
+
+            modelBuilder.Entity<LoanProduct>().HasData(
+                new LoanProduct
+                {
+                    Id = bamLoanProductId,
+                    Name = "Personal Loan BAM",
+                    Description = "Fixed-rate personal loan in BAM.",
+                    Currency = "BAM",
+                    MinPrincipal = 1000m,
+                    MaxPrincipal = 50000m,
+                    AnnualInterestRate = 6.50m,
+                    MinTermMonths = 6,
+                    MaxTermMonths = 60,
+                    TermStepMonths = 6,
+                    IsActive = true,
+                    CreatedAtUtc = createdAtUtc,
+                    UpdatedAtUtc = createdAtUtc
+                },
+                new LoanProduct
+                {
+                    Id = eurLoanProductId,
+                    Name = "Personal Loan EUR",
+                    Description = "Fixed-rate personal loan in EUR.",
+                    Currency = "EUR",
+                    MinPrincipal = 500m,
+                    MaxPrincipal = 25000m,
+                    AnnualInterestRate = 5.75m,
+                    MinTermMonths = 6,
+                    MaxTermMonths = 60,
+                    TermStepMonths = 6,
+                    IsActive = true,
+                    CreatedAtUtc = createdAtUtc,
+                    UpdatedAtUtc = createdAtUtc
+                },
+                new LoanProduct
+                {
+                    Id = usdLoanProductId,
+                    Name = "Personal Loan USD",
+                    Description = "Fixed-rate personal loan in USD.",
+                    Currency = "USD",
+                    MinPrincipal = 500m,
+                    MaxPrincipal = 25000m,
+                    AnnualInterestRate = 6.00m,
+                    MinTermMonths = 6,
+                    MaxTermMonths = 60,
+                    TermStepMonths = 6,
+                    IsActive = true,
+                    CreatedAtUtc = createdAtUtc,
+                    UpdatedAtUtc = createdAtUtc
                 });
         }
     }

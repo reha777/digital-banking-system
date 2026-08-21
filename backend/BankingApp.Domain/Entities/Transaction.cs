@@ -18,6 +18,8 @@ namespace BankingApp.Domain.Entities
 
         public decimal Amount { get; set; }
 
+        public TransactionType Type { get; set; } = TransactionType.Transfer;
+
         public decimal? TransferAmount { get; set; }
 
         public string? TransferCurrency { get; set; }

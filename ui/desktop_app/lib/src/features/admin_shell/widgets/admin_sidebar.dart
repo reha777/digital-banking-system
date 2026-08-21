@@ -49,12 +49,16 @@ class AdminSidebar extends StatelessWidget {
             ),
             if (!compact) ...[
               const SizedBox(width: 10),
-              const Text(
-                'Banking Admin',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
+              const Expanded(
+                child: Text(
+                  'Banking Admin',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ],
@@ -97,6 +101,13 @@ class AdminSidebar extends StatelessWidget {
           active: selectedSection == AdminSection.cardRequests,
           compact: compact,
           onTap: () => onSectionSelected(AdminSection.cardRequests),
+        ),
+        _SidebarItem(
+          icon: LucideIcons.coins,
+          title: 'Loans',
+          active: selectedSection == AdminSection.loans,
+          compact: compact,
+          onTap: () => onSectionSelected(AdminSection.loans),
         ),
         const SizedBox(height: 10),
         Divider(color: Colors.white.withValues(alpha: .1), height: 1),
