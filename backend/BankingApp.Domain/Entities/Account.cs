@@ -23,5 +23,11 @@ namespace BankingApp.Domain.Entities
         public ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
 
         public BankCard? Card { get; set; }
+
+        public ICollection<LoanApplication> LoanApplications { get; set; } = new List<LoanApplication>();
+
+        public ICollection<Loan> Loans { get; set; } = new List<Loan>();
+
+        public ICollection<LoanPayment> LoanPayments { get; set; } = new List<LoanPayment>();
     }
 }

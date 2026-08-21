@@ -9,11 +9,13 @@ class HomeQuickActions extends StatelessWidget {
     this.onSendMoney,
     this.onReceiveMoney,
     this.onTransfer,
+    this.onLoan,
   });
 
   final VoidCallback? onSendMoney;
   final VoidCallback? onReceiveMoney;
   final VoidCallback? onTransfer;
+  final VoidCallback? onLoan;
 
   @override
   Widget build(BuildContext context) {
@@ -35,11 +37,11 @@ class HomeQuickActions extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 12),
-        const Expanded(
+        Expanded(
           child: _ActionButton(
-            icon: Icons.attach_money,
-            assetPath: 'assets/icons/dashboard/loan.png',
+            icon: LucideIcons.landmark,
             label: 'Loan',
+            onPressed: onLoan,
           ),
         ),
         const SizedBox(width: 12),
@@ -60,13 +62,11 @@ class _ActionButton extends StatelessWidget {
     required this.icon,
     required this.label,
     this.onPressed,
-    this.assetPath,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback? onPressed;
-  final String? assetPath;
 
   @override
   Widget build(BuildContext context) {
@@ -81,19 +81,11 @@ class _ActionButton extends StatelessWidget {
             backgroundColor: isDark
                 ? AppTheme.darkSurface
                 : const Color(0xFFF5F6FA),
-            child: assetPath == null
-                ? Icon(
-                    icon,
-                    color: isDark ? Colors.white : const Color(0xFF10163A),
-                    size: 25,
-                  )
-                : Image.asset(
-                    assetPath!,
-                    width: 25,
-                    height: 25,
-                    color: isDark ? Colors.white : const Color(0xFF10163A),
-                    colorBlendMode: BlendMode.srcIn,
-                  ),
+            child: Icon(
+              icon,
+              color: isDark ? Colors.white : const Color(0xFF10163A),
+              size: 25,
+            ),
           ),
           const SizedBox(height: 8),
           Text(label, style: Theme.of(context).textTheme.bodySmall),

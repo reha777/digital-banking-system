@@ -382,6 +382,415 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                     b.ToTable("CardRequestDocuments", (string)null);
                 });
 
+            modelBuilder.Entity("BankingApp.Domain.Entities.Loan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("AnnualInterestRate")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("decimal(9,6)");
+
+                    b.Property<DateTime?>("CompletedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<Guid>("DestinationAccountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("DisbursementTransactionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("LoanApplicationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("MaturityDateUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("MonthlyPayment")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("NextPaymentDateUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("OriginalPrincipal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("OutstandingPrincipal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<DateTime>("StartDateUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(25)
+                        .HasColumnType("nvarchar(25)");
+
+                    b.Property<int>("TermMonths")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("TotalPaid")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TotalRepayment")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DestinationAccountId");
+
+                    b.HasIndex("DisbursementTransactionId");
+
+                    b.HasIndex("LoanApplicationId")
+                        .IsUnique();
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasFilter("[Status] = N'Active'");
+
+                    b.HasIndex("UserId", "Status");
+
+                    b.ToTable("Loans", (string)null);
+                });
+
+            modelBuilder.Entity("BankingApp.Domain.Entities.LoanApplication", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AdminNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<decimal>("AnnualInterestRateSnapshot")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("decimal(9,6)");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<Guid>("DestinationAccountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("EstimatedMonthlyPayment")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("EstimatedTotalInterest")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("EstimatedTotalRepayment")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("LoanProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Principal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("ReviewedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(25)
+                        .HasColumnType("nvarchar(25)");
+
+                    b.Property<DateTime>("SubmittedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("TermMonths")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DestinationAccountId");
+
+                    b.HasIndex("LoanProductId");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasFilter("[Status] = N'Pending'");
+
+                    b.HasIndex("Status", "SubmittedAtUtc");
+
+                    b.HasIndex("UserId", "ClientRequestId")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "Status");
+
+                    b.ToTable("LoanApplications", (string)null);
+                });
+
+            modelBuilder.Entity("BankingApp.Domain.Entities.LoanInstallment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("DueDateUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("InstallmentNumber")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("InterestAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("LoanId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("LoanPaymentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("PaidAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("PrincipalAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("RemainingPrincipalAfter")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("ScheduledAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(25)
+                        .HasColumnType("nvarchar(25)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LoanPaymentId")
+                        .IsUnique()
+                        .HasFilter("[LoanPaymentId] IS NOT NULL");
+
+                    b.HasIndex("LoanId", "InstallmentNumber")
+                        .IsUnique();
+
+                    b.HasIndex("LoanId", "Status", "DueDateUtc");
+
+                    b.ToTable("LoanInstallments", (string)null);
+                });
+
+            modelBuilder.Entity("BankingApp.Domain.Entities.LoanPayment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("InterestAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("LoanId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("LoanInstallmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("PaidAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("PrincipalAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("SourceAccountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(25)
+                        .HasColumnType("nvarchar(25)");
+
+                    b.Property<Guid>("TransactionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LoanInstallmentId")
+                        .IsUnique();
+
+                    b.HasIndex("SourceAccountId");
+
+                    b.HasIndex("TransactionId")
+                        .IsUnique();
+
+                    b.HasIndex("LoanId", "ClientRequestId")
+                        .IsUnique();
+
+                    b.HasIndex("LoanId", "PaidAtUtc");
+
+                    b.ToTable("LoanPayments", (string)null);
+                });
+
+            modelBuilder.Entity("BankingApp.Domain.Entities.LoanProduct", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("AnnualInterestRate")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("decimal(9,6)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("MaxPrincipal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("MaxTermMonths")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("MinPrincipal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("MinTermMonths")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("TermStepMonths")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Currency");
+
+                    b.HasIndex("IsActive");
+
+                    b.ToTable("LoanProducts", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("8f8dc061-237f-4bb4-89c1-32d41dc6f001"),
+                            AnnualInterestRate = 6.50m,
+                            CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Currency = "BAM",
+                            Description = "Fixed-rate personal loan in BAM.",
+                            IsActive = true,
+                            MaxPrincipal = 50000m,
+                            MaxTermMonths = 60,
+                            MinPrincipal = 1000m,
+                            MinTermMonths = 6,
+                            Name = "Personal Loan BAM",
+                            TermStepMonths = 6,
+                            UpdatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("8f8dc061-237f-4bb4-89c1-32d41dc6f002"),
+                            AnnualInterestRate = 5.75m,
+                            CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Currency = "EUR",
+                            Description = "Fixed-rate personal loan in EUR.",
+                            IsActive = true,
+                            MaxPrincipal = 25000m,
+                            MaxTermMonths = 60,
+                            MinPrincipal = 500m,
+                            MinTermMonths = 6,
+                            Name = "Personal Loan EUR",
+                            TermStepMonths = 6,
+                            UpdatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("8f8dc061-237f-4bb4-89c1-32d41dc6f003"),
+                            AnnualInterestRate = 6.00m,
+                            CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Currency = "USD",
+                            Description = "Fixed-rate personal loan in USD.",
+                            IsActive = true,
+                            MaxPrincipal = 25000m,
+                            MaxTermMonths = 60,
+                            MinPrincipal = 500m,
+                            MinTermMonths = 6,
+                            Name = "Personal Loan USD",
+                            TermStepMonths = 6,
+                            UpdatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                        });
+                });
+
             modelBuilder.Entity("BankingApp.Domain.Entities.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -549,6 +958,13 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                         .HasMaxLength(3)
                         .HasColumnType("nvarchar(3)");
 
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("Transfer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("AccountId");
@@ -567,7 +983,8 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                             Description = "Initial checking deposit",
                             IsHighRiskReview = false,
                             ReferenceNumber = "TXN-20260101-0001",
-                            Status = "Completed"
+                            Status = "Completed",
+                            Type = "Transfer"
                         },
                         new
                         {
@@ -578,7 +995,8 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                             Description = "Initial savings deposit",
                             IsHighRiskReview = false,
                             ReferenceNumber = "TXN-20260101-0002",
-                            Status = "Completed"
+                            Status = "Completed",
+                            Type = "Transfer"
                         });
                 });
 
@@ -796,6 +1214,120 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                     b.Navigation("CardRequest");
                 });
 
+            modelBuilder.Entity("BankingApp.Domain.Entities.Loan", b =>
+                {
+                    b.HasOne("BankingApp.Domain.Entities.Account", "DestinationAccount")
+                        .WithMany("Loans")
+                        .HasForeignKey("DestinationAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BankingApp.Domain.Entities.Transaction", "DisbursementTransaction")
+                        .WithMany()
+                        .HasForeignKey("DisbursementTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BankingApp.Domain.Entities.LoanApplication", "LoanApplication")
+                        .WithOne("Loan")
+                        .HasForeignKey("BankingApp.Domain.Entities.Loan", "LoanApplicationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BankingApp.Domain.Entities.User", "User")
+                        .WithMany("Loans")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("DestinationAccount");
+
+                    b.Navigation("DisbursementTransaction");
+
+                    b.Navigation("LoanApplication");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("BankingApp.Domain.Entities.LoanApplication", b =>
+                {
+                    b.HasOne("BankingApp.Domain.Entities.Account", "DestinationAccount")
+                        .WithMany("LoanApplications")
+                        .HasForeignKey("DestinationAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BankingApp.Domain.Entities.LoanProduct", "LoanProduct")
+                        .WithMany("Applications")
+                        .HasForeignKey("LoanProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BankingApp.Domain.Entities.User", "User")
+                        .WithMany("LoanApplications")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("DestinationAccount");
+
+                    b.Navigation("LoanProduct");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("BankingApp.Domain.Entities.LoanInstallment", b =>
+                {
+                    b.HasOne("BankingApp.Domain.Entities.Loan", "Loan")
+                        .WithMany("Installments")
+                        .HasForeignKey("LoanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BankingApp.Domain.Entities.LoanPayment", "Payment")
+                        .WithMany()
+                        .HasForeignKey("LoanPaymentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Loan");
+
+                    b.Navigation("Payment");
+                });
+
+            modelBuilder.Entity("BankingApp.Domain.Entities.LoanPayment", b =>
+                {
+                    b.HasOne("BankingApp.Domain.Entities.Loan", "Loan")
+                        .WithMany("Payments")
+                        .HasForeignKey("LoanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BankingApp.Domain.Entities.LoanInstallment", "LoanInstallment")
+                        .WithMany()
+                        .HasForeignKey("LoanInstallmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BankingApp.Domain.Entities.Account", "SourceAccount")
+                        .WithMany("LoanPayments")
+                        .HasForeignKey("SourceAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BankingApp.Domain.Entities.Transaction", "Transaction")
+                        .WithMany()
+                        .HasForeignKey("TransactionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Loan");
+
+                    b.Navigation("LoanInstallment");
+
+                    b.Navigation("SourceAccount");
+
+                    b.Navigation("Transaction");
+                });
+
             modelBuilder.Entity("BankingApp.Domain.Entities.RefreshToken", b =>
                 {
                     b.HasOne("BankingApp.Domain.Entities.User", "User")
@@ -833,12 +1365,35 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                 {
                     b.Navigation("Card");
 
+                    b.Navigation("LoanApplications");
+
+                    b.Navigation("LoanPayments");
+
+                    b.Navigation("Loans");
+
                     b.Navigation("Transactions");
                 });
 
             modelBuilder.Entity("BankingApp.Domain.Entities.CardRequest", b =>
                 {
                     b.Navigation("Documents");
+                });
+
+            modelBuilder.Entity("BankingApp.Domain.Entities.Loan", b =>
+                {
+                    b.Navigation("Installments");
+
+                    b.Navigation("Payments");
+                });
+
+            modelBuilder.Entity("BankingApp.Domain.Entities.LoanApplication", b =>
+                {
+                    b.Navigation("Loan");
+                });
+
+            modelBuilder.Entity("BankingApp.Domain.Entities.LoanProduct", b =>
+                {
+                    b.Navigation("Applications");
                 });
 
             modelBuilder.Entity("BankingApp.Domain.Entities.Transaction", b =>
@@ -851,6 +1406,10 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                     b.Navigation("Accounts");
 
                     b.Navigation("CardRequests");
+
+                    b.Navigation("LoanApplications");
+
+                    b.Navigation("Loans");
 
                     b.Navigation("RefreshTokens");
                 });

@@ -33,6 +33,8 @@ public class InternalTransferTests
         Assert.Equal(result.DebitTransaction.ReferenceNumber, result.CreditTransaction.ReferenceNumber);
         Assert.Equal(-25, result.DebitTransaction.Amount);
         Assert.Equal(25, result.CreditTransaction.Amount);
+        Assert.Equal(TransactionType.InternalTransfer, result.DebitTransaction.Type);
+        Assert.Equal(TransactionType.InternalTransfer, result.CreditTransaction.Type);
         Assert.Equal(2, await fixture.Db.Transactions.CountAsync());
     }
 

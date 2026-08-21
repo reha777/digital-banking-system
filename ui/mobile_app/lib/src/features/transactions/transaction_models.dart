@@ -31,6 +31,13 @@ class PagedTransactions {
   }
 }
 
+enum BankTransactionType {
+  transfer,
+  internalTransfer,
+  loanDisbursement,
+  loanRepayment,
+}
+
 class BankTransaction {
   const BankTransaction({
     required this.id,
@@ -43,6 +50,7 @@ class BankTransaction {
     required this.statusValue,
     required this.isHighRiskReview,
     required this.createdAtUtc,
+    this.type = BankTransactionType.transfer,
     this.documentsRequestNote,
     this.documents = const [],
     this.sourceAccountNumber,
@@ -72,6 +80,7 @@ class BankTransaction {
       createdAtUtc:
           DateTime.tryParse(json['createdAtUtc']?.toString() ?? '') ??
           DateTime.now().toUtc(),
+      type: _transactionType(json['type']),
     );
   }
 
@@ -85,6 +94,7 @@ class BankTransaction {
   final int statusValue;
   final bool isHighRiskReview;
   final DateTime createdAtUtc;
+  final BankTransactionType type;
   final String? documentsRequestNote;
   final List<TransactionDocument> documents;
   final String? sourceAccountNumber;
@@ -92,6 +102,14 @@ class BankTransaction {
 
   bool get requiresDocuments => statusValue == 5;
 }
+
+BankTransactionType _transactionType(Object? value) =>
+    switch (value?.toString().toLowerCase()) {
+      '2' || 'internaltransfer' => BankTransactionType.internalTransfer,
+      '3' || 'loandisbursement' => BankTransactionType.loanDisbursement,
+      '4' || 'loanrepayment' => BankTransactionType.loanRepayment,
+      _ => BankTransactionType.transfer,
+    };
 
 class TransactionDocument {
   const TransactionDocument({
