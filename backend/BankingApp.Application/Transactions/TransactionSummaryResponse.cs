@@ -1,3 +1,5 @@
+using BankingApp.Application.Common.Models;
+
 namespace BankingApp.Application.Transactions
 {
     public class TransactionSummaryResponse
@@ -6,6 +8,6 @@ namespace BankingApp.Application.Transactions
 
         public int CompletedTransactions { get; set; }
 
-        public decimal TotalTransferred { get; set; }
+        public IReadOnlyCollection<CurrencyAmountResponse> TransferredByCurrency { get; set; } = [];
     }
 }

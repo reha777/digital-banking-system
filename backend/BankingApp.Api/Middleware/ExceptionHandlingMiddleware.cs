@@ -12,6 +12,15 @@ namespace BankingApp.Api.Middleware
             {
                 await next(context);
             }
+            catch (AccountDisabledException exception)
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                await context.Response.WriteAsJsonAsync(new
+                {
+                    code = "account_disabled",
+                    message = exception.Message
+                });
+            }
             catch (BusinessException exception)
             {
                 context.Response.StatusCode = StatusCodes.Status400BadRequest;

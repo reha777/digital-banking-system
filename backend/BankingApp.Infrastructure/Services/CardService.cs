@@ -1,4 +1,5 @@
 using BankingApp.Application.Cards;
+using BankingApp.Application.AuditLogs;
 using BankingApp.Application.Common.Exceptions;
 using BankingApp.Application.Common.Pagination;
 using BankingApp.Application.Interfaces;
@@ -12,7 +13,8 @@ namespace BankingApp.Infrastructure.Services
 {
     public class CardService(
         BankingAppDbContext dbContext,
-        ICurrentUserService currentUserService) : ICardService
+        ICurrentUserService currentUserService,
+        IAuditLogService? auditLogService = null) : ICardService
     {
         public async Task<IReadOnlyCollection<CardResponse>> GetMyCardsAsync(
             CancellationToken cancellationToken = default)
@@ -158,6 +160,64 @@ namespace BankingApp.Infrastructure.Services
             };
         }
 
+        public async Task<PagedResult<AdminIssuedCardResponse>> GetIssuedCardsAsync(
+            AdminIssuedCardQueryRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var query = dbContext.BankCards
+                .AsNoTracking()
+                .Include(card => card.Account)
+                    .ThenInclude(account => account.User)
+                .AsQueryable();
+
+            if (request.Status.HasValue)
+                query = query.Where(card => card.Status == request.Status.Value);
+
+            if (!string.IsNullOrWhiteSpace(request.Search))
+            {
+                var search = request.Search.Trim();
+                query = query.Where(card =>
+                    card.CardholderName.Contains(search) ||
+                    card.CardNumber.EndsWith(search) ||
+                    card.Account.AccountNumber.Contains(search) ||
+                    card.Account.Currency.Contains(search) ||
+                    card.Account.User.FirstName.Contains(search) ||
+                    card.Account.User.LastName.Contains(search) ||
+                    card.Account.User.Email.Contains(search));
+            }
+
+            var totalCount = await query.CountAsync(cancellationToken);
+            var cards = await query
+                .OrderByDescending(card => card.CreatedAtUtc)
+                .Skip((request.Page - 1) * request.PageSize)
+                .Take(request.PageSize)
+                .Select(card => new AdminIssuedCardResponse
+                {
+                    Id = card.Id,
+                    CustomerId = card.Account.UserId,
+                    CustomerName = (card.Account.User.FirstName + " " + card.Account.User.LastName).Trim(),
+                    CustomerEmail = card.Account.User.Email,
+                    MaskedCardNumber = "**** **** **** " + card.CardNumber.Substring(card.CardNumber.Length - 4),
+                    CardholderName = card.CardholderName,
+                    Brand = card.Brand,
+                    ExpiryDate = card.ExpiryDate,
+                    Status = card.Status,
+                    AccountId = card.AccountId,
+                    AccountNumber = card.Account.AccountNumber,
+                    Currency = card.Account.Currency,
+                    CreatedAtUtc = card.CreatedAtUtc
+                })
+                .ToListAsync(cancellationToken);
+
+            return new PagedResult<AdminIssuedCardResponse>
+            {
+                Items = cards,
+                Page = request.Page,
+                PageSize = request.PageSize,
+                TotalCount = totalCount
+            };
+        }
+
         public async Task<CardRequestResponse> ApproveAsync(
             Guid id,
             CardRequestReviewRequest request,
@@ -203,6 +263,12 @@ namespace BankingApp.Infrastructure.Services
 
             dbContext.Accounts.Add(account);
             dbContext.BankCards.Add(card);
+            if (auditLogService is not null)
+                await auditLogService.RecordAsync(new AuditLogRecordRequest
+                {
+                    Action = AuditLogActions.CardRequestApproved, EntityType = AuditEntityTypes.CardRequest,
+                    EntityId = id.ToString(), Description = "Card request approved.", Reason = cardRequest.AdminNote
+                }, cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
 
             cardRequest.ApprovedAccount = account;
@@ -227,6 +293,13 @@ namespace BankingApp.Infrastructure.Services
             cardRequest.ReviewedAtUtc = DateTime.UtcNow;
             cardRequest.ReviewedByUserId = currentUserService.UserId;
 
+            if (auditLogService is not null)
+                await auditLogService.RecordAsync(new AuditLogRecordRequest
+                {
+                    Action = AuditLogActions.CardRequestRejected, EntityType = AuditEntityTypes.CardRequest,
+                    EntityId = id.ToString(), Description = "Card request rejected.", Reason = cardRequest.AdminNote
+                }, cancellationToken);
+
             await dbContext.SaveChangesAsync(cancellationToken);
 
             return ToRequestResponse(cardRequest);
@@ -247,6 +320,13 @@ namespace BankingApp.Infrastructure.Services
             cardRequest.Status = CardRequestStatus.DocumentsRequested;
             cardRequest.DocumentsRequestNote = request.AdminNote?.Trim();
             cardRequest.DocumentsRequestedAtUtc = DateTime.UtcNow;
+
+            if (auditLogService is not null)
+                await auditLogService.RecordAsync(new AuditLogRecordRequest
+                {
+                    Action = AuditLogActions.CardDocumentsRequested, EntityType = AuditEntityTypes.CardRequest,
+                    EntityId = id.ToString(), Description = "Card request documents requested.", Reason = cardRequest.DocumentsRequestNote
+                }, cancellationToken);
 
             await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -370,9 +450,26 @@ namespace BankingApp.Infrastructure.Services
             CardRequestQueryRequest request,
             IQueryable<CardRequest> query)
         {
+            if (request.CustomerId.HasValue)
+            {
+                query = query.Where(cardRequest => cardRequest.UserId == request.CustomerId.Value);
+            }
+
             if (request.Status.HasValue)
             {
                 query = query.Where(cardRequest => cardRequest.Status == request.Status.Value);
+            }
+
+            if (request.DateFromUtc.HasValue)
+            {
+                var dateFrom = request.DateFromUtc.Value.Date;
+                query = query.Where(cardRequest => cardRequest.CreatedAtUtc >= dateFrom);
+            }
+
+            if (request.DateToUtc.HasValue)
+            {
+                var dateTo = request.DateToUtc.Value.Date.AddDays(1);
+                query = query.Where(cardRequest => cardRequest.CreatedAtUtc < dateTo);
             }
 
             if (!string.IsNullOrWhiteSpace(request.Search))
@@ -482,6 +579,9 @@ namespace BankingApp.Infrastructure.Services
                 ApprovedMaskedCardNumber = request.ApprovedCard == null
                     ? null
                     : MaskCardNumber(request.ApprovedCard.CardNumber),
+                ApprovedCardExpiryDate = request.ApprovedCard?.ExpiryDate,
+                ApprovedCardStatus = request.ApprovedCard?.Status,
+                ApprovedCardBrand = request.ApprovedCard?.Brand,
                 CreatedAtUtc = request.CreatedAtUtc,
                 ReviewedAtUtc = request.ReviewedAtUtc,
                 Documents = request.Documents

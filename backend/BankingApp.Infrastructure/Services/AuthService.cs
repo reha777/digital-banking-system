@@ -216,12 +216,12 @@ namespace BankingApp.Infrastructure.Services
         {
             if (user.IsDeleted)
             {
-                throw new BusinessException("Korisnicki nalog vise nije aktivan.");
+                throw new AccountDisabledException();
             }
 
             if (user.Role == AppRoles.Customer && user.Status != CustomerStatus.Active)
             {
-                throw new BusinessException("Korisnicki nalog nije aktivan.");
+                throw new AccountDisabledException();
             }
         }
     }

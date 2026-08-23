@@ -88,6 +88,7 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: surfaceColor,
+        hoverColor: primary.withValues(alpha: .035),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 14,
           vertical: 14,
@@ -96,7 +97,7 @@ class AppTheme {
         errorStyle: const TextStyle(color: error, fontSize: 11, height: 1.3),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(radiusSmall),
-          borderSide: BorderSide(color: borderColor),
+          borderSide: BorderSide(color: borderColor.withValues(alpha: .78)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(radiusSmall),
@@ -127,7 +128,7 @@ class AppTheme {
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(radiusMedium),
-          side: BorderSide(color: borderColor),
+          side: BorderSide(color: borderColor.withValues(alpha: .72)),
         ),
       ),
       dialogTheme: DialogThemeData(
@@ -135,6 +136,37 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(radiusLarge),
+        ),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: surfaceColor,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        shadowColor: const Color(0xFF0F172A).withValues(alpha: .22),
+        position: PopupMenuPosition.under,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusMedium),
+          side: BorderSide(color: borderColor.withValues(alpha: .75)),
+        ),
+        menuPadding: const EdgeInsets.symmetric(vertical: 6),
+      ),
+      dropdownMenuTheme: DropdownMenuThemeData(
+        menuStyle: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(surfaceColor),
+          surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+          elevation: const WidgetStatePropertyAll(0),
+          shadowColor: WidgetStatePropertyAll(
+            const Color(0xFF0F172A).withValues(alpha: .2),
+          ),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(radiusMedium),
+              side: BorderSide(color: borderColor.withValues(alpha: .7)),
+            ),
+          ),
+          padding: const WidgetStatePropertyAll(
+            EdgeInsets.symmetric(vertical: 6),
+          ),
         ),
       ),
       snackBarTheme: SnackBarThemeData(
@@ -192,9 +224,85 @@ class AppTheme {
           foregroundColor: Colors.white,
           elevation: 0,
           minimumSize: const Size(44, 46),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          shadowColor: primary.withValues(alpha: .22),
+          disabledBackgroundColor: mutedColor.withValues(alpha: .12),
+          disabledForegroundColor: mutedColor.withValues(alpha: .72),
+          overlayColor: Colors.white.withValues(alpha: .1),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(radiusSmall),
+          ),
           textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
         ),
+      ),
+      dataTableTheme: DataTableThemeData(
+        headingRowColor: WidgetStatePropertyAll(
+          brightness == Brightness.dark
+              ? const Color(0xFF242635)
+              : const Color(0xFFF1F5FB),
+        ),
+        dataRowColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.hovered)) {
+            return primary.withValues(alpha: .055);
+          }
+          if (states.contains(WidgetState.selected)) {
+            return primary.withValues(alpha: .09);
+          }
+          return Colors.transparent;
+        }),
+        headingTextStyle: TextStyle(
+          color: mutedColor,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          letterSpacing: .55,
+        ),
+        dataTextStyle: TextStyle(
+          color: textColor,
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+        ),
+        headingRowHeight: 48,
+        dataRowMinHeight: 54,
+        dataRowMaxHeight: 68,
+        horizontalMargin: 18,
+        columnSpacing: 24,
+        dividerThickness: .7,
+        decoration: BoxDecoration(
+          color: surfaceColor,
+          borderRadius: BorderRadius.circular(radiusMedium),
+          border: Border.all(color: borderColor),
+        ),
+      ),
+      tabBarTheme: TabBarThemeData(
+        dividerColor: borderColor,
+        indicatorColor: primary,
+        indicatorSize: TabBarIndicatorSize.label,
+        labelColor: primary,
+        unselectedLabelColor: mutedColor,
+        labelStyle: const TextStyle(fontWeight: FontWeight.w800),
+        unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: surfaceColor,
+        selectedColor: primary.withValues(alpha: .12),
+        side: BorderSide(color: borderColor),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        labelStyle: TextStyle(
+          color: textColor,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      ),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
+        color: primary,
+        linearTrackColor: Color(0x1A0066FF),
+      ),
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.windows: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.linux: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.macOS: FadeForwardsPageTransitionsBuilder(),
+        },
       ),
     );
   }

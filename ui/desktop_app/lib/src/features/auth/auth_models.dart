@@ -7,6 +7,8 @@ class AuthUser {
     required this.lastName,
     required this.email,
     required this.role,
+    this.hasProfilePhoto = false,
+    this.profilePhotoUpdatedAtUtc,
   });
 
   final String id;
@@ -14,6 +16,8 @@ class AuthUser {
   final String lastName;
   final String email;
   final String role;
+  final bool hasProfilePhoto;
+  final DateTime? profilePhotoUpdatedAtUtc;
 
   factory AuthUser.fromJson(Map<String, dynamic> json) {
     return AuthUser(
@@ -22,6 +26,10 @@ class AuthUser {
       lastName: json['lastName']?.toString() ?? '',
       email: json['email']?.toString() ?? '',
       role: json['role']?.toString() ?? '',
+      hasProfilePhoto: json['hasProfilePhoto'] as bool? ?? false,
+      profilePhotoUpdatedAtUtc: DateTime.tryParse(
+        json['profilePhotoUpdatedAtUtc']?.toString() ?? '',
+      ),
     );
   }
 
@@ -32,6 +40,8 @@ class AuthUser {
       'lastName': lastName,
       'email': email,
       'role': role,
+      'hasProfilePhoto': hasProfilePhoto,
+      'profilePhotoUpdatedAtUtc': profilePhotoUpdatedAtUtc?.toIso8601String(),
     };
   }
 }

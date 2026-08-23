@@ -25,7 +25,7 @@ class GeneralSettingsSection extends StatelessWidget {
           spacing: 16,
           runSpacing: 16,
           children: [
-            for (var index = 0; index < 6; index++)
+            for (var index = 0; index < 2; index++)
               SizedBox(
                 width: width,
                 child: TextFormField(
@@ -35,10 +35,6 @@ class GeneralSettingsSection extends StatelessWidget {
                     labelText: const [
                       'System Name',
                       'System Short Name',
-                      'Company Name',
-                      'Company Email',
-                      'Company Phone',
-                      'Timezone',
                     ][index],
                   ),
                 ),

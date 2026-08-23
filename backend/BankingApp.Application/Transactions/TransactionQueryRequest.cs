@@ -7,9 +7,13 @@ namespace BankingApp.Application.Transactions
     {
         public Guid? AccountId { get; set; }
 
+        public Guid? CustomerId { get; set; }
+
         public string? Search { get; set; }
 
         public TransactionStatus? Status { get; set; }
+
+        public TransactionType? Type { get; set; }
 
         public bool? HighRiskOnly { get; set; }
 

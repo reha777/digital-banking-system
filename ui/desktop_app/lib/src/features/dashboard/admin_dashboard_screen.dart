@@ -17,11 +17,13 @@ class AdminDashboardScreen extends StatelessWidget {
     required this.onOpenPreferences,
     required this.onOpenSecurity,
     required this.onLogout,
+    this.dateFormatter,
   });
   final String token;
   final ValueChanged<AdminSection> onNavigate;
   final AuthUser? user;
   final VoidCallback onOpenProfile, onOpenPreferences, onOpenSecurity, onLogout;
+  final String Function(DateTime)? dateFormatter;
 
   void _search(String value) {
     final query = value.trim().toLowerCase();
@@ -33,6 +35,8 @@ class AdminDashboardScreen extends StatelessWidget {
       onNavigate(AdminSection.customers);
     } else if (query.contains('card')) {
       onNavigate(AdminSection.cardRequests);
+    } else if (query.contains('loan')) {
+      onNavigate(AdminSection.loans);
     }
   }
 
@@ -64,25 +68,16 @@ class AdminDashboardScreen extends StatelessWidget {
               child: TextField(
                 onSubmitted: _search,
                 decoration: const InputDecoration(
-                  hintText: 'Search anything...',
+                  hintText: 'Go to customers, transactions, cards or loans',
                   prefixIcon: Icon(LucideIcons.search, size: 18),
                 ),
               ),
             ),
             const Spacer(flex: 2),
-            IconButton(
-              onPressed: () {},
-              tooltip: 'Notifications',
-              icon: const Icon(LucideIcons.bell, size: 20),
-            ),
-            IconButton(
-              onPressed: () {},
-              tooltip: 'Messages',
-              icon: const Icon(LucideIcons.messagesSquare, size: 20),
-            ),
             const SizedBox(width: 8),
             AdminAccountMenu(
               user: user,
+              token: token,
               showDetails: MediaQuery.sizeOf(context).width >= 1100,
               onProfile: onOpenProfile,
               onPreferences: onOpenPreferences,
@@ -99,6 +94,8 @@ class AdminDashboardScreen extends StatelessWidget {
           onViewTransactions: () => onNavigate(AdminSection.transactions),
           onViewReviews: () => onNavigate(AdminSection.transactionReviews),
           onViewCardRequests: () => onNavigate(AdminSection.cardRequests),
+          onViewLoans: () => onNavigate(AdminSection.loans),
+          dateFormatter: dateFormatter,
         ),
       ),
     ],

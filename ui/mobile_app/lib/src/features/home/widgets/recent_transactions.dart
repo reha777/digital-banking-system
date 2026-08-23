@@ -26,9 +26,27 @@ class RecentTransactions extends StatelessWidget {
           ],
         ),
         if (transactions.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 24),
-            child: Text('No transactions yet.'),
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(top: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainer,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.receipt_long_outlined,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'No transactions yet.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            ),
           )
         else
           ...transactions.map(

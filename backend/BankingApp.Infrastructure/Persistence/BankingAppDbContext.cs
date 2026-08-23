@@ -31,6 +31,7 @@ namespace BankingApp.Infrastructure.Persistence
         public DbSet<Loan> Loans => Set<Loan>();
         public DbSet<LoanInstallment> LoanInstallments => Set<LoanInstallment>();
         public DbSet<LoanPayment> LoanPayments => Set<LoanPayment>();
+        public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -47,7 +48,31 @@ namespace BankingApp.Infrastructure.Persistence
             ConfigureAccessTokenRevocations(modelBuilder);
             ConfigureSettings(modelBuilder);
             ConfigureLoans(modelBuilder);
+            ConfigureAuditLogs(modelBuilder);
             SeedData(modelBuilder);
+        }
+
+        private static void ConfigureAuditLogs(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<AuditLog>(entity =>
+            {
+                entity.ToTable("AuditLogs");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.ActorName).HasMaxLength(160).IsRequired();
+                entity.Property(x => x.ActorRole).HasMaxLength(30).IsRequired();
+                entity.Property(x => x.Action).HasMaxLength(80).IsRequired();
+                entity.Property(x => x.EntityType).HasMaxLength(80).IsRequired();
+                entity.Property(x => x.EntityId).HasMaxLength(100).IsRequired();
+                entity.Property(x => x.Description).HasMaxLength(500).IsRequired();
+                entity.Property(x => x.Reason).HasMaxLength(500);
+                entity.Property(x => x.OldValue).HasMaxLength(250);
+                entity.Property(x => x.NewValue).HasMaxLength(250);
+                entity.Property(x => x.CorrelationId).HasMaxLength(100);
+                entity.HasIndex(x => x.CreatedAtUtc);
+                entity.HasIndex(x => x.ActorUserId);
+                entity.HasIndex(x => new { x.Action, x.EntityType });
+                entity.HasIndex(x => new { x.EntityType, x.EntityId });
+            });
         }
 
         private static void ConfigureSettings(ModelBuilder modelBuilder)

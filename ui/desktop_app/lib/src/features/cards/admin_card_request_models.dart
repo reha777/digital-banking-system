@@ -75,6 +75,9 @@ class AdminCardRequest {
     this.documentsRequestedAtUtc,
     this.approvedAccountNumber,
     this.approvedMaskedCardNumber,
+    this.approvedCardExpiryDate,
+    this.approvedCardStatus,
+    this.approvedCardBrand,
     this.reviewedAtUtc,
   });
 
@@ -104,6 +107,11 @@ class AdminCardRequest {
       ),
       approvedAccountNumber: json['approvedAccountNumber']?.toString(),
       approvedMaskedCardNumber: json['approvedMaskedCardNumber']?.toString(),
+      approvedCardExpiryDate: DateTime.tryParse(
+        json['approvedCardExpiryDate']?.toString() ?? '',
+      ),
+      approvedCardStatus: _cardStatusLabel(json['approvedCardStatus']),
+      approvedCardBrand: _cardBrandLabel(json['approvedCardBrand']),
       createdAtUtc:
           DateTime.tryParse(json['createdAtUtc']?.toString() ?? '') ??
           DateTime.now().toUtc(),
@@ -127,8 +135,104 @@ class AdminCardRequest {
   final DateTime? documentsRequestedAtUtc;
   final String? approvedAccountNumber;
   final String? approvedMaskedCardNumber;
+  final DateTime? approvedCardExpiryDate;
+  final String? approvedCardStatus;
+  final String? approvedCardBrand;
   final DateTime createdAtUtc;
   final DateTime? reviewedAtUtc;
+}
+
+class AdminIssuedCardPage {
+  const AdminIssuedCardPage({
+    required this.items,
+    required this.page,
+    required this.pageSize,
+    required this.totalCount,
+  });
+
+  factory AdminIssuedCardPage.fromJson(Map<String, dynamic> json) =>
+      AdminIssuedCardPage(
+        items: (json['items'] as List? ?? [])
+            .map(
+              (item) => AdminIssuedCard.fromJson(item as Map<String, dynamic>),
+            )
+            .toList(),
+        page: json['page'] as int? ?? 1,
+        pageSize: json['pageSize'] as int? ?? 20,
+        totalCount: json['totalCount'] as int? ?? 0,
+      );
+
+  final List<AdminIssuedCard> items;
+  final int page;
+  final int pageSize;
+  final int totalCount;
+  int get totalPages => totalCount == 0 ? 1 : (totalCount / pageSize).ceil();
+}
+
+class AdminIssuedCard {
+  const AdminIssuedCard({
+    required this.id,
+    required this.customerName,
+    required this.customerEmail,
+    required this.maskedCardNumber,
+    required this.cardholderName,
+    required this.brand,
+    required this.expiryDate,
+    required this.status,
+    required this.accountNumber,
+    required this.currency,
+    required this.createdAtUtc,
+  });
+
+  factory AdminIssuedCard.fromJson(Map<String, dynamic> json) =>
+      AdminIssuedCard(
+        id: json['id']?.toString() ?? '',
+        customerName: json['customerName']?.toString() ?? '',
+        customerEmail: json['customerEmail']?.toString() ?? '',
+        maskedCardNumber: json['maskedCardNumber']?.toString() ?? '',
+        cardholderName: json['cardholderName']?.toString() ?? '',
+        brand: _cardBrandLabel(json['brand']) ?? 'Unknown',
+        expiryDate:
+            DateTime.tryParse(json['expiryDate']?.toString() ?? '') ??
+            DateTime.now().toUtc(),
+        status: _cardStatusLabel(json['status']) ?? 'Unknown',
+        accountNumber: json['accountNumber']?.toString() ?? '',
+        currency: json['currency']?.toString().toUpperCase() ?? '',
+        createdAtUtc:
+            DateTime.tryParse(json['createdAtUtc']?.toString() ?? '') ??
+            DateTime.now().toUtc(),
+      );
+
+  final String id;
+  final String customerName;
+  final String customerEmail;
+  final String maskedCardNumber;
+  final String cardholderName;
+  final String brand;
+  final DateTime expiryDate;
+  final String status;
+  final String accountNumber;
+  final String currency;
+  final DateTime createdAtUtc;
+}
+
+String? _cardStatusLabel(Object? value) {
+  if (value == null) return null;
+  return switch (value.toString()) {
+    '1' => 'Active',
+    '2' => 'Blocked',
+    '3' => 'Expired',
+    final text => text,
+  };
+}
+
+String? _cardBrandLabel(Object? value) {
+  if (value == null) return null;
+  return switch (value.toString()) {
+    '1' => 'Mastercard',
+    '2' => 'Visa',
+    final text => text,
+  };
 }
 
 class AdminCardRequestDocument {

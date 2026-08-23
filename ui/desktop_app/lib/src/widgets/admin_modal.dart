@@ -35,6 +35,9 @@ class AdminModal extends StatelessWidget {
       backgroundColor: Colors.transparent,
       child: Container(
         width: width,
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height - 64,
+        ),
         padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
           color: surfaceColor,
@@ -48,60 +51,62 @@ class AdminModal extends StatelessWidget {
             ),
           ],
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      color: textColor,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        color: textColor,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  tooltip: 'Close',
-                  icon: const Icon(LucideIcons.x, size: 20),
-                ),
-              ],
-            ),
-            const Divider(height: 24),
-            ...children,
-            const SizedBox(height: 22),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
+                  IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: textColor,
-                      minimumSize: const Size.fromHeight(44),
-                      side: BorderSide(color: borderColor),
-                    ),
-                    child: Text(cancelLabel),
+                    tooltip: 'Close',
+                    icon: const Icon(LucideIcons.x, size: 20),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: onPrimary,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: actionColor,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size.fromHeight(44),
+                ],
+              ),
+              const Divider(height: 24),
+              ...children,
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: textColor,
+                        minimumSize: const Size.fromHeight(44),
+                        side: BorderSide(color: borderColor),
+                      ),
+                      child: Text(cancelLabel),
                     ),
-                    child: Text(primaryLabel),
                   ),
-                ),
-              ],
-            ),
-          ],
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: onPrimary,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: actionColor,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size.fromHeight(44),
+                      ),
+                      child: Text(primaryLabel),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

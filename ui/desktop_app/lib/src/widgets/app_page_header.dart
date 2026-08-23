@@ -24,7 +24,12 @@ class AppPageHeader extends StatelessWidget {
           height: 42,
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.primary.withValues(alpha: .1),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: .1),
+            ),
           ),
           child: Icon(icon, color: Theme.of(context).colorScheme.primary),
         ),

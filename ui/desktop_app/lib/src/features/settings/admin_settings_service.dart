@@ -1,4 +1,5 @@
 import '../../core/api_client.dart';
+import 'dart:typed_data';
 import 'admin_settings_models.dart';
 
 class AdminSettingsService {
@@ -41,4 +42,22 @@ class AdminSettingsService {
     'currentPassword': currentPassword,
     'newPassword': newPassword,
   }, token: token);
+  Future<AdminProfile> uploadProfilePhoto(
+    String token,
+    Uint8List bytes,
+    String fileName,
+  ) async => AdminProfile.fromJson(
+    await _api.postMultipart(
+      '/api/admin/settings/profile/photo',
+      fieldName: 'file',
+      fileName: fileName,
+      bytes: bytes,
+      token: token,
+    ),
+  );
+  Future<AdminProfile> deleteProfilePhoto(String token) async {
+    await _api.delete('/api/admin/settings/profile/photo', token: token);
+    final settings = await get(token);
+    return settings.profile;
+  }
 }

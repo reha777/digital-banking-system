@@ -113,12 +113,98 @@ public class LoanRepaymentTests
         Assert.Equal(loan.TotalRepayment, loan.TotalPaid);
         Assert.NotNull(loan.CompletedAtUtc);
         Assert.Null(result.NextPaymentDateUtc);
+        Assert.All(await fixture.Db.LoanInstallments.ToListAsync(), value =>
+            Assert.Equal(LoanInstallmentStatus.Paid, value.Status));
+        var completed = await fixture.Service.GetLoanDetailsAsync(loan.Id);
+        Assert.Equal(0, completed.Loan.OverdueInstallmentsCount);
+        Assert.DoesNotContain(completed.Installments, value => value.IsOverdue);
         await Assert.ThrowsAsync<BusinessException>(() => fixture.Service.GetPaymentQuoteAsync(loan.Id));
 
         var statistics = new TransactionService(fixture.Db, new CurrentUser(fixture.Owner.Id), new DemoCurrencyConversionService());
         var start = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1);
         var response = await statistics.GetStatisticsAsync(new TransactionStatisticsQuery { From = start, To = start.AddMonths(1) });
         Assert.Equal(result.Amount, Assert.Single(response.CurrencySeries).Months.Single().Spending);
+    }
+
+    [Fact]
+    public void Derived_overdue_state_is_deterministic_and_does_not_change_amounts()
+    {
+        var now = new DateTime(2026, 9, 5, 12, 0, 0, DateTimeKind.Utc);
+        Assert.Equal(new LoanOverdueState(false, 0), LoanOverdueCalculator.Calculate(
+            LoanInstallmentStatus.Pending, now.AddDays(1), now));
+        Assert.Equal(new LoanOverdueState(true, 4), LoanOverdueCalculator.Calculate(
+            LoanInstallmentStatus.Pending, new DateTime(2026, 9, 1, 20, 0, 0, DateTimeKind.Utc), now));
+        Assert.Equal(new LoanOverdueState(false, 0), LoanOverdueCalculator.Calculate(
+            LoanInstallmentStatus.Paid, now.AddDays(-10), now));
+    }
+
+    [Fact]
+    public async Task Customer_and_admin_reads_report_overdue_and_payment_uses_oldest_due()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var installments = await fixture.Db.LoanInstallments.OrderBy(value => value.InstallmentNumber).ToListAsync();
+        installments[0].DueDateUtc = DateTime.UtcNow.AddDays(20);
+        installments[1].DueDateUtc = DateTime.UtcNow.AddDays(-5);
+        installments[2].DueDateUtc = DateTime.UtcNow.AddDays(-2);
+        var overdueAmount = installments[1].ScheduledAmount + installments[2].ScheduledAmount;
+        var originalScheduled = installments[1].ScheduledAmount;
+        await fixture.Db.SaveChangesAsync();
+        fixture.Db.ChangeTracker.Clear();
+
+        var current = (await fixture.Service.GetCurrentLoanAsync())!;
+        Assert.Equal(2, current.OverdueInstallmentsCount);
+        Assert.Equal(overdueAmount, current.TotalOverdueAmount);
+        var details = await fixture.Service.GetLoanDetailsAsync(fixture.Loan.Id);
+        Assert.Equal(2, details.Installments.Count(value => value.IsOverdue));
+        Assert.All(details.Installments.Where(value => value.IsOverdue), value => Assert.True(value.DaysOverdue >= 2));
+        var quote = await fixture.Service.GetPaymentQuoteAsync(fixture.Loan.Id);
+        Assert.Equal(2, quote.InstallmentNumber);
+        Assert.True(quote.IsOverdue);
+        Assert.Equal(originalScheduled, quote.Amount);
+        Assert.Empty(fixture.Db.Transactions);
+
+        var admin = new AdminLoanService(
+            fixture.Db,
+            new CurrentUser(Guid.NewGuid(), true),
+            new LoanCalculationService());
+        var overdue = await admin.GetLoansAsync(new AdminLoanQueryRequest
+        {
+            Status = LoanStatus.Active, OverdueOnly = true, Page = 1, PageSize = 20
+        });
+        var overdueLoan = Assert.Single(overdue.Items);
+        Assert.Equal(2, overdueLoan.OverdueInstallmentsCount);
+        Assert.Equal(overdueAmount, overdueLoan.TotalOverdueAmount);
+        var upToDate = await admin.GetLoansAsync(new AdminLoanQueryRequest
+        {
+            Status = LoanStatus.Active, OverdueOnly = false, Page = 1, PageSize = 20
+        });
+        Assert.Empty(upToDate.Items);
+        Assert.Equal(1, (await admin.GetLoansOverviewAsync()).LoansWithOverduePayments);
+
+        await fixture.Service.PayInstallmentAsync(fixture.Loan.Id, new LoanPaymentRequest
+        {
+            SourceAccountId = fixture.Source.Id, ClientRequestId = Guid.NewGuid()
+        });
+        fixture.Db.ChangeTracker.Clear();
+        var refreshed = (await fixture.Service.GetCurrentLoanAsync())!;
+        Assert.Equal(1, refreshed.OverdueInstallmentsCount);
+        Assert.Equal(1, await fixture.Db.Transactions.CountAsync());
+        Assert.Equal(originalScheduled,
+            (await fixture.Db.LoanInstallments.SingleAsync(value => value.InstallmentNumber == 2)).ScheduledAmount);
+    }
+
+    [Fact]
+    public async Task Completed_loan_with_pending_installment_is_reported_as_inconsistent()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var loan = await fixture.Db.Loans.SingleAsync();
+        loan.Status = LoanStatus.Completed;
+        loan.CompletedAtUtc = DateTime.UtcNow;
+        await fixture.Db.SaveChangesAsync();
+        fixture.Db.ChangeTracker.Clear();
+
+        await Assert.ThrowsAsync<BusinessException>(() =>
+            fixture.Service.GetLoanDetailsAsync(loan.Id));
     }
 
     private sealed class Fixture : IAsyncDisposable
@@ -154,9 +240,9 @@ public class LoanRepaymentTests
         public ValueTask DisposeAsync() => Db.DisposeAsync();
     }
 
-    private sealed class CurrentUser(Guid id) : ICurrentUserService
+    private sealed class CurrentUser(Guid id, bool admin = false) : ICurrentUserService
     {
         public Guid UserId => id;
-        public bool IsAdmin => false;
+        public bool IsAdmin => admin;
     }
 }

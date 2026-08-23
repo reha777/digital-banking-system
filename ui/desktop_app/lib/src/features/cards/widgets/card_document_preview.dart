@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import '../../../core/app_error_message.dart';
 import '../admin_card_request_models.dart';
 
 class CardDocumentPreview extends StatelessWidget {
@@ -24,7 +25,10 @@ class CardDocumentPreview extends StatelessWidget {
       }
       if (snapshot.hasError) {
         return Text(
-          snapshot.error.toString(),
+          AppErrorMessage.from(
+            snapshot.error!,
+            fallback: 'Unable to load this document.',
+          ),
           style: TextStyle(color: Theme.of(context).colorScheme.error),
         );
       }

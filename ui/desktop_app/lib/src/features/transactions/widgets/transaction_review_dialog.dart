@@ -169,9 +169,10 @@ class _TransactionReviewDialogState extends State<TransactionReviewDialog> {
                           children: [
                             _Info('Reference', transaction.referenceNumber),
                             _Info('Status', transaction.status),
+                            _Info('Type', transaction.type.label),
                             _Info(
                               'Amount',
-                              '\$${transaction.amount.toStringAsFixed(2)}',
+                              '${transaction.currency} ${transaction.amount.toStringAsFixed(2)}',
                             ),
                             _Info(
                               'From',

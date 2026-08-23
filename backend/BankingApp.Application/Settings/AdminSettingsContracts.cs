@@ -19,7 +19,16 @@ public record AdminPreferencesResponse(
     int DefaultItemsPerPage, string Timezone);
 
 public record AdminProfileResponse(
-    string FirstName, string LastName, string Email, string PhoneNumber);
+    string FirstName, string LastName, string Email, string PhoneNumber,
+    bool HasProfilePhoto, DateTime? ProfilePhotoUpdatedAtUtc);
+
+public record AdminProfilePhotoResponse(byte[] Content, string ContentType);
+
+public class AdminProfilePhotoUploadRequest
+{
+    public required byte[] Content { get; set; }
+    public required string ContentType { get; set; }
+}
 
 public class UpdateSystemSettingsRequest
 {

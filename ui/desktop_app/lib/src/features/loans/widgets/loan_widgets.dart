@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import '../../../core/app_error_message.dart';
 import '../../../core/app_theme.dart';
 import '../../../widgets/app_pagination.dart';
 import '../../../widgets/app_status_badge.dart';
 import '../../../widgets/app_summary_card.dart';
+import '../../../widgets/app_date_range_picker.dart';
+import '../../../widgets/app_dropdown_field.dart';
+import '../../../widgets/app_table_row_hover.dart';
 import '../models/admin_loan_models.dart';
 
 class LoanApplicationFilters extends StatelessWidget {
@@ -15,12 +19,16 @@ class LoanApplicationFilters extends StatelessWidget {
     required this.onStatus,
     required this.onRefresh,
     required this.onReset,
+    required this.dateRange,
+    required this.onDateRange,
   });
   final TextEditingController controller;
   final int? status;
   final ValueChanged<String> onSearch;
   final ValueChanged<int?> onStatus;
   final VoidCallback onRefresh, onReset;
+  final DateTimeRange? dateRange;
+  final ValueChanged<DateTimeRange?> onDateRange;
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(16),
@@ -51,17 +59,24 @@ class LoanApplicationFilters extends StatelessWidget {
             ),
           ),
           SizedBox(
+            width: 245,
+            child: AppDateRangePicker(
+              dateFrom: dateRange?.start,
+              dateTo: dateRange?.end,
+              onApply: onDateRange,
+              onClear: () => onDateRange(null),
+            ),
+          ),
+          SizedBox(
             width: constraints.maxWidth < 210 ? constraints.maxWidth : 210,
-            child: DropdownButtonFormField<int?>(
-              key: ValueKey(status),
-              initialValue: status,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Status'),
+            child: AppDropdownField<int?>(
+              label: 'Status',
+              value: status,
               items: const [
-                DropdownMenuItem(value: null, child: Text('All statuses')),
-                DropdownMenuItem(value: 1, child: Text('Pending')),
-                DropdownMenuItem(value: 2, child: Text('Approved')),
-                DropdownMenuItem(value: 3, child: Text('Rejected')),
+                AppDropdownItem(value: null, label: 'All statuses'),
+                AppDropdownItem(value: 1, label: 'Pending'),
+                AppDropdownItem(value: 2, label: 'Approved'),
+                AppDropdownItem(value: 3, label: 'Rejected'),
               ],
               onChanged: onStatus,
             ),
@@ -243,58 +258,62 @@ class _LoanRow extends StatelessWidget {
   final String Function(DateTime) dateFormatter;
   final ValueChanged<AdminLoanApplicationListItem> onDetails;
   @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 76,
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 4,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.customerName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+  Widget build(BuildContext context) => AppTableRowHover(
+    child: SizedBox(
+      height: 76,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: [
+            Expanded(
+              flex: 4,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.customerName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  Text(
+                    item.customerEmail,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+            _Cell(item.productName, 3),
+            _Cell('${item.principal.toStringAsFixed(2)} ${item.currency}', 2),
+            _Cell('${item.termMonths} months', 2),
+            _Cell('${item.annualInterestRate.toStringAsFixed(2)}%', 2),
+            _Cell(
+              '${item.estimatedMonthlyPayment.toStringAsFixed(2)} ${item.currency}',
+              3,
+            ),
+            Expanded(
+              flex: 2,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: AppStatusBadge(
+                  status: adminLoanStatusLabel(item.status),
                 ),
-                Text(
-                  item.customerEmail,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
+              ),
             ),
-          ),
-          _Cell(item.productName, 3),
-          _Cell('${item.principal.toStringAsFixed(2)} ${item.currency}', 2),
-          _Cell('${item.termMonths} months', 2),
-          _Cell('${item.annualInterestRate.toStringAsFixed(2)}%', 2),
-          _Cell(
-            '${item.estimatedMonthlyPayment.toStringAsFixed(2)} ${item.currency}',
-            3,
-          ),
-          Expanded(
-            flex: 2,
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: AppStatusBadge(status: adminLoanStatusLabel(item.status)),
+            _Cell(dateFormatter(item.submittedAtUtc), 2),
+            Expanded(
+              flex: 2,
+              child: IconButton(
+                onPressed: () => onDetails(item),
+                tooltip: 'View / Review',
+                icon: const Icon(LucideIcons.eye),
+              ),
             ),
-          ),
-          _Cell(dateFormatter(item.submittedAtUtc), 2),
-          Expanded(
-            flex: 2,
-            child: IconButton(
-              onPressed: () => onDetails(item),
-              tooltip: 'View / Review',
-              icon: const Icon(LucideIcons.eye),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     ),
   );
@@ -606,7 +625,7 @@ class _ApproveLoanDialogState extends State<_ApproveLoanDialog> {
       if (mounted) {
         setState(() {
           _loading = false;
-          _error = error.toString();
+          _error = AppErrorMessage.from(error);
         });
       }
     }
@@ -724,7 +743,7 @@ class _RejectLoanDialogState extends State<_RejectLoanDialog> {
       if (mounted) {
         setState(() {
           _loading = false;
-          _error = error.toString();
+          _error = AppErrorMessage.from(error);
         });
       }
     }

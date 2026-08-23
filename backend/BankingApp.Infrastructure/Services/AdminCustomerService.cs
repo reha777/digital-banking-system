@@ -1,7 +1,9 @@
 using BankingApp.Application.Common.Exceptions;
 using BankingApp.Application.Common.Pagination;
+using BankingApp.Application.Common.Models;
 using BankingApp.Application.Customers;
 using BankingApp.Application.Interfaces;
+using BankingApp.Application.AuditLogs;
 using BankingApp.Domain.Constants;
 using BankingApp.Domain.Entities;
 using BankingApp.Domain.Enums;
@@ -10,7 +12,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BankingApp.Infrastructure.Services
 {
-    public class AdminCustomerService(BankingAppDbContext dbContext) : IAdminCustomerService
+    public class AdminCustomerService(
+        BankingAppDbContext dbContext,
+        IUserSessionRevocationService sessionRevocationService,
+        IAuditLogService? auditLogService = null) : IAdminCustomerService
     {
         public async Task<PagedResult<CustomerResponse>> GetAsync(
             CustomerQueryRequest request,
@@ -56,6 +61,86 @@ namespace BankingApp.Infrastructure.Services
             };
         }
 
+        public async Task<AdminCustomerDetailsResponse> GetDetailsAsync(
+            Guid id,
+            CancellationToken cancellationToken = default)
+        {
+            var customer = await dbContext.Users
+                .AsNoTracking()
+                .AsSplitQuery()
+                .Include(user => user.Accounts)
+                .ThenInclude(account => account.Card)
+                .SingleOrDefaultAsync(user =>
+                    user.Id == id && user.Role == AppRoles.Customer && !user.IsDeleted,
+                    cancellationToken)
+                ?? throw new NotFoundException("Klijent nije pronadjen.");
+
+            var pendingCardRequests = await dbContext.CardRequests.CountAsync(
+                value => value.UserId == id &&
+                    (value.Status == CardRequestStatus.Pending ||
+                     value.Status == CardRequestStatus.DocumentsRequested),
+                cancellationToken);
+            var pendingReviews = await dbContext.Transactions.CountAsync(
+                value => value.Account.UserId == id && value.IsHighRiskReview &&
+                    (value.Status == TransactionStatus.Pending ||
+                     value.Status == TransactionStatus.DocumentsRequested),
+                cancellationToken);
+            var activeLoans = await dbContext.Loans.CountAsync(
+                value => value.UserId == id && value.Status == LoanStatus.Active,
+                cancellationToken);
+            var pendingLoanApplications = await dbContext.LoanApplications.CountAsync(
+                value => value.UserId == id && value.Status == LoanApplicationStatus.Pending,
+                cancellationToken);
+
+            return new AdminCustomerDetailsResponse
+            {
+                Id = customer.Id,
+                FirstName = customer.FirstName,
+                LastName = customer.LastName,
+                FullName = $"{customer.FirstName} {customer.LastName}".Trim(),
+                Email = customer.Email,
+                PhoneNumber = customer.PhoneNumber,
+                Status = customer.Status,
+                CreatedAtUtc = customer.CreatedAtUtc,
+                Balances = customer.Accounts.GroupBy(account => account.Currency)
+                    .OrderBy(group => group.Key)
+                    .Select(group => new CurrencyAmountResponse
+                    {
+                        Currency = group.Key,
+                        Amount = group.Sum(account => account.Balance)
+                    }).ToList(),
+                Accounts = customer.Accounts.OrderBy(account => account.AccountNumber)
+                    .Select(account => new AdminCustomerAccountResponse
+                    {
+                        Id = account.Id,
+                        AccountNumber = account.AccountNumber,
+                        AccountType = account.AccountType,
+                        Balance = account.Balance,
+                        Currency = account.Currency,
+                        CreatedAtUtc = account.CreatedAtUtc,
+                        Card = account.Card == null ? null : new AdminCustomerCardResponse
+                        {
+                            Id = account.Card.Id,
+                            MaskedCardNumber = MaskCard(account.Card.CardNumber),
+                            CardholderName = account.Card.CardholderName,
+                            ExpiryDate = account.Card.ExpiryDate,
+                            Brand = account.Card.Brand,
+                            Status = account.Card.Status,
+                            CreatedAtUtc = account.Card.CreatedAtUtc
+                        }
+                    }).ToList(),
+                Summary = new AdminCustomerRelationshipSummaryResponse
+                {
+                    AccountCount = customer.Accounts.Count,
+                    CardCount = customer.Accounts.Count(account => account.Card != null),
+                    ActiveLoanCount = activeLoans,
+                    PendingCardRequestCount = pendingCardRequests,
+                    PendingTransactionReviewCount = pendingReviews,
+                    PendingLoanApplicationCount = pendingLoanApplications
+                }
+            };
+        }
+
         public async Task<CustomerResponse> UpdateAsync(
             Guid id,
             CustomerUpdateRequest request,
@@ -66,6 +151,13 @@ namespace BankingApp.Infrastructure.Services
             customer.FirstName = request.FirstName.Trim();
             customer.LastName = request.LastName.Trim();
             customer.PhoneNumber = request.PhoneNumber.Trim();
+
+            if (auditLogService is not null)
+                await auditLogService.RecordAsync(new AuditLogRecordRequest
+                {
+                    Action = AuditLogActions.CustomerUpdated, EntityType = AuditEntityTypes.Customer,
+                    EntityId = id.ToString(), Description = "Customer basic data updated."
+                }, cancellationToken);
 
             await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -83,7 +175,21 @@ namespace BankingApp.Infrastructure.Services
             }
 
             var customer = await GetCustomerAsync(id, cancellationToken);
+            var oldStatus = customer.Status;
             customer.Status = request.Status;
+
+            if (request.Status != CustomerStatus.Active)
+            {
+                await sessionRevocationService.RevokeAllRefreshTokensAsync(id, cancellationToken);
+            }
+
+            if (auditLogService is not null)
+                await auditLogService.RecordAsync(new AuditLogRecordRequest
+                {
+                    Action = AuditLogActions.CustomerStatusChanged, EntityType = AuditEntityTypes.Customer,
+                    EntityId = id.ToString(), Description = $"Customer status changed from {oldStatus} to {request.Status}.",
+                    OldValue = oldStatus.ToString(), NewValue = request.Status.ToString()
+                }, cancellationToken);
 
             await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -97,6 +203,14 @@ namespace BankingApp.Infrastructure.Services
             customer.IsDeleted = true;
             customer.DeletedAtUtc = DateTime.UtcNow;
             customer.Status = CustomerStatus.Inactive;
+
+            await sessionRevocationService.RevokeAllRefreshTokensAsync(id, cancellationToken);
+            if (auditLogService is not null)
+                await auditLogService.RecordAsync(new AuditLogRecordRequest
+                {
+                    Action = AuditLogActions.CustomerDeleted, EntityType = AuditEntityTypes.Customer,
+                    EntityId = id.ToString(), Description = "Customer was soft-deleted."
+                }, cancellationToken);
 
             await dbContext.SaveChangesAsync(cancellationToken);
         }
@@ -158,9 +272,24 @@ namespace BankingApp.Infrastructure.Services
                 PhoneNumber = customer.PhoneNumber,
                 Status = customer.Status,
                 AccountCount = customer.Accounts.Count,
-                TotalBalance = customer.Accounts.Sum(account => account.Balance),
+                Balances = customer.Accounts
+                    .GroupBy(account => account.Currency)
+                    .OrderBy(group => group.Key)
+                    .Select(group => new CurrencyAmountResponse
+                    {
+                        Currency = group.Key,
+                        Amount = group.Sum(account => account.Balance)
+                    })
+                    .ToList(),
                 CreatedAtUtc = customer.CreatedAtUtc
             };
+        }
+
+        private static string MaskCard(string value)
+        {
+            var digits = new string(value.Where(char.IsDigit).ToArray());
+            var ending = digits.Length <= 4 ? digits.PadLeft(4, '0') : digits[^4..];
+            return $"**** **** **** {ending}";
         }
     }
 }

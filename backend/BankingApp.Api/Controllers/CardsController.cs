@@ -170,4 +170,16 @@ namespace BankingApp.Api.Controllers
             return File(response.Content, response.ContentType, response.FileName);
         }
     }
+
+    [ApiController]
+    [Authorize(Roles = AppRoles.Admin)]
+    [Route("api/admin/cards")]
+    public class AdminCardsController(ICardService cardService) : ControllerBase
+    {
+        [HttpGet]
+        public async Task<ActionResult<PagedResult<AdminIssuedCardResponse>>> Get(
+            [FromQuery] AdminIssuedCardQueryRequest request,
+            CancellationToken cancellationToken) =>
+            Ok(await cardService.GetIssuedCardsAsync(request, cancellationToken));
+    }
 }

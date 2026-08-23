@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../core/app_theme.dart';
+import 'app_dropdown_field.dart';
 
 class AppPagination extends StatelessWidget {
   const AppPagination({
@@ -13,6 +14,7 @@ class AppPagination extends StatelessWidget {
     this.shownCount,
     this.totalCount,
     this.itemLabel = 'items',
+    this.showPageSizeSelector = true,
   });
   final int currentPage;
   final int totalPages;
@@ -20,6 +22,7 @@ class AppPagination extends StatelessWidget {
   final int? shownCount;
   final int? totalCount;
   final String itemLabel;
+  final bool showPageSizeSelector;
   final ValueChanged<int> onPageSelected;
   final ValueChanged<int> onPageSizeChanged;
 
@@ -27,28 +30,22 @@ class AppPagination extends StatelessWidget {
   Widget build(BuildContext context) {
     final pages = _visiblePages();
     final controls = <Widget>[
-      const Text('Rows'),
-      const SizedBox(width: 8),
-      SizedBox(
-        width: 80,
-        height: 36,
-        child: DropdownButtonFormField<int>(
-          initialValue: pageSize,
-          decoration: const InputDecoration(
-            contentPadding: EdgeInsets.symmetric(horizontal: 10),
+      if (showPageSizeSelector) ...[
+        SizedBox(
+          width: 105,
+          child: AppDropdownField<int>(
+            label: 'Rows',
+            value: pageSize,
+            items: const [
+              AppDropdownItem(value: 10, label: '10'),
+              AppDropdownItem(value: 20, label: '20'),
+              AppDropdownItem(value: 50, label: '50'),
+            ],
+            onChanged: onPageSizeChanged,
           ),
-          items: const [10, 20, 50]
-              .map(
-                (value) =>
-                    DropdownMenuItem(value: value, child: Text('$value')),
-              )
-              .toList(),
-          onChanged: (value) {
-            if (value != null) onPageSizeChanged(value);
-          },
         ),
-      ),
-      const SizedBox(width: 12),
+        const SizedBox(width: 12),
+      ],
       IconButton.filledTonal(
         onPressed: currentPage <= 1
             ? null

@@ -5,5 +5,6 @@ enum AdminSection {
   customers,
   cardRequests,
   loans,
+  auditLogs,
   settings,
 }

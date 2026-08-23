@@ -189,13 +189,16 @@ public class LoanService(
             .Include(value => value.Payments).ThenInclude(value => value.Transaction)
             .SingleOrDefaultAsync(value =>
                 value.Id == loanId && value.UserId == currentUserService.UserId,
-                cancellationToken)
+            cancellationToken)
             ?? throw new NotFoundException("Loan nije pronadjen.");
+        var nowUtc = DateTime.UtcNow;
         return new LoanDetailsResponse
         {
             Loan = ToLoanResponse(loan),
             Installments = loan.Installments.OrderBy(value => value.InstallmentNumber).Select(value =>
-                new LoanInstallmentResponse
+            {
+                var overdue = LoanOverdueCalculator.Calculate(value.Status, value.DueDateUtc, nowUtc);
+                return new LoanInstallmentResponse
                 {
                     Id = value.Id,
                     InstallmentNumber = value.InstallmentNumber,
@@ -205,8 +208,11 @@ public class LoanService(
                     InterestAmount = value.InterestAmount,
                     RemainingPrincipalAfter = value.RemainingPrincipalAfter,
                     Status = value.Status,
-                    PaidAtUtc = value.PaidAtUtc
-                }).ToList(),
+                    PaidAtUtc = value.PaidAtUtc,
+                    IsOverdue = overdue.IsOverdue,
+                    DaysOverdue = overdue.DaysOverdue
+                };
+            }).ToList(),
             Payments = loan.Payments.OrderByDescending(value => value.PaidAtUtc).Select(value =>
                 new LoanPaymentHistoryResponse
                 {
@@ -234,7 +240,7 @@ public class LoanService(
             throw new BusinessException("Samo aktivan Loan moze biti otplacen.");
         var installment = loan.Installments
             .Where(value => value.Status == LoanInstallmentStatus.Pending)
-            .OrderBy(value => value.InstallmentNumber)
+            .OrderBy(value => value.DueDateUtc)
             .FirstOrDefault() ?? throw new BusinessException("Loan nema neplacenih rata.");
         return ToPaymentQuote(loan, installment);
     }
@@ -279,7 +285,7 @@ public class LoanService(
                     throw new BusinessException("Samo aktivan Loan moze biti otplacen.");
                 var installment = loan.Installments
                     .Where(value => value.Status == LoanInstallmentStatus.Pending)
-                    .OrderBy(value => value.InstallmentNumber)
+                    .OrderBy(value => value.DueDateUtc)
                     .FirstOrDefault() ?? throw new BusinessException("Loan nema neplacenih rata.");
                 if (installment.LoanPaymentId.HasValue ||
                     await dbContext.LoanPayments.AnyAsync(value => value.LoanInstallmentId == installment.Id, cancellationToken))
@@ -340,7 +346,7 @@ public class LoanService(
                 loan.TotalPaid = decimal.Round(loan.TotalPaid + installment.ScheduledAmount, 2);
                 var next = loan.Installments
                     .Where(value => value.Id != installment.Id && value.Status == LoanInstallmentStatus.Pending)
-                    .OrderBy(value => value.InstallmentNumber)
+                    .OrderBy(value => value.DueDateUtc)
                     .FirstOrDefault();
                 if (next is null)
                 {
@@ -436,8 +442,14 @@ public class LoanService(
 
     private static CustomerLoanResponse ToLoanResponse(Loan value)
     {
+        var nowUtc = DateTime.UtcNow;
         var paid = value.Installments.Count(item => item.Status == LoanInstallmentStatus.Paid);
         var remaining = value.Installments.Count(item => item.Status == LoanInstallmentStatus.Pending);
+        if (value.Status == LoanStatus.Completed && remaining > 0)
+            throw new BusinessException("Completed Loan sadrzi neplacene rate.");
+        var overdue = value.Installments
+            .Where(item => LoanOverdueCalculator.Calculate(item.Status, item.DueDateUtc, nowUtc).IsOverdue)
+            .ToList();
         return new CustomerLoanResponse
         {
             LoanId = value.Id,
@@ -457,13 +469,21 @@ public class LoanService(
             MaturityDateUtc = value.MaturityDateUtc,
             PaidInstallments = paid,
             RemainingInstallments = remaining,
+            OverdueInstallmentsCount = overdue.Count,
+            TotalOverdueAmount = overdue.Sum(item => item.ScheduledAmount),
             DestinationAccountId = value.DestinationAccountId,
             DestinationAccountNumber = MaskAccount(value.DestinationAccount.AccountNumber)
         };
     }
 
-    private static LoanPaymentQuoteResponse ToPaymentQuote(Loan loan, LoanInstallment installment) => new()
+    private static LoanPaymentQuoteResponse ToPaymentQuote(Loan loan, LoanInstallment installment)
     {
+        var overdue = LoanOverdueCalculator.Calculate(
+            installment.Status,
+            installment.DueDateUtc,
+            DateTime.UtcNow);
+        return new LoanPaymentQuoteResponse
+        {
         LoanId = loan.Id,
         InstallmentId = installment.Id,
         InstallmentNumber = installment.InstallmentNumber,
@@ -474,8 +494,11 @@ public class LoanService(
         Currency = loan.Currency,
         OutstandingBefore = loan.OutstandingPrincipal,
         OutstandingAfter = decimal.Max(0m, decimal.Round(loan.OutstandingPrincipal - installment.PrincipalAmount, 2)),
-        IsFinalInstallment = loan.Installments.Count(value => value.Status == LoanInstallmentStatus.Pending) == 1
-    };
+            IsFinalInstallment = loan.Installments.Count(value => value.Status == LoanInstallmentStatus.Pending) == 1,
+            IsOverdue = overdue.IsOverdue,
+            DaysOverdue = overdue.DaysOverdue
+        };
+    }
 
     private static LoanPaymentResultResponse ToPaymentResult(LoanPayment value) => new()
     {

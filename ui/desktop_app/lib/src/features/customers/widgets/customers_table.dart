@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/app_theme.dart';
+import '../../../widgets/app_table_row_hover.dart';
 import '../../../widgets/app_pagination.dart';
 import '../../../widgets/app_status_badge.dart';
 import '../admin_customer_models.dart';
-import '../../settings/admin_formatters.dart';
+import '../../../core/currency_amount.dart';
 
 class CustomersTable extends StatelessWidget {
   const CustomersTable({
@@ -14,6 +15,7 @@ class CustomersTable extends StatelessWidget {
     required this.dateFormatter,
     required this.controller,
     required this.onEdit,
+    required this.onView,
     required this.onDelete,
     required this.onStatusChanged,
     required this.onPageSelected,
@@ -24,6 +26,7 @@ class CustomersTable extends StatelessWidget {
   final String Function(DateTime) dateFormatter;
   final ScrollController controller;
   final ValueChanged<AdminCustomer> onEdit;
+  final ValueChanged<AdminCustomer> onView;
   final ValueChanged<AdminCustomer> onDelete;
   final void Function(AdminCustomer, int) onStatusChanged;
   final ValueChanged<int> onPageSelected;
@@ -55,12 +58,14 @@ class CustomersTable extends StatelessWidget {
                         customer: page.items[index],
                         dateFormatter: dateFormatter,
                         onEdit: onEdit,
+                        onView: onView,
                         onDelete: onDelete,
                         onStatusChanged: onStatusChanged,
                       )
                     : _CompactRow(
                         customer: page.items[index],
                         onEdit: onEdit,
+                        onView: onView,
                         onDelete: onDelete,
                         onStatusChanged: onStatusChanged,
                       ),
@@ -108,7 +113,7 @@ class _Header extends StatelessWidget {
         _Cell('Balance', 2, header: true),
         _Cell('Joined', 2, header: true),
         _Cell('Status', 2, header: true),
-        _Cell('Actions', 2, header: true),
+        _Cell('Actions', 3, header: true),
       ],
     ),
   );
@@ -120,6 +125,7 @@ class _DesktopRow extends StatelessWidget {
     required this.customer,
     required this.dateFormatter,
     required this.onEdit,
+    required this.onView,
     required this.onDelete,
     required this.onStatusChanged,
   });
@@ -127,88 +133,96 @@ class _DesktopRow extends StatelessWidget {
   final AdminCustomer customer;
   final String Function(DateTime) dateFormatter;
   final ValueChanged<AdminCustomer> onEdit;
+  final ValueChanged<AdminCustomer> onView;
   final ValueChanged<AdminCustomer> onDelete;
   final void Function(AdminCustomer, int) onStatusChanged;
   @override
-  Widget build(BuildContext context) => Container(
-    constraints: const BoxConstraints(minHeight: 66),
-    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-    color: _surface(context),
-    child: Row(
-      children: [
-        _Cell('${index.toString().padLeft(2, '0')}.', 1),
-        Expanded(
-          flex: 4,
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: const Color(0xFFEAF1FF),
-                child: Text(
-                  _initials(customer),
-                  style: const TextStyle(
-                    color: AppTheme.primary,
-                    fontWeight: FontWeight.w800,
+  Widget build(BuildContext context) => AppTableRowHover(
+    child: Container(
+      constraints: const BoxConstraints(minHeight: 66),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+      color: _surface(context),
+      child: Row(
+        children: [
+          _Cell('${index.toString().padLeft(2, '0')}.', 1),
+          Expanded(
+            flex: 4,
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: const Color(0xFFEAF1FF),
+                  child: Text(
+                    _initials(customer),
+                    style: const TextStyle(
+                      color: AppTheme.primary,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      customer.fullName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    Text(
-                      customer.email,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        customer.fullName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      Text(
+                        customer.email,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-        _Cell(customer.phoneNumber, 4),
-        _Cell('${customer.accountCount}', 2),
-        _Cell(
-          AdminFormatters.number(customer.totalBalance.abs(), currency: true),
-          2,
-        ),
-        _Cell(dateFormatter(customer.createdAtUtc), 2),
-        Expanded(
-          flex: 2,
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: _StatusMenu(customer: customer, onChanged: onStatusChanged),
-          ),
-        ),
-        Expanded(
-          flex: 2,
-          child: Row(
-            children: [
-              IconButton(
-                onPressed: () => onEdit(customer),
-                tooltip: 'Edit customer',
-                icon: const Icon(LucideIcons.pencil, size: 18),
+          _Cell(customer.phoneNumber, 4),
+          _Cell('${customer.accountCount}', 2),
+          _Cell(formatCurrencyAmounts(customer.balances), 2),
+          _Cell(dateFormatter(customer.createdAtUtc), 2),
+          Expanded(
+            flex: 2,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: _StatusMenu(
+                customer: customer,
+                onChanged: onStatusChanged,
               ),
-              IconButton(
-                onPressed: () => onDelete(customer),
-                tooltip: 'Delete customer',
-                color: const Color(0xFFDC2626),
-                icon: const Icon(LucideIcons.trash2, size: 18),
-              ),
-            ],
+            ),
           ),
-        ),
-      ],
+          Expanded(
+            flex: 3,
+            child: Row(
+              children: [
+                IconButton(
+                  onPressed: () => onView(customer),
+                  tooltip: 'View customer',
+                  icon: const Icon(LucideIcons.eye, size: 18),
+                ),
+                IconButton(
+                  onPressed: () => onEdit(customer),
+                  tooltip: 'Edit customer',
+                  icon: const Icon(LucideIcons.pencil, size: 18),
+                ),
+                IconButton(
+                  onPressed: () => onDelete(customer),
+                  tooltip: 'Delete customer',
+                  color: const Color(0xFFDC2626),
+                  icon: const Icon(LucideIcons.trash2, size: 18),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     ),
   );
 }
@@ -217,11 +231,13 @@ class _CompactRow extends StatelessWidget {
   const _CompactRow({
     required this.customer,
     required this.onEdit,
+    required this.onView,
     required this.onDelete,
     required this.onStatusChanged,
   });
   final AdminCustomer customer;
   final ValueChanged<AdminCustomer> onEdit;
+  final ValueChanged<AdminCustomer> onView;
   final ValueChanged<AdminCustomer> onDelete;
   final void Function(AdminCustomer, int) onStatusChanged;
   @override
@@ -237,6 +253,8 @@ class _CompactRow extends StatelessWidget {
       onSelected: (value) {
         if (value == 10) {
           onEdit(customer);
+        } else if (value == 9) {
+          onView(customer);
         } else if (value == 11) {
           onDelete(customer);
         } else {
@@ -244,6 +262,7 @@ class _CompactRow extends StatelessWidget {
         }
       },
       itemBuilder: (_) => const [
+        PopupMenuItem(value: 9, child: Text('View')),
         PopupMenuItem(value: 10, child: Text('Edit')),
         PopupMenuItem(value: 1, child: Text('Set active')),
         PopupMenuItem(value: 2, child: Text('Set inactive')),

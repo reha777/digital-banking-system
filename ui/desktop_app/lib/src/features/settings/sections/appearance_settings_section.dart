@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../admin_settings_models.dart';
 import '../widgets/settings_section_card.dart';
+import '../../../widgets/app_segmented_control.dart';
 
 class AppearanceSettingsSection extends StatelessWidget {
   const AppearanceSettingsSection({
@@ -11,9 +12,9 @@ class AppearanceSettingsSection extends StatelessWidget {
   });
   final AdminPreferences value;
   final ValueChanged<AdminPreferences> onChanged;
-  AdminPreferences _copy({String? theme, String? sidebar}) => AdminPreferences(
+  AdminPreferences _copy({String? theme}) => AdminPreferences(
     themeMode: theme ?? value.themeMode,
-    sidebarStyle: sidebar ?? value.sidebarStyle,
+    sidebarStyle: value.sidebarStyle,
     dateFormat: value.dateFormat,
     timeFormat: value.timeFormat,
     firstDayOfWeek: value.firstDayOfWeek,
@@ -27,8 +28,8 @@ class AppearanceSettingsSection extends StatelessWidget {
     subtitle: 'Customize the look and feel of the admin panel.',
     child: LayoutBuilder(
       builder: (context, constraints) {
-        final width = constraints.maxWidth >= 780
-            ? (constraints.maxWidth - 32) / 3
+        final width = constraints.maxWidth >= 620
+            ? (constraints.maxWidth - 16) / 2
             : constraints.maxWidth;
         return Wrap(
           spacing: 16,
@@ -41,91 +42,27 @@ class AppearanceSettingsSection extends StatelessWidget {
                 children: [
                   const Text('Theme Mode'),
                   const SizedBox(height: 8),
-                  SegmentedButton<String>(
-                    showSelectedIcon: false,
+                  AppSegmentedControl<String>(
                     segments: const [
-                      ButtonSegment(
+                      AppSegment(
                         value: 'light',
-                        icon: Icon(LucideIcons.sun, size: 17),
-                        label: Text('Light'),
+                        icon: LucideIcons.sun,
+                        label: 'Light',
                       ),
-                      ButtonSegment(
+                      AppSegment(
                         value: 'dark',
-                        icon: Icon(LucideIcons.moon, size: 17),
-                        label: Text('Dark'),
+                        icon: LucideIcons.moon,
+                        label: 'Dark',
                       ),
-                      ButtonSegment(
+                      AppSegment(
                         value: 'system',
-                        icon: Icon(LucideIcons.monitor, size: 17),
-                        label: Text('System'),
+                        icon: LucideIcons.monitor,
+                        label: 'System',
                       ),
                     ],
-                    selected: {value.themeMode},
-                    onSelectionChanged: (selection) =>
-                        onChanged(_copy(theme: selection.first)),
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(
-              width: width,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Sidebar Style'),
-                  const SizedBox(height: 8),
-                  SegmentedButton<String>(
-                    showSelectedIcon: false,
-                    segments: const [
-                      ButtonSegment(
-                        value: 'compact',
-                        icon: Icon(LucideIcons.panelLeftClose, size: 17),
-                        label: Text('Compact'),
-                      ),
-                      ButtonSegment(
-                        value: 'expanded',
-                        icon: Icon(LucideIcons.panelLeftOpen, size: 17),
-                        label: Text('Expanded'),
-                      ),
-                    ],
-                    selected: {value.sidebarStyle},
-                    onSelectionChanged: (selection) =>
-                        onChanged(_copy(sidebar: selection.first)),
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(
-              width: width,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Primary Color'),
-                  const SizedBox(height: 8),
-                  Container(
-                    height: 48,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Theme.of(context).dividerColor),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Row(
-                      children: [
-                        SizedBox.square(
-                          dimension: 30,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: Color(0xFF0066FF),
-                              borderRadius: BorderRadius.all(
-                                Radius.circular(6),
-                              ),
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: 10),
-                        Expanded(child: Text('#0066FF  Banking brand')),
-                      ],
-                    ),
+                    value: value.themeMode,
+                    onChanged: (selection) =>
+                        onChanged(_copy(theme: selection)),
                   ),
                 ],
               ),

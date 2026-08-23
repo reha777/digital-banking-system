@@ -1,3 +1,5 @@
+import '../../core/currency_amount.dart';
+
 class AdminTransactionPage {
   const AdminTransactionPage({
     required this.items,
@@ -37,20 +39,22 @@ class AdminTransactionSummary {
   const AdminTransactionSummary({
     required this.totalTransactions,
     required this.completedTransactions,
-    required this.totalTransferred,
+    required this.transferredByCurrency,
   });
 
   factory AdminTransactionSummary.fromJson(Map<String, dynamic> json) {
     return AdminTransactionSummary(
       totalTransactions: json['totalTransactions'] as int? ?? 0,
       completedTransactions: json['completedTransactions'] as int? ?? 0,
-      totalTransferred: (json['totalTransferred'] as num? ?? 0).toDouble(),
+      transferredByCurrency: (json['transferredByCurrency'] as List? ?? [])
+          .map((item) => CurrencyAmount.fromJson(item as Map<String, dynamic>))
+          .toList(),
     );
   }
 
   final int totalTransactions;
   final int completedTransactions;
-  final double totalTransferred;
+  final List<CurrencyAmount> transferredByCurrency;
 }
 
 class AdminTransaction {
@@ -59,6 +63,8 @@ class AdminTransaction {
     required this.accountNumber,
     required this.referenceNumber,
     required this.amount,
+    required this.currency,
+    required this.type,
     required this.description,
     required this.status,
     required this.statusValue,
@@ -81,6 +87,8 @@ class AdminTransaction {
       accountNumber: json['accountNumber']?.toString() ?? '',
       referenceNumber: json['referenceNumber']?.toString() ?? '',
       amount: (json['amount'] as num? ?? 0).toDouble(),
+      currency: json['currency']?.toString().toUpperCase() ?? '',
+      type: _transactionType(json['type']),
       description: json['description']?.toString() ?? '',
       statusValue: _statusValue(json['status']),
       status: _statusLabel(json['status']),
@@ -109,6 +117,8 @@ class AdminTransaction {
   final String accountNumber;
   final String referenceNumber;
   final double amount;
+  final String currency;
+  final AdminTransactionType type;
   final String description;
   final String status;
   final int statusValue;
@@ -177,3 +187,21 @@ int _statusValue(Object? value) {
     _ => 0,
   };
 }
+
+enum AdminTransactionType {
+  transfer('Transfer'),
+  internalTransfer('Internal Transfer'),
+  loanDisbursement('Loan Disbursement'),
+  loanRepayment('Loan Repayment');
+
+  const AdminTransactionType(this.label);
+  final String label;
+}
+
+AdminTransactionType _transactionType(Object? value) =>
+    switch (value?.toString().toLowerCase()) {
+      '2' || 'internaltransfer' => AdminTransactionType.internalTransfer,
+      '3' || 'loandisbursement' => AdminTransactionType.loanDisbursement,
+      '4' || 'loanrepayment' => AdminTransactionType.loanRepayment,
+      _ => AdminTransactionType.transfer,
+    };

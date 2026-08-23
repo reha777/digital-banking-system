@@ -224,11 +224,6 @@ class _ProfilePageState extends State<ProfilePage> {
               icon: Icons.notifications_none,
               value: 'API required',
             ),
-            const SettingsNavigationTile(
-              label: 'Address',
-              icon: Icons.location_on_outlined,
-              value: 'API required',
-            ),
             SettingsNavigationTile(
               label: 'Settings',
               icon: Icons.settings_outlined,

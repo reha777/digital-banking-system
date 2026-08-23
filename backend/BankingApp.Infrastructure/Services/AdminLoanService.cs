@@ -2,6 +2,7 @@ using BankingApp.Application.Common.Exceptions;
 using BankingApp.Application.Common.Pagination;
 using BankingApp.Application.Interfaces;
 using BankingApp.Application.Loans;
+using BankingApp.Application.AuditLogs;
 using BankingApp.Domain.Entities;
 using BankingApp.Domain.Enums;
 using BankingApp.Infrastructure.Persistence;
@@ -13,7 +14,8 @@ namespace BankingApp.Infrastructure.Services;
 public class AdminLoanService(
     BankingAppDbContext dbContext,
     ICurrentUserService currentUserService,
-    ILoanCalculationService calculationService) : IAdminLoanService
+    ILoanCalculationService calculationService,
+    IAuditLogService? auditLogService = null) : IAdminLoanService
 {
     public async Task<PagedResult<AdminLoanApplicationListItemResponse>> GetApplicationsAsync(
         AdminLoanApplicationQueryRequest request,
@@ -72,7 +74,8 @@ public class AdminLoanService(
         EnsureAdmin();
         if (!request.Status.HasValue)
             throw new BusinessException("Active ili Completed Loan status je obavezan.");
-        var query = ApplyLoanFilters(request, dbContext.Loans.AsNoTracking());
+        var nowUtc = DateTime.UtcNow;
+        var query = ApplyLoanFilters(request, dbContext.Loans.AsNoTracking(), nowUtc);
         var totalCount = await query.CountAsync(cancellationToken);
         var items = await query.OrderByDescending(value =>
                 value.Status == LoanStatus.Completed ? value.CompletedAtUtc : value.StartDateUtc)
@@ -99,8 +102,18 @@ public class AdminLoanService(
                 CompletedAtUtc = value.CompletedAtUtc,
                 Status = value.Status,
                 PaidInstallments = value.Installments.Count(item => item.Status == LoanInstallmentStatus.Paid),
-                RemainingInstallments = value.Installments.Count(item => item.Status == LoanInstallmentStatus.Pending)
+                RemainingInstallments = value.Installments.Count(item => item.Status == LoanInstallmentStatus.Pending),
+                OverdueInstallmentsCount = value.Installments.Count(item =>
+                    item.Status == LoanInstallmentStatus.Pending && item.DueDateUtc < nowUtc),
+                TotalOverdueAmount = value.Installments
+                    .Where(item => item.Status == LoanInstallmentStatus.Pending && item.DueDateUtc < nowUtc)
+                    .Sum(item => (decimal?)item.ScheduledAmount) ?? 0m,
+                OldestOverdueDateUtc = value.Installments
+                    .Where(item => item.Status == LoanInstallmentStatus.Pending && item.DueDateUtc < nowUtc)
+                    .Min(item => (DateTime?)item.DueDateUtc)
             }).ToListAsync(cancellationToken);
+        if (items.Any(value => value.Status == LoanStatus.Completed && value.RemainingInstallments > 0))
+            throw new BusinessException("Completed Loan sadrzi neplacene rate.");
         return new PagedResult<AdminLoanListItemResponse>
         {
             Items = items, Page = request.Page, PageSize = request.PageSize, TotalCount = totalCount
@@ -123,6 +136,12 @@ public class AdminLoanService(
             .SingleOrDefaultAsync(value => value.Id == id, cancellationToken)
             ?? throw new NotFoundException("Loan nije pronadjen.");
         var response = ToLoanListItem(loan);
+        if (response.Status == LoanStatus.Completed && response.RemainingInstallments > 0)
+            throw new BusinessException("Completed Loan sadrzi neplacene rate.");
+        var nowUtc = DateTime.UtcNow;
+        var overdueInstallments = loan.Installments
+            .Where(value => LoanOverdueCalculator.Calculate(value.Status, value.DueDateUtc, nowUtc).IsOverdue)
+            .ToList();
         return new AdminLoanDetailsResponse
         {
             LoanId = response.LoanId, ApplicationId = response.ApplicationId,
@@ -136,6 +155,10 @@ public class AdminLoanService(
             MaturityDateUtc = response.MaturityDateUtc, CompletedAtUtc = response.CompletedAtUtc,
             Status = response.Status, PaidInstallments = response.PaidInstallments,
             RemainingInstallments = response.RemainingInstallments,
+            OverdueInstallmentsCount = overdueInstallments.Count,
+            TotalOverdueAmount = overdueInstallments.Sum(value => value.ScheduledAmount),
+            OldestOverdueDateUtc = overdueInstallments.OrderBy(value => value.DueDateUtc)
+                .Select(value => (DateTime?)value.DueDateUtc).FirstOrDefault(),
             DestinationAccount = new AdminLoanDestinationAccountResponse
             {
                 AccountId = loan.DestinationAccountId,
@@ -150,12 +173,17 @@ public class AdminLoanService(
             ApplicationRequestedPrincipal = loan.LoanApplication.Principal,
             ApplicationRateSnapshot = loan.LoanApplication.AnnualInterestRateSnapshot,
             AdminNote = loan.LoanApplication.AdminNote,
-            Installments = loan.Installments.OrderBy(value => value.InstallmentNumber).Select(value => new LoanInstallmentResponse
+            Installments = loan.Installments.OrderBy(value => value.InstallmentNumber).Select(value =>
             {
+                var overdue = LoanOverdueCalculator.Calculate(value.Status, value.DueDateUtc, nowUtc);
+                return new LoanInstallmentResponse
+                {
                 Id = value.Id, InstallmentNumber = value.InstallmentNumber, DueDateUtc = value.DueDateUtc,
                 ScheduledAmount = value.ScheduledAmount, PrincipalAmount = value.PrincipalAmount,
                 InterestAmount = value.InterestAmount, RemainingPrincipalAfter = value.RemainingPrincipalAfter,
-                Status = value.Status, PaidAtUtc = value.PaidAtUtc
+                    Status = value.Status, PaidAtUtc = value.PaidAtUtc,
+                    IsOverdue = overdue.IsOverdue, DaysOverdue = overdue.DaysOverdue
+                };
             }).ToList(),
             Payments = loan.Payments.OrderByDescending(value => value.PaidAtUtc).Select(value => new LoanPaymentHistoryResponse
             {
@@ -172,12 +200,17 @@ public class AdminLoanService(
         EnsureAdmin();
         var applications = dbContext.LoanApplications.AsNoTracking();
         var loans = dbContext.Loans.AsNoTracking();
+        var nowUtc = DateTime.UtcNow;
         return new AdminLoansOverviewResponse
         {
             TotalApplications = await applications.CountAsync(cancellationToken),
             PendingApplications = await applications.CountAsync(value => value.Status == LoanApplicationStatus.Pending, cancellationToken),
             ActiveLoans = await loans.CountAsync(value => value.Status == LoanStatus.Active, cancellationToken),
             CompletedLoans = await loans.CountAsync(value => value.Status == LoanStatus.Completed, cancellationToken),
+            LoansWithOverduePayments = await loans.CountAsync(value =>
+                value.Status == LoanStatus.Active && value.Installments.Any(item =>
+                    item.Status == LoanInstallmentStatus.Pending && item.DueDateUtc < nowUtc),
+                cancellationToken),
             Currencies = await loans.GroupBy(value => value.Currency).Select(group => new AdminLoanCurrencySummaryResponse
             {
                 Currency = group.Key,
@@ -212,6 +245,12 @@ public class AdminLoanService(
         application.ReviewedAtUtc = DateTime.UtcNow;
         application.ReviewedByUserId = currentUserService.UserId;
         application.AdminNote = note;
+        if (auditLogService is not null)
+            await auditLogService.RecordAsync(new AuditLogRecordRequest
+            {
+                Action = AuditLogActions.LoanRejected, EntityType = AuditEntityTypes.LoanApplication,
+                EntityId = id.ToString(), Description = "Loan application rejected.", Reason = note
+            }, cancellationToken);
         try
         {
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -318,6 +357,13 @@ public class AdminLoanService(
                 application.ReviewedByUserId = currentUserService.UserId;
                 application.AdminNote = string.IsNullOrWhiteSpace(request.AdminNote) ? null : request.AdminNote.Trim();
 
+                if (auditLogService is not null)
+                    await auditLogService.RecordAsync(new AuditLogRecordRequest
+                    {
+                        Action = AuditLogActions.LoanApproved, EntityType = AuditEntityTypes.LoanApplication,
+                        EntityId = id.ToString(), Description = "Loan application approved.", Reason = application.AdminNote
+                    }, cancellationToken);
+
                 await dbContext.SaveChangesAsync(cancellationToken);
                 if (transaction is not null)
                     await transaction.CommitAsync(cancellationToken);
@@ -423,12 +469,17 @@ public class AdminLoanService(
         AdminLoanApplicationQueryRequest request,
         IQueryable<LoanApplication> query)
     {
+        if (request.CustomerId.HasValue)
+            query = query.Where(value => value.UserId == request.CustomerId.Value);
         if (request.Status.HasValue)
             query = query.Where(value => value.Status == request.Status.Value);
         if (request.DateFromUtc.HasValue)
             query = query.Where(value => value.SubmittedAtUtc >= request.DateFromUtc.Value);
         if (request.DateToUtc.HasValue)
-            query = query.Where(value => value.SubmittedAtUtc <= request.DateToUtc.Value);
+        {
+            var dateTo = request.DateToUtc.Value.Date.AddDays(1);
+            query = query.Where(value => value.SubmittedAtUtc < dateTo);
+        }
         if (!string.IsNullOrWhiteSpace(request.Search))
         {
             var search = request.Search.Trim();
@@ -441,9 +492,24 @@ public class AdminLoanService(
         return query;
     }
 
-    private static IQueryable<Loan> ApplyLoanFilters(AdminLoanQueryRequest request, IQueryable<Loan> query)
+    private static IQueryable<Loan> ApplyLoanFilters(
+        AdminLoanQueryRequest request,
+        IQueryable<Loan> query,
+        DateTime nowUtc)
     {
         query = query.Where(value => value.Status == request.Status!.Value);
+        if (request.CustomerId.HasValue)
+            query = query.Where(value => value.UserId == request.CustomerId.Value);
+        if (request.OverdueOnly.HasValue)
+        {
+            if (request.Status != LoanStatus.Active)
+                throw new BusinessException("Overdue filter je dostupan samo za Active Loans.");
+            query = request.OverdueOnly.Value
+                ? query.Where(value => value.Installments.Any(item =>
+                    item.Status == LoanInstallmentStatus.Pending && item.DueDateUtc < nowUtc))
+                : query.Where(value => !value.Installments.Any(item =>
+                    item.Status == LoanInstallmentStatus.Pending && item.DueDateUtc < nowUtc));
+        }
         if (request.DateFromUtc.HasValue)
             query = request.Status == LoanStatus.Completed
                 ? query.Where(value => value.CompletedAtUtc >= request.DateFromUtc.Value)

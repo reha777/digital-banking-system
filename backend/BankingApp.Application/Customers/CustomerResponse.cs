@@ -1,4 +1,5 @@
 using BankingApp.Domain.Enums;
+using BankingApp.Application.Common.Models;
 
 namespace BankingApp.Application.Customers
 {
@@ -20,7 +21,7 @@ namespace BankingApp.Application.Customers
 
         public int AccountCount { get; set; }
 
-        public decimal TotalBalance { get; set; }
+        public IReadOnlyCollection<CurrencyAmountResponse> Balances { get; set; } = [];
 
         public DateTime CreatedAtUtc { get; set; }
     }

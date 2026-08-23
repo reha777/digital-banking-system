@@ -152,6 +152,89 @@ void main() {
     expect(storage.clearCalls, 1);
   });
 
+  test(
+    'account-disabled response clears session without refresh loop',
+    () async {
+      final storage = MemoryAuthStorage();
+      var refreshCalls = 0;
+      String? endedMessage;
+      final transport = MockClient((request) async {
+        if (request.url.path == '/api/auth/refresh') refreshCalls++;
+        return http.Response(
+          jsonEncode({
+            'code': 'account_disabled',
+            'message':
+                'Your account is no longer active. Please contact support.',
+          }),
+          401,
+        );
+      });
+      final session = AuthSession(
+        ApiClient(httpClient: transport),
+        storage: storage,
+      );
+      session.onSessionEnded = (message) async => endedMessage = message;
+      _seedSession(session);
+
+      await expectLater(
+        ApiClient(
+          httpClient: transport,
+        ).getJson('/protected', token: 'old-access'),
+        throwsA(
+          isA<ApiException>()
+              .having((error) => error.code, 'code', 'account_disabled')
+              .having(
+                (error) => error.message,
+                'message',
+                contains('no longer active'),
+              ),
+        ),
+      );
+
+      expect(refreshCalls, 0);
+      expect(session.isAuthenticated, isFalse);
+      expect(storage.clearCalls, 1);
+      expect(endedMessage, contains('no longer active'));
+    },
+  );
+
+  test('disabled refresh clears session and preserves safe reason', () async {
+    final storage = MemoryAuthStorage();
+    var refreshCalls = 0;
+    final transport = MockClient((request) async {
+      refreshCalls++;
+      return http.Response(
+        jsonEncode({
+          'code': 'account_disabled',
+          'message':
+              'Your account is no longer active. Please contact support.',
+        }),
+        403,
+      );
+    });
+    final session = AuthSession(
+      ApiClient(httpClient: transport),
+      storage: storage,
+    );
+    _seedSession(session);
+
+    await expectLater(
+      session.refresh(),
+      throwsA(
+        isA<ApiException>().having(
+          (error) => error.code,
+          'code',
+          'account_disabled',
+        ),
+      ),
+    );
+
+    expect(refreshCalls, 1);
+    expect(session.isAuthenticated, isFalse);
+    expect(session.sessionEndedMessage, contains('no longer active'));
+    expect(storage.clearCalls, 1);
+  });
+
   test('refresh network failure preserves the refresh session', () async {
     final storage = MemoryAuthStorage();
     var refreshCalls = 0;

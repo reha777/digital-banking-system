@@ -5,6 +5,7 @@ using BankingApp.Api.Configuration;
 using BankingApp.Api.Middleware;
 using BankingApp.Api.Services;
 using BankingApp.Application.Interfaces;
+using BankingApp.Domain.Constants;
 using BankingApp.Infrastructure.Authentication;
 using BankingApp.Infrastructure.Persistence;
 using BankingApp.Infrastructure.Services;
@@ -85,7 +86,46 @@ builder.Services
                 if (isRevoked)
                 {
                     context.Fail("Token has been revoked.");
+                    return;
                 }
+
+                var role = context.Principal?.FindFirstValue(ClaimTypes.Role);
+                if (role == AppRoles.Customer)
+                {
+                    var userIdValue = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier)
+                        ?? context.Principal?.FindFirstValue(JwtRegisteredClaimNames.Sub);
+                    if (!Guid.TryParse(userIdValue, out var userId))
+                    {
+                        context.Fail("Customer id is invalid.");
+                        return;
+                    }
+
+                    var validator = context.HttpContext.RequestServices
+                        .GetRequiredService<ICustomerAccessValidator>();
+                    if (!await validator.IsActiveCustomerAsync(
+                            userId,
+                            context.HttpContext.RequestAborted))
+                    {
+                        context.HttpContext.Items["AuthErrorCode"] = "account_disabled";
+                        context.Fail("Customer account is disabled.");
+                    }
+                }
+            },
+            OnChallenge = async context =>
+            {
+                if (context.HttpContext.Items["AuthErrorCode"] as string != "account_disabled")
+                {
+                    return;
+                }
+
+                context.HandleResponse();
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                context.Response.ContentType = "application/json";
+                await context.Response.WriteAsJsonAsync(new
+                {
+                    code = "account_disabled",
+                    message = "Your account is no longer active. Please contact support."
+                });
             }
         };
     });
@@ -93,10 +133,14 @@ builder.Services
 builder.Services.AddAuthorization();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<ICustomerAccessValidator, CustomerAccessValidator>();
+builder.Services.AddScoped<IUserSessionRevocationService, UserSessionRevocationService>();
+builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<ITransactionService, TransactionService>();
 builder.Services.AddSingleton<ICurrencyConversionService, DemoCurrencyConversionService>();
 builder.Services.AddScoped<IAdminCustomerService, AdminCustomerService>();
+builder.Services.AddScoped<IAdminDashboardService, AdminDashboardService>();
 builder.Services.AddScoped<ICardService, CardService>();
 builder.Services.AddScoped<IAdminSettingsService, AdminSettingsService>();
 builder.Services.AddScoped<ICustomerProfileService, CustomerProfileService>();

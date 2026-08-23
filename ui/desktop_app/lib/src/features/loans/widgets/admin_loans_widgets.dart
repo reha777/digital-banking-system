@@ -4,6 +4,8 @@ import '../../../core/app_theme.dart';
 import '../../../widgets/app_pagination.dart';
 import '../../../widgets/app_summary_card.dart';
 import '../../../widgets/app_date_range_picker.dart';
+import '../../../widgets/app_dropdown_field.dart';
+import '../../../widgets/app_table_row_hover.dart';
 import '../models/admin_loan_models.dart';
 
 class AdminLoansOverviewCards extends StatelessWidget {
@@ -20,6 +22,11 @@ class AdminLoansOverviewCards extends StatelessWidget {
         LucideIcons.clock3,
       ),
       _card('Active Loans', '${value.activeLoans}', LucideIcons.coins),
+      _card(
+        'Loans overdue',
+        '${value.loansWithOverduePayments}',
+        LucideIcons.alertTriangle,
+      ),
       _card(
         'Completed Loans',
         '${value.completedLoans}',
@@ -55,6 +62,9 @@ class AdminLoanFilters extends StatelessWidget {
     required this.dateTo,
     required this.onDateRange,
     required this.onClearDates,
+    required this.showOverdue,
+    required this.overdueOnly,
+    required this.onOverdueChanged,
   });
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
@@ -62,6 +72,9 @@ class AdminLoanFilters extends StatelessWidget {
   final DateTime? dateFrom, dateTo;
   final ValueChanged<DateTimeRange> onDateRange;
   final VoidCallback onClearDates;
+  final bool showOverdue;
+  final bool? overdueOnly;
+  final ValueChanged<bool?> onOverdueChanged;
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(16),
@@ -92,6 +105,20 @@ class AdminLoanFilters extends StatelessWidget {
           onApply: onDateRange,
           onClear: onClearDates,
         ),
+        if (showOverdue)
+          SizedBox(
+            width: 180,
+            child: AppDropdownField<bool?>(
+              label: 'Repayment',
+              value: overdueOnly,
+              items: const [
+                AppDropdownItem(value: null, label: 'All'),
+                AppDropdownItem(value: false, label: 'Up to date'),
+                AppDropdownItem(value: true, label: 'Overdue'),
+              ],
+              onChanged: onOverdueChanged,
+            ),
+          ),
         IconButton.filledTonal(
           onPressed: onRefresh,
           tooltip: 'Refresh loans',
@@ -176,50 +203,61 @@ class AdminLoansList extends StatelessWidget {
           _Cell(active ? 'Outstanding' : 'Total Paid', 2, true),
           const _Cell('Interest', 2, true),
           _Cell(active ? 'Next Payment' : 'Completed', 2, true),
-          _Cell(active ? 'Remaining' : 'Term', 2, true),
+          _Cell(active ? 'Overdue' : 'Term', 2, true),
           const _Cell('Status', 2, true),
           const _Cell('Action', 1, true),
         ],
       ),
     ),
   );
-  Widget _row(AdminLoanListItem x) => SizedBox(
-    height: 62,
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      child: Row(
-        children: [
-          _Cell('${x.customerName}\n${x.customerEmail}', 3),
-          _Cell(x.productName, 3),
-          _Cell('${x.originalPrincipal.toStringAsFixed(2)} ${x.currency}', 2),
-          _Cell(
-            '${(active ? x.outstandingPrincipal : x.totalPaid).toStringAsFixed(2)} ${x.currency}',
-            2,
-          ),
-          _Cell('${x.annualInterestRate.toStringAsFixed(2)}%', 2),
-          _Cell(
-            active
-                ? (x.nextPaymentDateUtc == null
-                      ? '-'
-                      : dateFormatter(x.nextPaymentDateUtc!))
-                : (x.completedAtUtc == null
-                      ? '-'
-                      : dateFormatter(x.completedAtUtc!)),
-            2,
-          ),
-          _Cell(
-            active ? '${x.remainingInstallments}' : '${x.termMonths} mo',
-            2,
-          ),
-          _Cell(active ? 'Active' : 'Completed', 2),
-          Expanded(
-            child: IconButton(
-              onPressed: () => onView(x),
-              tooltip: 'View Loan',
-              icon: const Icon(LucideIcons.eye, size: 18),
+  Widget _row(AdminLoanListItem x) => AppTableRowHover(
+    child: SizedBox(
+      height: 62,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        child: Row(
+          children: [
+            _Cell('${x.customerName}\n${x.customerEmail}', 3),
+            _Cell(x.productName, 3),
+            _Cell('${x.originalPrincipal.toStringAsFixed(2)} ${x.currency}', 2),
+            _Cell(
+              '${(active ? x.outstandingPrincipal : x.totalPaid).toStringAsFixed(2)} ${x.currency}',
+              2,
             ),
-          ),
-        ],
+            _Cell('${x.annualInterestRate.toStringAsFixed(2)}%', 2),
+            _Cell(
+              active
+                  ? (x.nextPaymentDateUtc == null
+                        ? '-'
+                        : dateFormatter(x.nextPaymentDateUtc!))
+                  : (x.completedAtUtc == null
+                        ? '-'
+                        : dateFormatter(x.completedAtUtc!)),
+              2,
+            ),
+            _Cell(
+              active
+                  ? (x.hasOverdue
+                        ? '${x.overdueInstallmentsCount} overdue'
+                        : '0')
+                  : '${x.termMonths} mo',
+              2,
+            ),
+            _Cell(
+              active
+                  ? (x.hasOverdue ? 'Active · Overdue' : 'Active')
+                  : 'Completed',
+              2,
+            ),
+            Expanded(
+              child: IconButton(
+                onPressed: () => onView(x),
+                tooltip: 'View Loan',
+                icon: const Icon(LucideIcons.eye, size: 18),
+              ),
+            ),
+          ],
+        ),
       ),
     ),
   );
@@ -228,7 +266,7 @@ class AdminLoansList extends StatelessWidget {
     leading: Icon(active ? LucideIcons.coins : LucideIcons.checkCircle),
     title: Text(x.customerName),
     subtitle: Text(
-      '${x.productName}\n${active ? 'Outstanding ${x.outstandingPrincipal.toStringAsFixed(2)}' : 'Total paid ${x.totalPaid.toStringAsFixed(2)}'} ${x.currency}',
+      '${x.productName}\n${active ? 'Outstanding ${x.outstandingPrincipal.toStringAsFixed(2)}${x.hasOverdue ? ' · ${x.overdueInstallmentsCount} overdue' : ''}' : 'Total paid ${x.totalPaid.toStringAsFixed(2)}'} ${x.currency}',
     ),
     trailing: IconButton(
       onPressed: () => onView(x),
@@ -347,6 +385,16 @@ class AdminLoanDetailsDialog extends StatelessWidget {
                             ? 'None'
                             : dateFormatter(loan.nextPaymentDateUtc!),
                       ),
+                      if (loan.hasOverdue) ...[
+                        _line(
+                          'Overdue installments',
+                          '${loan.overdueInstallmentsCount}',
+                        ),
+                        _line(
+                          'Overdue amount',
+                          '${loan.totalOverdueAmount.toStringAsFixed(2)} ${loan.currency}',
+                        ),
+                      ],
                     ]),
                     _section(context, 'Destination Account', [
                       _line(
@@ -386,15 +434,28 @@ class AdminLoanDetailsDialog extends StatelessWidget {
                             leading: Icon(
                               item.paid
                                   ? LucideIcons.checkCircle
+                                  : item.isOverdue
+                                  ? LucideIcons.alertTriangle
                                   : LucideIcons.clock3,
+                              color: item.paid
+                                  ? Colors.green
+                                  : item.isOverdue
+                                  ? Colors.red
+                                  : null,
                             ),
                             title: Text(
                               '#${item.number} - ${item.total.toStringAsFixed(2)} ${loan.currency}',
                             ),
                             subtitle: Text(
-                              'Due ${dateFormatter(item.due)} - Principal ${item.principal.toStringAsFixed(2)} - Interest ${item.interest.toStringAsFixed(2)}',
+                              'Due ${dateFormatter(item.due)}${item.isOverdue ? ' - ${item.daysOverdue} days overdue' : ''} - Principal ${item.principal.toStringAsFixed(2)} - Interest ${item.interest.toStringAsFixed(2)}',
                             ),
-                            trailing: Text(item.paid ? 'Paid' : 'Pending'),
+                            trailing: Text(
+                              item.paid
+                                  ? 'Paid'
+                                  : item.isOverdue
+                                  ? 'Overdue'
+                                  : 'Upcoming',
+                            ),
                           );
                         },
                       ),

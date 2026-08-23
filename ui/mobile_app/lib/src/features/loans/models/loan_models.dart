@@ -199,6 +199,8 @@ class LoanModel {
     required this.maturityDateUtc,
     required this.paidInstallments,
     required this.remainingInstallments,
+    this.overdueInstallmentsCount = 0,
+    this.totalOverdueAmount = 0,
     required this.destinationAccountId,
     required this.destinationAccountNumber,
   });
@@ -226,6 +228,9 @@ class LoanModel {
         DateTime.fromMillisecondsSinceEpoch(0),
     paidInstallments: (json['paidInstallments'] as num? ?? 0).toInt(),
     remainingInstallments: (json['remainingInstallments'] as num? ?? 0).toInt(),
+    overdueInstallmentsCount: (json['overdueInstallmentsCount'] as num? ?? 0)
+        .toInt(),
+    totalOverdueAmount: _number(json, 'totalOverdueAmount'),
     destinationAccountId: json['destinationAccountId']?.toString() ?? '',
     destinationAccountNumber:
         json['destinationAccountNumber']?.toString() ?? '',
@@ -243,10 +248,15 @@ class LoanModel {
       monthlyPayment,
       totalRepayment,
       totalPaid;
-  final int termMonths, paidInstallments, remainingInstallments;
+  final int termMonths,
+      paidInstallments,
+      remainingInstallments,
+      overdueInstallmentsCount;
+  final double totalOverdueAmount;
   final DateTime startDateUtc, maturityDateUtc;
   final DateTime? nextPaymentDateUtc;
   bool get isCompleted => status == LoanStatus.completed;
+  bool get hasOverdue => !isCompleted && overdueInstallmentsCount > 0;
 }
 
 class LoanInstallmentModel {
@@ -260,6 +270,8 @@ class LoanInstallmentModel {
     required this.remainingPrincipalAfter,
     required this.status,
     this.paidAtUtc,
+    this.isOverdue = false,
+    this.daysOverdue = 0,
   });
   factory LoanInstallmentModel.fromJson(Map<String, dynamic> json) =>
       LoanInstallmentModel(
@@ -278,6 +290,8 @@ class LoanInstallmentModel {
             ? LoanInstallmentStatus.paid
             : LoanInstallmentStatus.pending,
         paidAtUtc: DateTime.tryParse(json['paidAtUtc']?.toString() ?? ''),
+        isOverdue: json['isOverdue'] == true,
+        daysOverdue: (json['daysOverdue'] as num? ?? 0).toInt(),
       );
   final String id;
   final int installmentNumber;
@@ -288,6 +302,8 @@ class LoanInstallmentModel {
       remainingPrincipalAfter;
   final LoanInstallmentStatus status;
   final DateTime? paidAtUtc;
+  final bool isOverdue;
+  final int daysOverdue;
   bool get isPaid => status == LoanInstallmentStatus.paid;
 }
 
@@ -357,6 +373,8 @@ class LoanPaymentQuoteModel {
     required this.outstandingBefore,
     required this.outstandingAfter,
     required this.isFinalInstallment,
+    this.isOverdue = false,
+    this.daysOverdue = 0,
   });
   factory LoanPaymentQuoteModel.fromJson(Map<String, dynamic> json) =>
       LoanPaymentQuoteModel(
@@ -373,6 +391,8 @@ class LoanPaymentQuoteModel {
         outstandingBefore: _number(json, 'outstandingBefore'),
         outstandingAfter: _number(json, 'outstandingAfter'),
         isFinalInstallment: json['isFinalInstallment'] == true,
+        isOverdue: json['isOverdue'] == true,
+        daysOverdue: (json['daysOverdue'] as num? ?? 0).toInt(),
       );
   final String loanId, installmentId, currency;
   final int installmentNumber;
@@ -383,6 +403,8 @@ class LoanPaymentQuoteModel {
       outstandingBefore,
       outstandingAfter;
   final bool isFinalInstallment;
+  final bool isOverdue;
+  final int daysOverdue;
 }
 
 class LoanPaymentResultModel {

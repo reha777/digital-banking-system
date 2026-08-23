@@ -272,6 +272,78 @@ void main() {
     expect(find.text('No payments yet.'), findsOneWidget);
   });
 
+  testWidgets(
+    'active loan shows backend overdue warning and completed does not',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ActiveLoanCard(
+              loan: _loan(overdue: true),
+              onDetails: () {},
+              onPay: () {},
+            ),
+          ),
+        ),
+      );
+      expect(find.text('Payment overdue'), findsOneWidget);
+      expect(find.text('2 overdue installments'), findsOneWidget);
+      expect(find.text('350.00 BAM overdue'), findsOneWidget);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ActiveLoanCard(
+              loan: _loan(completed: true),
+              onDetails: () {},
+              onPay: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Payment overdue'), findsNothing);
+    },
+  );
+
+  testWidgets('details and payment quote render backend days overdue', (
+    tester,
+  ) async {
+    final repository = _FakeRepository()
+      ..details = _details(overdue: true)
+      ..paymentQuote = _paymentQuote(overdue: true);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LoanDetailsPage(
+          token: 'token',
+          loanId: 'loan',
+          accounts: const [],
+          repository: repository,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.textContaining('Overdue by 5 days'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.textContaining('Overdue by 5 days'), findsOneWidget);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LoanPaymentPage(
+          token: 'token',
+          loan: _loan(overdue: true),
+          accounts: const [],
+          repository: repository,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Overdue installment · 5 days'), findsOneWidget);
+  });
+
   testWidgets('payment filters currency and blocks insufficient balance', (
     tester,
   ) async {
@@ -335,10 +407,10 @@ LoanApplicationModel _application(
   adminNote: note,
 );
 
-LoanModel _loan() => LoanModel(
+LoanModel _loan({bool overdue = false, bool completed = false}) => LoanModel(
   loanId: 'loan',
   applicationId: 'application',
-  status: LoanStatus.active,
+  status: completed ? LoanStatus.completed : LoanStatus.active,
   productName: 'Personal Loan',
   originalPrincipal: 1000,
   outstandingPrincipal: 800,
@@ -353,12 +425,14 @@ LoanModel _loan() => LoanModel(
   maturityDateUtc: DateTime.utc(2027, 2),
   paidInstallments: 1,
   remainingInstallments: 5,
+  overdueInstallmentsCount: overdue ? 2 : 0,
+  totalOverdueAmount: overdue ? 350 : 0,
   destinationAccountId: 'account',
   destinationAccountNumber: '**** 1234',
 );
 
-LoanDetailsModel _details() => LoanDetailsModel(
-  loan: _loan(),
+LoanDetailsModel _details({bool overdue = false}) => LoanDetailsModel(
+  loan: _loan(overdue: overdue),
   installments: [
     LoanInstallmentModel(
       id: '2',
@@ -369,24 +443,29 @@ LoanDetailsModel _details() => LoanDetailsModel(
       interestAmount: 13,
       remainingPrincipalAfter: 638,
       status: LoanInstallmentStatus.pending,
+      isOverdue: overdue,
+      daysOverdue: overdue ? 5 : 0,
     ),
   ],
   payments: const [],
 );
 
-LoanPaymentQuoteModel _paymentQuote() => LoanPaymentQuoteModel(
-  loanId: 'loan',
-  installmentId: '2',
-  installmentNumber: 2,
-  dueDateUtc: DateTime.utc(2026, 9),
-  amount: 175,
-  principalAmount: 162,
-  interestAmount: 13,
-  currency: 'BAM',
-  outstandingBefore: 800,
-  outstandingAfter: 638,
-  isFinalInstallment: false,
-);
+LoanPaymentQuoteModel _paymentQuote({bool overdue = false}) =>
+    LoanPaymentQuoteModel(
+      loanId: 'loan',
+      installmentId: '2',
+      installmentNumber: 2,
+      dueDateUtc: DateTime.utc(2026, 9),
+      amount: 175,
+      principalAmount: 162,
+      interestAmount: 13,
+      currency: 'BAM',
+      outstandingBefore: 800,
+      outstandingAfter: 638,
+      isFinalInstallment: false,
+      isOverdue: overdue,
+      daysOverdue: overdue ? 5 : 0,
+    );
 
 class _FakeRepository implements LoanRepository {
   _FakeRepository({this.products = const []});

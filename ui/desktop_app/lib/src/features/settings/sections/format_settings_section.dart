@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../admin_settings_models.dart';
 import '../widgets/settings_section_card.dart';
+import '../../../widgets/app_dropdown_field.dart';
 
 class FormatSettingsSection extends StatelessWidget {
   const FormatSettingsSection({
@@ -33,7 +34,7 @@ class FormatSettingsSection extends StatelessWidget {
     child: LayoutBuilder(
       builder: (context, constraints) {
         final columns = constraints.maxWidth >= 760
-            ? 4
+            ? 3
             : constraints.maxWidth >= 500
             ? 2
             : 1;
@@ -54,13 +55,6 @@ class FormatSettingsSection extends StatelessWidget {
             ], (v) => onChanged(_copy(time: v))),
             _dropdown(
               width,
-              'First Day of Week',
-              value.firstDayOfWeek,
-              const ['monday', 'sunday'],
-              (v) => onChanged(_copy(week: v)),
-            ),
-            _dropdown(
-              width,
               'Number Format',
               value.numberFormat,
               const ['1,234.56', '1.234,56'],
@@ -79,15 +73,11 @@ class FormatSettingsSection extends StatelessWidget {
     ValueChanged<String> changed,
   ) => SizedBox(
     width: width,
-    child: DropdownButtonFormField<String>(
-      initialValue: value,
-      decoration: InputDecoration(labelText: label),
-      items: values
-          .map((v) => DropdownMenuItem(value: v, child: Text(v)))
-          .toList(),
-      onChanged: (v) {
-        if (v != null) changed(v);
-      },
+    child: AppDropdownField<String>(
+      value: value,
+      label: label,
+      items: values.map((v) => AppDropdownItem(value: v, label: v)).toList(),
+      onChanged: changed,
     ),
   );
 }

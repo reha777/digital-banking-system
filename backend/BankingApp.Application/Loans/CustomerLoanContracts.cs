@@ -21,6 +21,8 @@ public class CustomerLoanResponse
     public DateTime MaturityDateUtc { get; set; }
     public int PaidInstallments { get; set; }
     public int RemainingInstallments { get; set; }
+    public int OverdueInstallmentsCount { get; set; }
+    public decimal TotalOverdueAmount { get; set; }
     public Guid DestinationAccountId { get; set; }
     public string DestinationAccountNumber { get; set; } = string.Empty;
 }
@@ -36,6 +38,8 @@ public class LoanInstallmentResponse
     public decimal RemainingPrincipalAfter { get; set; }
     public LoanInstallmentStatus Status { get; set; }
     public DateTime? PaidAtUtc { get; set; }
+    public bool IsOverdue { get; set; }
+    public int DaysOverdue { get; set; }
 }
 
 public class LoanPaymentHistoryResponse
@@ -70,6 +74,8 @@ public class LoanPaymentQuoteResponse
     public decimal OutstandingBefore { get; set; }
     public decimal OutstandingAfter { get; set; }
     public bool IsFinalInstallment { get; set; }
+    public bool IsOverdue { get; set; }
+    public int DaysOverdue { get; set; }
 }
 
 public class LoanPaymentRequest

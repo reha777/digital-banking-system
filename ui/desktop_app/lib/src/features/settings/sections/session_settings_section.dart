@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/settings_section_card.dart';
+import '../settings_validation.dart';
+import '../../../widgets/app_dropdown_field.dart';
 
 class SessionSettingsSection extends StatelessWidget {
   const SessionSettingsSection({
@@ -43,6 +45,7 @@ class SessionSettingsSection extends StatelessWidget {
                 decoration: const InputDecoration(
                   labelText: 'Session Timeout (minutes)',
                 ),
+                validator: SettingsValidation.timeout,
               ),
             ),
             SizedBox(
@@ -54,37 +57,21 @@ class SessionSettingsSection extends StatelessWidget {
                 decoration: const InputDecoration(
                   labelText: 'Auto Logout Warning (minutes)',
                 ),
+                validator: (value) =>
+                    SettingsValidation.warning(value, controllers[6].text),
               ),
             ),
             SizedBox(
               width: width,
-              child: DropdownButtonFormField<int>(
-                initialValue: itemsPerPage,
-                decoration: const InputDecoration(
-                  labelText: 'Items Per Page (Default)',
-                ),
-                items: const [10, 20, 50]
-                    .map((v) => DropdownMenuItem(value: v, child: Text('$v')))
-                    .toList(),
-                onChanged: (v) {
-                  if (v != null) onItemsChanged(v);
-                },
-              ),
-            ),
-            SizedBox(
-              width: width,
-              child: SwitchListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-                title: const Text(
-                  'Enable Data Caching',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-                ),
-                subtitle: const Text(
-                  'Cache frequently used data.',
-                  style: TextStyle(fontSize: 11),
-                ),
-                value: enableDataCaching,
-                onChanged: onCachingChanged,
+              child: AppDropdownField<int>(
+                value: itemsPerPage,
+                label: 'Items Per Page (Default)',
+                items: const [
+                  AppDropdownItem(value: 10, label: '10'),
+                  AppDropdownItem(value: 20, label: '20'),
+                  AppDropdownItem(value: 50, label: '50'),
+                ],
+                onChanged: onItemsChanged,
               ),
             ),
           ],

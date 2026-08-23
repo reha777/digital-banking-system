@@ -72,6 +72,27 @@ class _LoanPaymentPageState extends State<LoanPaymentPage> {
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     Text('Due ${_date(quote.dueDateUtc)}'),
+                    if (quote.isOverdue) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            LucideIcons.triangleAlert,
+                            color: Colors.red,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Overdue installment · ${quote.daysOverdue} day${quote.daysOverdue == 1 ? '' : 's'}',
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 18),
                     Text(
                       '${formatMoney(quote.amount)} ${quote.currency}',

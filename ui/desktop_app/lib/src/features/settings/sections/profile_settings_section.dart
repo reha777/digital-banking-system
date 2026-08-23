@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../admin_settings_models.dart';
 import '../widgets/settings_section_card.dart';
+import '../../../widgets/app_dropdown_field.dart';
+import '../../../core/api_client.dart';
 
 class ProfileSettingsSection extends StatelessWidget {
   const ProfileSettingsSection({
@@ -9,11 +11,20 @@ class ProfileSettingsSection extends StatelessWidget {
     required this.preferences,
     required this.onPreferencesChanged,
     required this.onChanged,
+    required this.profile,
+    required this.token,
+    required this.onChangePhoto,
+    required this.onRemovePhoto,
+    required this.photoBusy,
   });
   final List<TextEditingController> controllers;
   final AdminPreferences preferences;
   final ValueChanged<AdminPreferences> onPreferencesChanged;
   final VoidCallback onChanged;
+  final AdminProfile profile;
+  final String token;
+  final VoidCallback onChangePhoto, onRemovePhoto;
+  final bool photoBusy;
 
   AdminPreferences _copy({
     String? date,
@@ -78,7 +89,7 @@ class ProfileSettingsSection extends StatelessWidget {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final columns = constraints.maxWidth >= 760
-                ? 4
+                ? 3
                 : constraints.maxWidth >= 500
                 ? 2
                 : 1;
@@ -108,13 +119,6 @@ class ProfileSettingsSection extends StatelessWidget {
                 ),
                 _dropdown(
                   width,
-                  'First Day of Week',
-                  preferences.firstDayOfWeek,
-                  const ['monday', 'sunday'],
-                  (value) => onPreferencesChanged(_copy(week: value)),
-                ),
-                _dropdown(
-                  width,
                   'Number Format',
                   preferences.numberFormat,
                   const ['1,234.56', '1.234,56'],
@@ -137,26 +141,70 @@ class ProfileSettingsSection extends StatelessWidget {
               backgroundColor: Theme.of(
                 context,
               ).colorScheme.primary.withValues(alpha: .1),
-              child: Text(
-                _initials,
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.primary,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
+              child: ClipOval(
+                child: SizedBox.square(
+                  dimension: 84,
+                  child: profile.hasProfilePhoto
+                      ? Image.network(
+                          '${ApiClient.baseUrl}/api/admin/settings/profile/photo?v=${profile.profilePhotoUpdatedAtUtc?.millisecondsSinceEpoch ?? 0}',
+                          headers: {'Authorization': 'Bearer $token'},
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => _initialsFallback(context),
+                        )
+                      : _initialsFallback(context),
                 ),
               ),
             ),
             const SizedBox(width: 18),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(_fullName, style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 4),
-                Text(
-                  'Administrator',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _fullName,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Administrator',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 14),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    children: [
+                      FilledButton.tonalIcon(
+                        onPressed: photoBusy ? null : onChangePhoto,
+                        icon: photoBusy
+                            ? const SizedBox.square(
+                                dimension: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.photo_camera_outlined, size: 18),
+                        label: Text(
+                          profile.hasProfilePhoto
+                              ? 'Replace photo'
+                              : 'Upload photo',
+                        ),
+                      ),
+                      if (profile.hasProfilePhoto)
+                        TextButton.icon(
+                          onPressed: photoBusy ? null : onRemovePhoto,
+                          icon: const Icon(Icons.delete_outline, size: 18),
+                          label: const Text('Remove'),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'JPG or PNG, maximum 2 MB.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -170,6 +218,16 @@ class ProfileSettingsSection extends StatelessWidget {
     controllers[0].text,
     controllers[1].text,
   ].where((v) => v.isNotEmpty).map((v) => v[0].toUpperCase()).join();
+  Widget _initialsFallback(BuildContext context) => Center(
+    child: Text(
+      _initials.isEmpty ? 'A' : _initials,
+      style: TextStyle(
+        color: Theme.of(context).colorScheme.primary,
+        fontSize: 24,
+        fontWeight: FontWeight.w800,
+      ),
+    ),
+  );
   Widget _field(String label, int index, double width, {bool enabled = true}) =>
       SizedBox(
         width: width,
@@ -177,6 +235,11 @@ class ProfileSettingsSection extends StatelessWidget {
           controller: controllers[index],
           enabled: enabled,
           onChanged: (_) => onChanged(),
+          validator: enabled
+              ? (value) => value == null || value.trim().isEmpty
+                    ? '$label is required.'
+                    : null
+              : null,
           decoration: InputDecoration(labelText: label),
         ),
       );
@@ -188,16 +251,13 @@ class ProfileSettingsSection extends StatelessWidget {
     ValueChanged<String> changed,
   ) => SizedBox(
     width: width,
-    child: DropdownButtonFormField<String>(
-      initialValue: value,
-      isExpanded: true,
-      decoration: InputDecoration(labelText: label),
+    child: AppDropdownField<String>(
+      value: value,
+      label: label,
       items: values
-          .map((item) => DropdownMenuItem(value: item, child: Text(item)))
+          .map((item) => AppDropdownItem(value: item, label: item))
           .toList(),
-      onChanged: (selected) {
-        if (selected != null) changed(selected);
-      },
+      onChanged: changed,
     ),
   );
 }

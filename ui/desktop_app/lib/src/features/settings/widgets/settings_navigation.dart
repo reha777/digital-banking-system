@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import '../../../widgets/app_dropdown_field.dart';
 
 enum SettingsSection { general, profile, security }
 
@@ -36,29 +37,26 @@ class SettingsNavigation extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (compact) {
-      return DropdownButtonFormField<SettingsSection>(
-        initialValue: value,
-        decoration: const InputDecoration(labelText: 'Settings section'),
+      return AppDropdownField<SettingsSection>(
+        value: value,
+        label: 'Settings section',
         items: items
             .map(
-              (item) => DropdownMenuItem(
+              (item) => AppDropdownItem(
                 value: item.$1,
-                child: Row(
-                  children: [
-                    Icon(item.$2, size: 18),
-                    const SizedBox(width: 10),
-                    Text(item.$3),
-                  ],
-                ),
+                icon: item.$2,
+                label: item.$3,
               ),
             )
             .toList(),
-        onChanged: (section) {
-          if (section != null) onChanged(section);
-        },
+        onChanged: onChanged,
       );
     }
-    return Card(
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(14),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(10),
         child: Column(
@@ -79,7 +77,7 @@ class SettingsNavigation extends StatelessWidget {
       selectedTileColor: Theme.of(
         context,
       ).colorScheme.primary.withValues(alpha: .08),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       leading: Icon(item.$2, size: 20),
       title: Text(item.$3, style: const TextStyle(fontWeight: FontWeight.w700)),
       subtitle: Text(item.$4, style: const TextStyle(fontSize: 11)),

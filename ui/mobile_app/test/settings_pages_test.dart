@@ -80,6 +80,9 @@ void main() {
     expect(find.text('Customer'), findsOneWidget);
     expect(find.text('Tanya Myroniuk'), findsNothing);
     expect(find.text('Personal Information'), findsOneWidget);
+    expect(find.text('Notifications'), findsOneWidget);
+    expect(find.text('Address'), findsNothing);
+    expect(find.text('API required'), findsOneWidget);
   });
 
   testWidgets('settings navigates to change password', (tester) async {
