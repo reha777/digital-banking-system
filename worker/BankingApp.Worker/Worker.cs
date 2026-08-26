@@ -1,4 +1,6 @@
 using System.Text;
+using System.Security.Cryptography;
+using BankingApp.Infrastructure.Messaging;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
@@ -10,6 +12,7 @@ public sealed class Worker(
     AuditArchiveMessageHandler handler,
     ILogger<Worker> logger) : BackgroundService
 {
+    private readonly MessageRetryPolicy retryPolicy = new();
     private IConnection? connection;
     private IModel? channel;
 
@@ -35,9 +38,12 @@ public sealed class Worker(
         var consumer = new AsyncEventingBasicConsumer(activeChannel);
         consumer.Received += async (_, delivery) =>
         {
+            var messageKey = delivery.BasicProperties.MessageId ??
+                Convert.ToHexString(SHA256.HashData(delivery.Body.Span));
             try
             {
                 var result = await handler.HandleAsync(delivery.Body, stoppingToken);
+                retryPolicy.Clear(messageKey);
                 activeChannel.BasicAck(delivery.DeliveryTag, multiple: false);
                 logger.LogInformation(
                     "Audit archive job {JobId} completed at {Path} with {EntryCount} entries.",
@@ -45,6 +51,7 @@ public sealed class Worker(
             }
             catch (InvalidAuditArchiveMessageException exception)
             {
+                retryPolicy.Clear(messageKey);
                 logger.LogWarning(exception, "Rejecting invalid audit archive message {Body}.",
                     Encoding.UTF8.GetString(delivery.Body.Span));
                 activeChannel.BasicNack(delivery.DeliveryTag, multiple: false, requeue: false);
@@ -55,8 +62,21 @@ public sealed class Worker(
             }
             catch (Exception exception)
             {
+                var retry = retryPolicy.RegisterFailure(messageKey);
+                if (!retry.ShouldRetry)
+                {
+                    retryPolicy.Clear(messageKey);
+                    logger.LogError(exception,
+                        "Audit archive processing failed after {AttemptCount} attempts; rejecting message.",
+                        retry.Attempt);
+                    activeChannel.BasicNack(delivery.DeliveryTag, multiple: false, requeue: false);
+                    return;
+                }
                 logger.LogError(exception,
-                    "Audit archive processing failed; message will be retried.");
+                    "Audit archive processing attempt {AttemptCount} failed; retrying after {DelaySeconds} seconds.",
+                    retry.Attempt,
+                    retry.Delay.TotalSeconds);
+                await Task.Delay(retry.Delay, stoppingToken);
                 activeChannel.BasicNack(delivery.DeliveryTag, multiple: false, requeue: true);
             }
         };
@@ -89,7 +109,7 @@ public sealed class Worker(
                 connection?.Dispose();
                 channel = null;
                 connection = null;
-                var delay = TimeSpan.FromSeconds(Math.Min(attempt * 2, 10));
+                var delay = ExponentialBackoff.GetDelay(attempt);
                 logger.LogWarning(
                     exception,
                     "RabbitMQ connection attempt {AttemptCount} failed. Retrying in {DelaySeconds} seconds.",

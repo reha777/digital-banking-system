@@ -12,6 +12,7 @@ using BankingApp.Domain.Enums;
 using BankingApp.Infrastructure.Authentication;
 using BankingApp.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
 
@@ -209,11 +210,31 @@ namespace BankingApp.Infrastructure.Services
             JwtSecurityToken jwtToken;
             try
             {
-                jwtToken = new JwtSecurityTokenHandler().ReadJwtToken(accessToken);
+                var signingKey = new SymmetricSecurityKey(
+                    Encoding.UTF8.GetBytes(_jwtOptions.Key));
+                var validationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidIssuer = _jwtOptions.Issuer,
+                    ValidateAudience = true,
+                    ValidAudience = _jwtOptions.Audience,
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = signingKey,
+                    RequireSignedTokens = true,
+                    ValidateLifetime = false,
+                    ValidAlgorithms = [SecurityAlgorithms.HmacSha256]
+                };
+                _ = new JwtSecurityTokenHandler().ValidateToken(
+                    accessToken,
+                    validationParameters,
+                    out var validatedToken);
+                jwtToken = validatedToken as JwtSecurityToken
+                    ?? throw new SecurityTokenException("JWT token type is invalid.");
             }
-            catch (ArgumentException)
+            catch (Exception exception) when (
+                exception is ArgumentException or SecurityTokenException)
             {
-                return false;
+                throw new BusinessException("Access token is invalid.");
             }
 
             var tokenId = jwtToken.Claims.FirstOrDefault(claim => claim.Type == JwtRegisteredClaimNames.Jti)?.Value;

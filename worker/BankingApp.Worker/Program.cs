@@ -4,11 +4,15 @@ using Microsoft.EntityFrameworkCore;
 using QuestPDF.Infrastructure;
 using BankingApp.Application.Interfaces;
 using BankingApp.Infrastructure.Services;
+using Microsoft.Extensions.Options;
 
 var builder = Host.CreateApplicationBuilder(args);
 QuestPDF.Settings.License = LicenseType.Community;
-builder.Services.Configure<RabbitMqConsumerOptions>(
-    builder.Configuration.GetSection(RabbitMqConsumerOptions.SectionName));
+builder.Services.AddOptions<RabbitMqConsumerOptions>()
+    .Bind(builder.Configuration.GetSection(RabbitMqConsumerOptions.SectionName))
+    .ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<RabbitMqConsumerOptions>,
+    RabbitMqConsumerOptionsValidator>();
 builder.Services.Configure<AuditArchiveOptions>(
     builder.Configuration.GetSection(AuditArchiveOptions.SectionName));
 builder.Services.Configure<ReportGenerationOptions>(builder.Configuration.GetSection(ReportGenerationOptions.SectionName));

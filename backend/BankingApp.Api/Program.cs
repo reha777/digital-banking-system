@@ -48,7 +48,10 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
-builder.Services.Configure<RabbitMqOptions>(builder.Configuration.GetSection(RabbitMqOptions.SectionName));
+builder.Services.AddOptions<RabbitMqOptions>()
+    .Bind(builder.Configuration.GetSection(RabbitMqOptions.SectionName))
+    .ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<RabbitMqOptions>, RabbitMqOptionsValidator>();
 builder.Services.AddOptions<DemoAuthOptions>()
     .Bind(builder.Configuration.GetSection(DemoAuthOptions.SectionName))
     .ValidateOnStart();
