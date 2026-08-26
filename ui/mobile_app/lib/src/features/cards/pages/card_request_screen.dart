@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/api_client.dart';
 import '../../../core/app_theme.dart';
@@ -115,7 +116,7 @@ class _CardRequestScreenState extends State<CardRequestScreen> {
                   children: [
                     IconButton.filledTonal(
                       onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.arrow_back_ios_new),
+                      icon: const Icon(LucideIcons.arrowLeft),
                       tooltip: 'Back',
                       style: IconButton.styleFrom(
                         backgroundColor: isDark

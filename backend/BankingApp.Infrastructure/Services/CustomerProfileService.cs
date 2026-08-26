@@ -5,13 +5,15 @@ using BankingApp.Domain.Constants;
 using BankingApp.Domain.Entities;
 using BankingApp.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using BankingApp.Application.Auth;
 
 namespace BankingApp.Infrastructure.Services;
 
 public class CustomerProfileService(
     BankingAppDbContext dbContext,
     ICurrentUserService currentUser,
-    IPasswordHasher passwordHasher) : ICustomerProfileService
+    IPasswordHasher passwordHasher,
+    IFileValidationService? fileValidationService = null) : ICustomerProfileService
 {
     public const int MaximumProfilePhotoSizeBytes = 2 * 1024 * 1024;
     private static readonly string[] AllowedPhotoTypes = ["image/jpeg", "image/png"];
@@ -40,6 +42,7 @@ public class CustomerProfileService(
         {
             throw new BusinessException("Current password is incorrect.");
         }
+        if (request.NewPassword.Length < PasswordPolicy.MinimumLength) throw new BusinessException("New password does not meet the password requirements.");
 
         customer.PasswordHash = passwordHasher.Hash(request.NewPassword);
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -49,17 +52,11 @@ public class CustomerProfileService(
         CustomerProfilePhotoUploadRequest request,
         CancellationToken cancellationToken = default)
     {
-        if (request.Content.Length == 0)
-            throw new BusinessException("Profile photo cannot be empty.");
-        if (request.Content.Length > MaximumProfilePhotoSizeBytes)
-            throw new BusinessException("Profile photo cannot be larger than 2 MB.");
-        if (!AllowedPhotoTypes.Contains(request.ContentType, StringComparer.OrdinalIgnoreCase) ||
-            !HasValidImageSignature(request.Content, request.ContentType))
-            throw new BusinessException("Only JPG and PNG profile photos are allowed.");
+        var contentType = (fileValidationService ?? new FileValidationService()).ValidateProfileImage(request.ContentType, request.Content, MaximumProfilePhotoSizeBytes);
 
         var customer = await GetCustomerAsync(cancellationToken);
         customer.ProfilePhoto = request.Content;
-        customer.ProfilePhotoContentType = request.ContentType.ToLowerInvariant();
+        customer.ProfilePhotoContentType = contentType;
         customer.ProfilePhotoUpdatedAtUtc = DateTime.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
         return ToResponse(customer);
@@ -74,11 +71,6 @@ public class CustomerProfileService(
             throw new NotFoundException("Profile photo was not found.");
         return new(customer.ProfilePhoto, customer.ProfilePhotoContentType);
     }
-
-    private static bool HasValidImageSignature(byte[] content, string contentType) =>
-        contentType.Equals("image/png", StringComparison.OrdinalIgnoreCase)
-            ? content.Length >= 8 && content.AsSpan(0, 8).SequenceEqual(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 })
-            : content.Length >= 3 && content[0] == 0xFF && content[1] == 0xD8 && content[2] == 0xFF;
 
     private async Task<User> GetCustomerAsync(CancellationToken cancellationToken) =>
         await dbContext.Users.SingleOrDefaultAsync(

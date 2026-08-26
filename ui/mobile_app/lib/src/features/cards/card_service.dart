@@ -10,12 +10,15 @@ class CardService {
   final ApiClient _apiClient;
 
   Future<List<BankCardModel>> getMyCards(String token) async {
-    final json = await _apiClient.getJsonList(
-      MobileApiEndpoints.cards,
+    final json = await _apiClient.getJson(
+      '${MobileApiEndpoints.cards}?page=1&pageSize=100',
       token: token,
     );
-
-    return json.map(BankCardModel.fromJson).toList();
+    final items = json['items'];
+    if (items is! List) return [];
+    return items
+        .map((item) => BankCardModel.fromJson(item as Map<String, dynamic>))
+        .toList();
   }
 
   Future<CardRequestModel> createRequest({

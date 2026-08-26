@@ -8,10 +8,16 @@ class RecentTransactions extends StatelessWidget {
     super.key,
     required this.transactions,
     required this.onSeeAll,
+    this.loading = false,
+    this.error,
+    this.onRetry,
   });
 
   final List<BankTransaction> transactions;
   final VoidCallback onSeeAll;
+  final bool loading;
+  final String? error;
+  final Future<void> Function()? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -20,15 +26,53 @@ class RecentTransactions extends StatelessWidget {
       children: [
         Row(
           children: [
-            Text('Transaction', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              'Recent transactions',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const Spacer(),
             TextButton(onPressed: onSeeAll, child: const Text('See All')),
           ],
         ),
-        if (transactions.isEmpty)
+        if (loading)
           const Padding(
-            padding: EdgeInsets.symmetric(vertical: 24),
-            child: Text('No transactions yet.'),
+            padding: EdgeInsets.symmetric(vertical: 28),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (error != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 18),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Text('Transactions could not be loaded.'),
+                ),
+                TextButton(onPressed: onRetry, child: const Text('Retry')),
+              ],
+            ),
+          )
+        else if (transactions.isEmpty)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(top: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainer,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.receipt_long_outlined,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'No transactions yet',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            ),
           )
         else
           ...transactions.map(

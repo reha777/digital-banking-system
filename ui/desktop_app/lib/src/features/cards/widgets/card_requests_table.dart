@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/app_theme.dart';
+import '../../../widgets/app_table_row_hover.dart';
 import '../../../widgets/app_pagination.dart';
 import '../../../widgets/app_status_badge.dart';
 import '../admin_card_request_models.dart';
@@ -116,57 +117,59 @@ class _DesktopRow extends StatelessWidget {
   final String Function(DateTime) dateFormatter;
   final ValueChanged<AdminCardRequest> onDetails;
   @override
-  Widget build(BuildContext context) => Container(
-    constraints: const BoxConstraints(minHeight: 76),
-    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-    color: _surface(context),
-    child: Row(
-      children: [
-        _Cell('${index.toString().padLeft(2, '0')}.', 1),
-        Expanded(
-          flex: 4,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                request.customerName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w800),
-              ),
-              Text(
-                request.customerEmail,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
-          ),
-        ),
-        _Cell('${request.currency} card for ${request.cardholderName}', 3),
-        _Cell(_shorten(request.documentNumber, 18), 3),
-        _Cell(_shorten(request.deliveryAddress, 30), 4),
-        _Cell(dateFormatter(request.createdAtUtc), 2),
-        Expanded(
-          flex: 2,
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: AppStatusBadge(status: request.status),
-          ),
-        ),
-        Expanded(
-          flex: 4,
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: OutlinedButton.icon(
-              onPressed: () => onDetails(request),
-              icon: const Icon(LucideIcons.eye, size: 18),
-              label: const Text('Details'),
+  Widget build(BuildContext context) => AppTableRowHover(
+    child: Container(
+      constraints: const BoxConstraints(minHeight: 76),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+      color: _surface(context),
+      child: Row(
+        children: [
+          _Cell('${index.toString().padLeft(2, '0')}.', 1),
+          Expanded(
+            flex: 4,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  request.customerName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                Text(
+                  request.customerEmail,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
             ),
           ),
-        ),
-      ],
+          _Cell('${request.currency} card for ${request.cardholderName}', 3),
+          _Cell(_shorten(request.documentNumber, 18), 3),
+          _Cell(_shorten(request.deliveryAddress, 30), 4),
+          _Cell(dateFormatter(request.createdAtUtc), 2),
+          Expanded(
+            flex: 2,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: AppStatusBadge(status: request.status),
+            ),
+          ),
+          Expanded(
+            flex: 4,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: () => onDetails(request),
+                icon: const Icon(LucideIcons.eye, size: 18),
+                label: const Text('Details'),
+              ),
+            ),
+          ),
+        ],
+      ),
     ),
   );
 }

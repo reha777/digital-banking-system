@@ -72,6 +72,15 @@ void main() {
       expect(find.text('Account **** 1234'), findsOneWidget);
       expect(find.text('Account **** 9999'), findsNothing);
       expect(find.text('Continue'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('loan-purpose-picker')));
+      await tester.pumpAndSettle();
+      expect(find.text('Choose loan purpose'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('loan-purpose-purpose')),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const ValueKey('loan-purpose-purpose')));
+      await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), '1000');
       await tester.pump(const Duration(milliseconds: 360));
       await tester.pumpAndSettle();
@@ -112,6 +121,62 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Pending'), findsOneWidget);
     expect(find.text('Apply Again'), findsNothing);
+  });
+
+  testWidgets('landing highlights recommendation with reasons and disclaimer', (
+    tester,
+  ) async {
+    final session = AuthSession(ApiClient())..token = 'token';
+    final repository = _FakeRepository(products: const [product])
+      ..recommendations = const LoanRecommendationsModel(
+        canApply: true,
+        disclaimer:
+            'Recommendation is informational and does not represent loan approval.',
+        recommendations: [
+          LoanRecommendationModel(
+            productId: 'product',
+            productName: 'API Personal Loan',
+            score: 88,
+            rank: 1,
+            reasons: [
+              'Matches your EUR account',
+              'Offers flexible repayment terms',
+            ],
+            currency: 'EUR',
+            interestRate: 5.75,
+            minAmount: 500,
+            maxAmount: 25000,
+            minTermMonths: 6,
+            maxTermMonths: 18,
+          ),
+        ],
+      );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LoansPage(
+          session: session,
+          repository: repository,
+          accountsLoader: (_) async =>
+              const AccountBalanceSummary(totals: [], accounts: []),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Recommended for you'), findsOneWidget);
+    expect(find.text('Matches your EUR account'), findsOneWidget);
+    expect(
+      find.textContaining('does not represent loan approval'),
+      findsOneWidget,
+    );
+    expect(find.widgetWithText(FilledButton, 'Apply'), findsOneWidget);
+  });
+
+  test('recommendation contract rejects missing required fields', () {
+    expect(
+      () => LoanRecommendationModel.fromJson(const {'productId': 'p'}),
+      throwsFormatException,
+    );
   });
 
   testWidgets('rejected landing supports Apply Again while approved does not', (
@@ -240,7 +305,92 @@ void main() {
     expect(find.text('800.00 BAM'), findsOneWidget);
     expect(find.text('View Details'), findsOneWidget);
     expect(find.text('Pay Installment'), findsOneWidget);
+    expect(find.text('Apply for another Loan'), findsNothing);
   });
+
+  testWidgets(
+    'completed loan with approved history enters recommended application mode',
+    (tester) async {
+      final session = AuthSession(ApiClient())..token = 'token';
+      final repository = _FakeRepository(products: const [product])
+        ..current = _application(LoanApplicationStatus.approved)
+        ..recentLoan = _loan(completed: true)
+        ..recommendations = const LoanRecommendationsModel(
+          canApply: true,
+          disclaimer:
+              'Recommendation is informational and does not represent loan approval.',
+          recommendations: [
+            LoanRecommendationModel(
+              productId: 'product',
+              productName: 'API Personal Loan',
+              score: 88,
+              rank: 1,
+              reasons: ['Matches your EUR account'],
+              currency: 'EUR',
+              interestRate: 5.75,
+              minAmount: 500,
+              maxAmount: 25000,
+              minTermMonths: 6,
+              maxTermMonths: 18,
+            ),
+          ],
+        );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: LoansPage(
+            session: session,
+            repository: repository,
+            accountsLoader: (_) async =>
+                const AccountBalanceSummary(totals: [], accounts: []),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Completed Loan'), findsOneWidget);
+      expect(find.text('Apply for another Loan'), findsOneWidget);
+      expect(find.text('Approved'), findsNothing);
+
+      await tester.tap(find.text('Apply for another Loan'));
+      await tester.pump();
+
+      expect(find.text('Recommended for you'), findsOneWidget);
+      expect(find.text('API Personal Loan'), findsWidgets);
+      expect(find.text('Approved'), findsNothing);
+      expect(find.text('Completed Loan'), findsNothing);
+
+      await tester.tap(find.byTooltip('Back'));
+      await tester.pump();
+      expect(find.text('Completed Loan'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'pending application takes priority over completed loan history',
+    (tester) async {
+      final session = AuthSession(ApiClient())..token = 'token';
+      final repository = _FakeRepository(products: const [product])
+        ..current = _application(LoanApplicationStatus.pending)
+        ..recentLoan = _loan(completed: true);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: LoansPage(
+            session: session,
+            repository: repository,
+            accountsLoader: (_) async =>
+                const AccountBalanceSummary(totals: [], accounts: []),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Pending'), findsOneWidget);
+      expect(find.text('Completed Loan'), findsNothing);
+      expect(find.text('Apply for another Loan'), findsNothing);
+    },
+  );
 
   testWidgets('loan details renders schedule and empty history', (
     tester,
@@ -270,6 +420,78 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     expect(find.text('No payments yet.'), findsOneWidget);
+  });
+
+  testWidgets(
+    'active loan shows backend overdue warning and completed does not',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ActiveLoanCard(
+              loan: _loan(overdue: true),
+              onDetails: () {},
+              onPay: () {},
+            ),
+          ),
+        ),
+      );
+      expect(find.text('Payment overdue'), findsOneWidget);
+      expect(find.text('2 overdue installments'), findsOneWidget);
+      expect(find.text('350.00 BAM overdue'), findsOneWidget);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ActiveLoanCard(
+              loan: _loan(completed: true),
+              onDetails: () {},
+              onPay: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Payment overdue'), findsNothing);
+    },
+  );
+
+  testWidgets('details and payment quote render backend days overdue', (
+    tester,
+  ) async {
+    final repository = _FakeRepository()
+      ..details = _details(overdue: true)
+      ..paymentQuote = _paymentQuote(overdue: true);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LoanDetailsPage(
+          token: 'token',
+          loanId: 'loan',
+          accounts: const [],
+          repository: repository,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.textContaining('Overdue by 5 days'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.textContaining('Overdue by 5 days'), findsOneWidget);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LoanPaymentPage(
+          token: 'token',
+          loan: _loan(overdue: true),
+          accounts: const [],
+          repository: repository,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Overdue installment · 5 days'), findsOneWidget);
   });
 
   testWidgets('payment filters currency and blocks insufficient balance', (
@@ -335,10 +557,10 @@ LoanApplicationModel _application(
   adminNote: note,
 );
 
-LoanModel _loan() => LoanModel(
+LoanModel _loan({bool overdue = false, bool completed = false}) => LoanModel(
   loanId: 'loan',
   applicationId: 'application',
-  status: LoanStatus.active,
+  status: completed ? LoanStatus.completed : LoanStatus.active,
   productName: 'Personal Loan',
   originalPrincipal: 1000,
   outstandingPrincipal: 800,
@@ -353,12 +575,14 @@ LoanModel _loan() => LoanModel(
   maturityDateUtc: DateTime.utc(2027, 2),
   paidInstallments: 1,
   remainingInstallments: 5,
+  overdueInstallmentsCount: overdue ? 2 : 0,
+  totalOverdueAmount: overdue ? 350 : 0,
   destinationAccountId: 'account',
   destinationAccountNumber: '**** 1234',
 );
 
-LoanDetailsModel _details() => LoanDetailsModel(
-  loan: _loan(),
+LoanDetailsModel _details({bool overdue = false}) => LoanDetailsModel(
+  loan: _loan(overdue: overdue),
   installments: [
     LoanInstallmentModel(
       id: '2',
@@ -369,24 +593,29 @@ LoanDetailsModel _details() => LoanDetailsModel(
       interestAmount: 13,
       remainingPrincipalAfter: 638,
       status: LoanInstallmentStatus.pending,
+      isOverdue: overdue,
+      daysOverdue: overdue ? 5 : 0,
     ),
   ],
   payments: const [],
 );
 
-LoanPaymentQuoteModel _paymentQuote() => LoanPaymentQuoteModel(
-  loanId: 'loan',
-  installmentId: '2',
-  installmentNumber: 2,
-  dueDateUtc: DateTime.utc(2026, 9),
-  amount: 175,
-  principalAmount: 162,
-  interestAmount: 13,
-  currency: 'BAM',
-  outstandingBefore: 800,
-  outstandingAfter: 638,
-  isFinalInstallment: false,
-);
+LoanPaymentQuoteModel _paymentQuote({bool overdue = false}) =>
+    LoanPaymentQuoteModel(
+      loanId: 'loan',
+      installmentId: '2',
+      installmentNumber: 2,
+      dueDateUtc: DateTime.utc(2026, 9),
+      amount: 175,
+      principalAmount: 162,
+      interestAmount: 13,
+      currency: 'BAM',
+      outstandingBefore: 800,
+      outstandingAfter: 638,
+      isFinalInstallment: false,
+      isOverdue: overdue,
+      daysOverdue: overdue ? 5 : 0,
+    );
 
 class _FakeRepository implements LoanRepository {
   _FakeRepository({this.products = const []});
@@ -397,6 +626,19 @@ class _FakeRepository implements LoanRepository {
   LoanModel? recentLoan;
   LoanDetailsModel? details;
   LoanPaymentQuoteModel? paymentQuote;
+  @override
+  Future<List<LoanPurposeModel>> getLoanPurposes(String token) async => const [
+    LoanPurposeModel(id: 'purpose', code: 'GENERAL', name: 'General purpose'),
+  ];
+  LoanRecommendationsModel recommendations = const LoanRecommendationsModel(
+    canApply: true,
+    disclaimer:
+        'Recommendation is informational and does not represent loan approval.',
+    recommendations: [],
+  );
+  @override
+  Future<LoanRecommendationsModel> getRecommendations(String token) async =>
+      recommendations;
   @override
   Future<LoanModel?> getCurrentLoan(String token) async => currentLoan;
   @override
@@ -413,6 +655,7 @@ class _FakeRepository implements LoanRepository {
     String loanId, {
     required String sourceAccountId,
     required String clientRequestId,
+    String? loanPurposeId,
   }) => throw UnimplementedError();
   @override
   Future<LoanQuoteModel> getQuote(
@@ -449,5 +692,6 @@ class _FakeRepository implements LoanRepository {
     required double principal,
     required int termMonths,
     required String clientRequestId,
+    String? loanPurposeId,
   }) async => _application(LoanApplicationStatus.pending);
 }

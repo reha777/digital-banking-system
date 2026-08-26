@@ -1,7 +1,10 @@
 using BankingApp.Application.Common.Exceptions;
+using BankingApp.Application.Common.Pagination;
 using BankingApp.Application.Interfaces;
 using BankingApp.Application.Loans;
+using BankingApp.Application.Notifications;
 using BankingApp.Domain.Entities;
+using BankingApp.Domain.Constants;
 using BankingApp.Domain.Enums;
 using BankingApp.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -12,19 +15,33 @@ namespace BankingApp.Infrastructure.Services;
 public class LoanService(
     BankingAppDbContext dbContext,
     ICurrentUserService currentUserService,
-    ILoanCalculationService calculationService) : ILoanService
+    ILoanCalculationService calculationService,
+    INotificationWriter? notificationWriter = null) : ILoanService
 {
-    public async Task<IReadOnlyCollection<LoanProductResponse>> GetActiveProductsAsync(
+    public async Task<PagedResult<LoanProductResponse>> GetActiveProductsAsync(
+        PagedRequest request,
         CancellationToken cancellationToken = default)
     {
         EnsureCustomer();
-        return await dbContext.LoanProducts
+        var query = dbContext.LoanProducts
             .AsNoTracking()
-            .Where(product => product.IsActive)
+            .Where(product => product.IsActive);
+        var total = await query.CountAsync(cancellationToken);
+        var items = await query
             .OrderBy(product => product.Currency)
             .ThenBy(product => product.Name)
+            .ThenBy(product => product.Id)
+            .Skip((request.Page - 1) * request.PageSize)
+            .Take(request.PageSize)
             .Select(product => ToResponse(product))
             .ToListAsync(cancellationToken);
+        return new PagedResult<LoanProductResponse>
+        {
+            Items = items,
+            Page = request.Page,
+            PageSize = request.PageSize,
+            TotalCount = total
+        };
     }
 
     public async Task<LoanQuoteResponse> QuoteAsync(
@@ -104,12 +121,23 @@ public class LoanService(
             value.Status == LoanStatus.Active, cancellationToken))
             throw new BusinessException("Novi Loan application nije moguc dok postoji aktivan Loan.");
 
+        var purpose = request.LoanPurposeId.HasValue
+            ? await dbContext.ReferenceDataItems.AsNoTracking().SingleOrDefaultAsync(value =>
+                value.Id == request.LoanPurposeId && value.Type == "loan-purposes" && value.IsActive,
+                cancellationToken)
+            : await dbContext.ReferenceDataItems.AsNoTracking().SingleOrDefaultAsync(value =>
+                value.Type == "loan-purposes" && value.Code == "GENERAL" && value.IsActive,
+                cancellationToken);
+        if (request.LoanPurposeId.HasValue && purpose is null)
+            throw new BusinessException("Odabrana svrha kredita nije dostupna.");
+
         var application = new LoanApplication
         {
             Id = Guid.NewGuid(),
             UserId = currentUserService.UserId,
             LoanProductId = product.Id,
             DestinationAccountId = destination.Id,
+            LoanPurposeId = purpose?.Id,
             Principal = calculation.Principal,
             Currency = product.Currency,
             AnnualInterestRateSnapshot = product.AnnualInterestRate,
@@ -122,6 +150,8 @@ public class LoanService(
             ClientRequestId = request.ClientRequestId
         };
         dbContext.LoanApplications.Add(application);
+        if (notificationWriter is not null)
+            await notificationWriter.AddForAdminsAsync(new NotificationCreate(Guid.Empty, NotificationType.NewLoanApplication, "New loan application", "A customer submitted a new loan application.", NotificationEntityTypes.LoanApplication, application.Id), cancellationToken);
         try
         {
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -189,13 +219,16 @@ public class LoanService(
             .Include(value => value.Payments).ThenInclude(value => value.Transaction)
             .SingleOrDefaultAsync(value =>
                 value.Id == loanId && value.UserId == currentUserService.UserId,
-                cancellationToken)
+            cancellationToken)
             ?? throw new NotFoundException("Loan nije pronadjen.");
+        var nowUtc = DateTime.UtcNow;
         return new LoanDetailsResponse
         {
             Loan = ToLoanResponse(loan),
             Installments = loan.Installments.OrderBy(value => value.InstallmentNumber).Select(value =>
-                new LoanInstallmentResponse
+            {
+                var overdue = LoanOverdueCalculator.Calculate(value.Status, value.DueDateUtc, nowUtc);
+                return new LoanInstallmentResponse
                 {
                     Id = value.Id,
                     InstallmentNumber = value.InstallmentNumber,
@@ -205,8 +238,11 @@ public class LoanService(
                     InterestAmount = value.InterestAmount,
                     RemainingPrincipalAfter = value.RemainingPrincipalAfter,
                     Status = value.Status,
-                    PaidAtUtc = value.PaidAtUtc
-                }).ToList(),
+                    PaidAtUtc = value.PaidAtUtc,
+                    IsOverdue = overdue.IsOverdue,
+                    DaysOverdue = overdue.DaysOverdue
+                };
+            }).ToList(),
             Payments = loan.Payments.OrderByDescending(value => value.PaidAtUtc).Select(value =>
                 new LoanPaymentHistoryResponse
                 {
@@ -234,7 +270,7 @@ public class LoanService(
             throw new BusinessException("Samo aktivan Loan moze biti otplacen.");
         var installment = loan.Installments
             .Where(value => value.Status == LoanInstallmentStatus.Pending)
-            .OrderBy(value => value.InstallmentNumber)
+            .OrderBy(value => value.DueDateUtc)
             .FirstOrDefault() ?? throw new BusinessException("Loan nema neplacenih rata.");
         return ToPaymentQuote(loan, installment);
     }
@@ -279,7 +315,7 @@ public class LoanService(
                     throw new BusinessException("Samo aktivan Loan moze biti otplacen.");
                 var installment = loan.Installments
                     .Where(value => value.Status == LoanInstallmentStatus.Pending)
-                    .OrderBy(value => value.InstallmentNumber)
+                    .OrderBy(value => value.DueDateUtc)
                     .FirstOrDefault() ?? throw new BusinessException("Loan nema neplacenih rata.");
                 if (installment.LoanPaymentId.HasValue ||
                     await dbContext.LoanPayments.AnyAsync(value => value.LoanInstallmentId == installment.Id, cancellationToken))
@@ -307,6 +343,7 @@ public class LoanService(
                     ReferenceNumber = reference,
                     Amount = -installment.ScheduledAmount,
                     Type = TransactionType.LoanRepayment,
+                    TransactionCategoryId = ReferenceDataIds.LoanTransactionCategory,
                     Description = $"Loan installment #{installment.InstallmentNumber} repayment",
                     Status = TransactionStatus.Completed,
                     CreatedAtUtc = now
@@ -340,7 +377,7 @@ public class LoanService(
                 loan.TotalPaid = decimal.Round(loan.TotalPaid + installment.ScheduledAmount, 2);
                 var next = loan.Installments
                     .Where(value => value.Id != installment.Id && value.Status == LoanInstallmentStatus.Pending)
-                    .OrderBy(value => value.InstallmentNumber)
+                    .OrderBy(value => value.DueDateUtc)
                     .FirstOrDefault();
                 if (next is null)
                 {
@@ -418,7 +455,8 @@ public class LoanService(
     private IQueryable<LoanApplication> ApplicationQuery() => dbContext.LoanApplications
         .AsNoTracking()
         .Include(value => value.LoanProduct)
-        .Include(value => value.DestinationAccount);
+        .Include(value => value.DestinationAccount)
+        .Include(value => value.LoanPurpose);
 
     private IQueryable<Loan> LoanQuery() => dbContext.Loans
         .AsNoTracking()
@@ -436,8 +474,14 @@ public class LoanService(
 
     private static CustomerLoanResponse ToLoanResponse(Loan value)
     {
+        var nowUtc = DateTime.UtcNow;
         var paid = value.Installments.Count(item => item.Status == LoanInstallmentStatus.Paid);
         var remaining = value.Installments.Count(item => item.Status == LoanInstallmentStatus.Pending);
+        if (value.Status == LoanStatus.Completed && remaining > 0)
+            throw new BusinessException("Completed Loan sadrzi neplacene rate.");
+        var overdue = value.Installments
+            .Where(item => LoanOverdueCalculator.Calculate(item.Status, item.DueDateUtc, nowUtc).IsOverdue)
+            .ToList();
         return new CustomerLoanResponse
         {
             LoanId = value.Id,
@@ -457,25 +501,36 @@ public class LoanService(
             MaturityDateUtc = value.MaturityDateUtc,
             PaidInstallments = paid,
             RemainingInstallments = remaining,
+            OverdueInstallmentsCount = overdue.Count,
+            TotalOverdueAmount = overdue.Sum(item => item.ScheduledAmount),
             DestinationAccountId = value.DestinationAccountId,
             DestinationAccountNumber = MaskAccount(value.DestinationAccount.AccountNumber)
         };
     }
 
-    private static LoanPaymentQuoteResponse ToPaymentQuote(Loan loan, LoanInstallment installment) => new()
+    private static LoanPaymentQuoteResponse ToPaymentQuote(Loan loan, LoanInstallment installment)
     {
-        LoanId = loan.Id,
-        InstallmentId = installment.Id,
-        InstallmentNumber = installment.InstallmentNumber,
-        DueDateUtc = installment.DueDateUtc,
-        Amount = installment.ScheduledAmount,
-        PrincipalAmount = installment.PrincipalAmount,
-        InterestAmount = installment.InterestAmount,
-        Currency = loan.Currency,
-        OutstandingBefore = loan.OutstandingPrincipal,
-        OutstandingAfter = decimal.Max(0m, decimal.Round(loan.OutstandingPrincipal - installment.PrincipalAmount, 2)),
-        IsFinalInstallment = loan.Installments.Count(value => value.Status == LoanInstallmentStatus.Pending) == 1
-    };
+        var overdue = LoanOverdueCalculator.Calculate(
+            installment.Status,
+            installment.DueDateUtc,
+            DateTime.UtcNow);
+        return new LoanPaymentQuoteResponse
+        {
+            LoanId = loan.Id,
+            InstallmentId = installment.Id,
+            InstallmentNumber = installment.InstallmentNumber,
+            DueDateUtc = installment.DueDateUtc,
+            Amount = installment.ScheduledAmount,
+            PrincipalAmount = installment.PrincipalAmount,
+            InterestAmount = installment.InterestAmount,
+            Currency = loan.Currency,
+            OutstandingBefore = loan.OutstandingPrincipal,
+            OutstandingAfter = decimal.Max(0m, decimal.Round(loan.OutstandingPrincipal - installment.PrincipalAmount, 2)),
+            IsFinalInstallment = loan.Installments.Count(value => value.Status == LoanInstallmentStatus.Pending) == 1,
+            IsOverdue = overdue.IsOverdue,
+            DaysOverdue = overdue.DaysOverdue
+        };
+    }
 
     private static LoanPaymentResultResponse ToPaymentResult(LoanPayment value) => new()
     {
@@ -500,6 +555,8 @@ public class LoanService(
         ProductName = value.LoanProduct.Name,
         DestinationAccountId = value.DestinationAccountId,
         DestinationAccountNumber = MaskAccount(value.DestinationAccount.AccountNumber),
+        LoanPurposeId = value.LoanPurposeId,
+        LoanPurposeName = value.LoanPurpose?.Name,
         Principal = value.Principal,
         Currency = value.Currency,
         AnnualInterestRate = value.AnnualInterestRateSnapshot,

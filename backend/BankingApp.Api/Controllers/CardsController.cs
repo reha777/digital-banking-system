@@ -2,6 +2,7 @@ using BankingApp.Application.Cards;
 using BankingApp.Application.Common.Pagination;
 using BankingApp.Application.Interfaces;
 using BankingApp.Domain.Constants;
+using BankingApp.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -13,10 +14,11 @@ namespace BankingApp.Api.Controllers
     public class CardsController(ICardService cardService) : ControllerBase
     {
         [HttpGet("my")]
-        public async Task<ActionResult<IReadOnlyCollection<CardResponse>>> GetMyCards(
+        public async Task<ActionResult<PagedResult<CardResponse>>> GetMyCards(
+            [FromQuery] PagedRequest request,
             CancellationToken cancellationToken)
         {
-            var response = await cardService.GetMyCardsAsync(cancellationToken);
+            var response = await cardService.GetMyCardsAsync(request, cancellationToken);
             return Ok(response);
         }
 
@@ -57,6 +59,7 @@ namespace BankingApp.Api.Controllers
         }
 
         [HttpPost("requests/{id:guid}/documents")]
+        [RequestSizeLimit(FileValidationService.MaximumDocumentSizeBytes + 64 * 1024)]
         public async Task<ActionResult<CardRequestResponse>> UploadDocument(
             Guid id,
             IFormFile file,
@@ -169,5 +172,17 @@ namespace BankingApp.Api.Controllers
 
             return File(response.Content, response.ContentType, response.FileName);
         }
+    }
+
+    [ApiController]
+    [Authorize(Roles = AppRoles.Admin)]
+    [Route("api/admin/cards")]
+    public class AdminCardsController(ICardService cardService) : ControllerBase
+    {
+        [HttpGet]
+        public async Task<ActionResult<PagedResult<AdminIssuedCardResponse>>> Get(
+            [FromQuery] AdminIssuedCardQueryRequest request,
+            CancellationToken cancellationToken) =>
+            Ok(await cardService.GetIssuedCardsAsync(request, cancellationToken));
     }
 }

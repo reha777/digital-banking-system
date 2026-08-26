@@ -5,6 +5,7 @@ namespace BankingApp.Application.Loans;
 
 public class AdminLoanApplicationQueryRequest : PagedRequest
 {
+    public Guid? CustomerId { get; set; }
     public string? Search { get; set; }
     public LoanApplicationStatus? Status { get; set; }
     public DateTime? DateFromUtc { get; set; }
@@ -34,6 +35,8 @@ public class AdminLoanApplicationDetailsResponse
     public DateTime SubmittedAtUtc { get; set; }
     public DateTime? ReviewedAtUtc { get; set; }
     public string? AdminNote { get; set; }
+    public Guid? LoanPurposeId { get; set; }
+    public string? LoanPurposeName { get; set; }
     public AdminLoanCustomerResponse Customer { get; set; } = new();
     public AdminLoanProductResponse Product { get; set; } = new();
     public AdminLoanDestinationAccountResponse DestinationAccount { get; set; } = new();
@@ -90,10 +93,12 @@ public class AdminLoanReviewRequest
 
 public class AdminLoanQueryRequest : PagedRequest
 {
+    public Guid? CustomerId { get; set; }
     public LoanStatus? Status { get; set; }
     public string? Search { get; set; }
     public DateTime? DateFromUtc { get; set; }
     public DateTime? DateToUtc { get; set; }
+    public bool? OverdueOnly { get; set; }
 }
 
 public class AdminLoanListItemResponse
@@ -118,6 +123,9 @@ public class AdminLoanListItemResponse
     public LoanStatus Status { get; set; }
     public int PaidInstallments { get; set; }
     public int RemainingInstallments { get; set; }
+    public int OverdueInstallmentsCount { get; set; }
+    public decimal TotalOverdueAmount { get; set; }
+    public DateTime? OldestOverdueDateUtc { get; set; }
 }
 
 public class AdminLoanDetailsResponse : AdminLoanListItemResponse
@@ -148,5 +156,6 @@ public class AdminLoansOverviewResponse
     public int PendingApplications { get; set; }
     public int ActiveLoans { get; set; }
     public int CompletedLoans { get; set; }
+    public int LoansWithOverduePayments { get; set; }
     public IReadOnlyCollection<AdminLoanCurrencySummaryResponse> Currencies { get; set; } = [];
 }

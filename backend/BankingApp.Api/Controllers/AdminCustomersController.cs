@@ -30,6 +30,12 @@ namespace BankingApp.Api.Controllers
             return Ok(response);
         }
 
+        [HttpGet("{id:guid}")]
+        public async Task<ActionResult<AdminCustomerDetailsResponse>> GetDetails(
+            Guid id,
+            CancellationToken cancellationToken) =>
+            Ok(await customerService.GetDetailsAsync(id, cancellationToken));
+
         [HttpPut("{id:guid}")]
         public async Task<ActionResult<CustomerResponse>> Update(
             Guid id,

@@ -1,17 +1,22 @@
 using BankingApp.Application.Common.Exceptions;
 using BankingApp.Application.Interfaces;
 using BankingApp.Application.Settings;
+using BankingApp.Application.AuditLogs;
 using BankingApp.Domain.Entities;
 using BankingApp.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using BankingApp.Application.Auth;
 
 namespace BankingApp.Infrastructure.Services;
 
 public class AdminSettingsService(
     BankingAppDbContext dbContext,
     ICurrentUserService currentUser,
-    IPasswordHasher passwordHasher) : IAdminSettingsService
+    IPasswordHasher passwordHasher,
+    IAuditLogService? auditLogService = null,
+    IFileValidationService? fileValidationService = null) : IAdminSettingsService
 {
+    public const int MaximumProfilePhotoSizeBytes = 2 * 1024 * 1024;
     public async Task<AdminSettingsResponse> GetAsync(CancellationToken cancellationToken = default)
     {
         var system = await GetOrCreateSystemAsync(cancellationToken);
@@ -36,6 +41,8 @@ public class AdminSettingsService(
         value.EnableDataCaching = request.EnableDataCaching;
         value.UpdatedAtUtc = DateTime.UtcNow;
         value.UpdatedByUserId = currentUser.UserId;
+        await AuditAsync(AuditLogActions.AdminSettingsUpdated, AuditEntityTypes.AdminSettings,
+            value.Id.ToString(), "Administrative system settings updated.", cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
         return ToSystemResponse(value);
     }
@@ -60,6 +67,8 @@ public class AdminSettingsService(
         value.Timezone = request.Timezone.Trim();
         value.DefaultItemsPerPage = request.DefaultItemsPerPage;
         value.UpdatedAtUtc = DateTime.UtcNow;
+        await AuditAsync(AuditLogActions.AdminSettingsUpdated, AuditEntityTypes.AdminSettings,
+            value.Id.ToString(), "Administrative preferences updated.", cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
         return ToPreferencesResponse(value);
     }
@@ -70,6 +79,46 @@ public class AdminSettingsService(
         user.FirstName = request.FirstName.Trim();
         user.LastName = request.LastName.Trim();
         user.PhoneNumber = request.PhoneNumber.Trim();
+        await AuditAsync(AuditLogActions.AdminProfileUpdated, AuditEntityTypes.AdminProfile,
+            user.Id.ToString(), "Administrator profile updated.", cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return ToProfileResponse(user);
+    }
+
+    public async Task<AdminProfileResponse> UploadProfilePhotoAsync(
+        AdminProfilePhotoUploadRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var contentType = (fileValidationService ?? new FileValidationService()).ValidateProfileImage(request.ContentType, request.Content, MaximumProfilePhotoSizeBytes);
+
+        var user = await GetUserAsync(cancellationToken);
+        user.ProfilePhoto = request.Content;
+        user.ProfilePhotoContentType = contentType;
+        user.ProfilePhotoUpdatedAtUtc = DateTime.UtcNow;
+        await AuditAsync(AuditLogActions.AdminProfileUpdated, AuditEntityTypes.AdminProfile,
+            user.Id.ToString(), "Administrator profile photo updated.", cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return ToProfileResponse(user);
+    }
+
+    public async Task<AdminProfilePhotoResponse> GetProfilePhotoAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var user = await GetUserAsync(cancellationToken);
+        if (user.ProfilePhoto is not { Length: > 0 } || string.IsNullOrWhiteSpace(user.ProfilePhotoContentType))
+            throw new NotFoundException("Profile photo was not found.");
+        return new AdminProfilePhotoResponse(user.ProfilePhoto, user.ProfilePhotoContentType);
+    }
+
+    public async Task<AdminProfileResponse> DeleteProfilePhotoAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var user = await GetUserAsync(cancellationToken);
+        user.ProfilePhoto = null;
+        user.ProfilePhotoContentType = null;
+        user.ProfilePhotoUpdatedAtUtc = null;
+        await AuditAsync(AuditLogActions.AdminProfileUpdated, AuditEntityTypes.AdminProfile,
+            user.Id.ToString(), "Administrator profile photo removed.", cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
         return ToProfileResponse(user);
     }
@@ -79,6 +128,8 @@ public class AdminSettingsService(
         var user = await GetUserAsync(cancellationToken);
         if (!passwordHasher.Verify(request.CurrentPassword, user.PasswordHash))
             throw new BusinessException("Trenutna lozinka nije ispravna.");
+        if (request.NewPassword.Length < PasswordPolicy.MinimumLength)
+            throw new BusinessException("Nova lozinka ne ispunjava sigurnosna pravila.");
         user.PasswordHash = passwordHasher.Hash(request.NewPassword);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
@@ -111,7 +162,17 @@ public class AdminSettingsService(
     {
         if (!allowed.Contains(value)) throw new BusinessException($"{name} nije validan.");
     }
+    private Task AuditAsync(string action, string entityType, string entityId, string description, CancellationToken token) =>
+        auditLogService?.RecordAsync(new AuditLogRecordRequest
+        {
+            Action = action,
+            EntityType = entityType,
+            EntityId = entityId,
+            Description = description
+        }, token) ?? Task.CompletedTask;
     private static SystemSettingsResponse ToSystemResponse(SystemSettings x) => new(x.SystemName, x.SystemShortName, x.CompanyName, x.CompanyEmail, x.CompanyPhone, x.Timezone, x.SessionTimeoutMinutes, x.AutoLogoutWarningMinutes, x.EnableDataCaching, x.UpdatedAtUtc);
     private static AdminPreferencesResponse ToPreferencesResponse(AdminUserPreferences x) => new(x.ThemeMode, x.SidebarStyle, x.DateFormat, x.TimeFormat, x.FirstDayOfWeek, x.NumberFormat, x.DefaultItemsPerPage, x.Timezone);
-    private static AdminProfileResponse ToProfileResponse(User x) => new(x.FirstName, x.LastName, x.Email, x.PhoneNumber);
+    private static AdminProfileResponse ToProfileResponse(User x) => new(
+        x.FirstName, x.LastName, x.Email, x.PhoneNumber,
+        x.ProfilePhoto is { Length: > 0 }, x.ProfilePhotoUpdatedAtUtc);
 }

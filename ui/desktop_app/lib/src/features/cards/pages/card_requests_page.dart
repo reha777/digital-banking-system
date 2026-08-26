@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import '../../../core/app_error_message.dart';
 import '../../../core/api_client.dart';
 import '../../../core/document_opener.dart';
 import '../../../widgets/admin_modal.dart';
 import '../../../widgets/app_page_header.dart';
 import '../../../widgets/app_page_states.dart';
+import '../../../widgets/app_segmented_control.dart';
 import '../admin_card_request_models.dart';
 import '../admin_card_request_service.dart';
 import '../widgets/card_document_preview.dart';
@@ -14,6 +16,7 @@ import '../widgets/card_request_details_dialog.dart';
 import '../widgets/card_request_filters.dart';
 import '../widgets/card_request_summary_cards.dart';
 import '../widgets/card_requests_table.dart';
+import '../widgets/issued_cards_view.dart';
 
 class CardRequestsPage extends StatefulWidget {
   const CardRequestsPage({
@@ -21,11 +24,13 @@ class CardRequestsPage extends StatefulWidget {
     required this.token,
     required this.defaultPageSize,
     required this.dateFormatter,
+    this.refreshRevision = 0,
     this.showHeader = true,
   });
   final String token;
   final int defaultPageSize;
   final String Function(DateTime) dateFormatter;
+  final int refreshRevision;
   final bool showHeader;
   @override
   State<CardRequestsPage> createState() => _CardRequestsPageState();
@@ -40,12 +45,20 @@ class _CardRequestsPageState extends State<CardRequestsPage> {
   int _page = 1;
   late int _pageSize;
   int? _status;
+  DateTimeRange? _dateRange;
+  int _section = 0;
   @override
   void initState() {
     super.initState();
     _pageSize = widget.defaultPageSize;
     _service = AdminCardRequestService(ApiClient());
     _future = _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant CardRequestsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.refreshRevision != oldWidget.refreshRevision) _refresh();
   }
 
   @override
@@ -64,11 +77,15 @@ class _CardRequestsPageState extends State<CardRequestsPage> {
         pageSize: _pageSize,
         search: _searchController.text,
         status: _status,
+        dateFrom: _dateRange?.start,
+        dateTo: _dateRange?.end,
       ),
       _service.getSummary(
         token: widget.token,
         search: _searchController.text,
         status: _status,
+        dateFrom: _dateRange?.start,
+        dateTo: _dateRange?.end,
       ),
     ]);
     return _CardRequestsData(
@@ -78,7 +95,11 @@ class _CardRequestsPageState extends State<CardRequestsPage> {
   }
 
   void _refresh() {
-    if (mounted) setState(() => _future = _load());
+    if (mounted) {
+      setState(() {
+        _future = _load();
+      });
+    }
   }
 
   void _fromFirstPage() {
@@ -96,6 +117,7 @@ class _CardRequestsPageState extends State<CardRequestsPage> {
     _debounce?.cancel();
     _searchController.clear();
     _status = null;
+    _dateRange = null;
     _fromFirstPage();
   }
 
@@ -147,7 +169,7 @@ class _CardRequestsPageState extends State<CardRequestsPage> {
       }
       return true;
     } on ApiException catch (e) {
-      if (mounted) _message(e.message);
+      if (mounted) _message(AppErrorMessage.from(e));
       return false;
     }
   }
@@ -172,7 +194,7 @@ class _CardRequestsPageState extends State<CardRequestsPage> {
       }
       return true;
     } on ApiException catch (e) {
-      if (mounted) _message(e.message);
+      if (mounted) _message(AppErrorMessage.from(e));
       return false;
     }
   }
@@ -190,7 +212,7 @@ class _CardRequestsPageState extends State<CardRequestsPage> {
       }
       return true;
     } on ApiException catch (e) {
-      if (mounted) _message(e.message);
+      if (mounted) _message(AppErrorMessage.from(e));
       return false;
     }
   }
@@ -206,13 +228,17 @@ class _CardRequestsPageState extends State<CardRequestsPage> {
         documentId: document.id,
       ),
     );
-    final opened = await openDocumentBytes(
+    final result = await openDocumentBytes(
       bytes: bytes,
       fileName: document.fileName,
       contentType: cardDocumentContentType(document),
     );
-    if (!opened && mounted) {
-      _message('Document loaded below. Browser opening is available on web.');
+    if (!result.opened && mounted) {
+      _message(
+        result.savedPath == null
+            ? 'Document could not be opened.'
+            : 'Document was saved to ${result.savedPath}, but could not be opened.',
+      );
     }
     return bytes;
   }
@@ -235,74 +261,99 @@ class _CardRequestsPageState extends State<CardRequestsPage> {
       if (widget.showHeader) ...[
         const AppPageHeader(
           icon: LucideIcons.creditCard,
-          title: 'Card Requests',
-          subtitle: 'Review account and card requests from mobile customers.',
+          title: 'Cards Operations',
+          subtitle: 'Review customer requests and monitor safely issued cards.',
         ),
         const SizedBox(height: 22),
       ],
-      CardRequestFilters(
-        searchController: _searchController,
-        status: _status,
-        onSearchChanged: _search,
-        onStatusChanged: (value) {
-          _status = value;
-          _fromFirstPage();
-        },
-        onRefresh: _refresh,
-        onReset: _reset,
+      AppSegmentedControl<int>(
+        segments: const [
+          AppSegment(value: 0, label: 'Requests', icon: LucideIcons.inbox),
+          AppSegment(
+            value: 1,
+            label: 'Issued Cards',
+            icon: LucideIcons.creditCard,
+          ),
+        ],
+        value: _section,
+        onChanged: (value) => setState(() => _section = value),
       ),
       const SizedBox(height: 18),
-      Expanded(
-        child: FutureBuilder<_CardRequestsData>(
-          future: _future,
-          builder: (_, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done &&
-                !snapshot.hasData) {
-              return const AppLoadingState();
-            }
-            if (snapshot.hasError) {
-              return AppErrorState(
-                message: snapshot.error.toString(),
-                onRetry: _refresh,
-              );
-            }
-            final data = snapshot.requireData;
-            if (data.page.items.isEmpty) {
-              return AppEmptyState(
-                icon: LucideIcons.creditCard,
-                title: 'No card requests found',
-                message: 'Try changing the search or status filter.',
-                onReset: _reset,
-              );
-            }
-            return Column(
-              children: [
-                if (snapshot.connectionState != ConnectionState.done)
-                  const LinearProgressIndicator(minHeight: 2),
-                CardRequestSummaryCards(summary: data.summary),
-                const SizedBox(height: 16),
-                Expanded(
-                  child: CardRequestsTable(
-                    dateFormatter: widget.dateFormatter,
-                    page: data.page,
-                    pageSize: _pageSize,
-                    controller: _tableController,
-                    onDetails: _details,
-                    onPageSelected: (value) {
-                      _page = value;
-                      _refresh();
-                    },
-                    onPageSizeChanged: (value) {
-                      _pageSize = value;
-                      _fromFirstPage();
-                    },
-                  ),
-                ),
-              ],
-            );
+      if (_section == 1)
+        Expanded(
+          child: IssuedCardsView(
+            token: widget.token,
+            pageSize: widget.defaultPageSize,
+            dateFormatter: widget.dateFormatter,
+          ),
+        )
+      else ...[
+        CardRequestFilters(
+          searchController: _searchController,
+          status: _status,
+          dateRange: _dateRange,
+          onSearchChanged: _search,
+          onStatusChanged: (value) {
+            _status = value;
+            _fromFirstPage();
           },
+          onDateChanged: (value) {
+            _dateRange = value;
+            _fromFirstPage();
+          },
+          onRefresh: _refresh,
+          onReset: _reset,
         ),
-      ),
+        const SizedBox(height: 18),
+        Expanded(
+          child: FutureBuilder<_CardRequestsData>(
+            future: _future,
+            builder: (_, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done &&
+                  !snapshot.hasData) {
+                return const AppLoadingState();
+              }
+              if (snapshot.hasError) {
+                return AppErrorState(onRetry: _refresh);
+              }
+              final data = snapshot.requireData;
+              if (data.page.items.isEmpty) {
+                return AppEmptyState(
+                  icon: LucideIcons.creditCard,
+                  title: 'No card requests found',
+                  message: 'Try changing the search or status filter.',
+                  onReset: _reset,
+                );
+              }
+              return Column(
+                children: [
+                  if (snapshot.connectionState != ConnectionState.done)
+                    const LinearProgressIndicator(minHeight: 2),
+                  CardRequestSummaryCards(summary: data.summary),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: CardRequestsTable(
+                      dateFormatter: widget.dateFormatter,
+                      page: data.page,
+                      pageSize: _pageSize,
+                      controller: _tableController,
+                      onDetails: _details,
+                      onPageSelected: (value) {
+                        _page = value;
+                        _refresh();
+                      },
+                      onPageSizeChanged: (value) {
+                        _pageSize = value;
+                        _fromFirstPage();
+                      },
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
     ],
   );
 }

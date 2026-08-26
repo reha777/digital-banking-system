@@ -4,6 +4,16 @@ import 'models/loan_models.dart';
 
 abstract class LoanRepository {
   Future<List<LoanProductModel>> getProducts(String token);
+  Future<List<LoanPurposeModel>> getLoanPurposes(String token) async =>
+      const [];
+  Future<LoanRecommendationsModel> getRecommendations(
+    String token,
+  ) async => const LoanRecommendationsModel(
+    canApply: true,
+    disclaimer:
+        'Recommendation is informational and does not represent loan approval.',
+    recommendations: [],
+  );
   Future<LoanQuoteModel> getQuote(
     String token, {
     required String productId,
@@ -18,6 +28,7 @@ abstract class LoanRepository {
     required double principal,
     required int termMonths,
     required String clientRequestId,
+    String? loanPurposeId,
   });
   Future<LoanModel?> getCurrentLoan(String token) async => null;
   Future<LoanModel?> getRecentLoan(String token) async => null;
@@ -37,11 +48,39 @@ class LoanService implements LoanRepository {
   const LoanService(this._client);
   final ApiClient _client;
   @override
-  Future<List<LoanProductModel>> getProducts(String token) async =>
-      (await _client.getJsonList(
-        MobileApiEndpoints.loanProducts,
-        token: token,
-      )).map(LoanProductModel.fromJson).toList();
+  Future<List<LoanProductModel>> getProducts(String token) async {
+    final json = await _client.getJson(
+      '${MobileApiEndpoints.loanProducts}?page=1&pageSize=100',
+      token: token,
+    );
+    final items = json['items'];
+    if (items is! List) return [];
+    return items
+        .map((item) => LoanProductModel.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  Future<List<LoanPurposeModel>> getLoanPurposes(String token) async {
+    final json = await _client.getJson(
+      '${MobileApiEndpoints.loanPurposes}?page=1&pageSize=100',
+      token: token,
+    );
+    final items = json['items'];
+    if (items is! List) return [];
+    return items
+        .map((item) => LoanPurposeModel.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  Future<LoanRecommendationsModel> getRecommendations(String token) async =>
+      LoanRecommendationsModel.fromJson(
+        await _client.getJson(
+          MobileApiEndpoints.loanRecommendations,
+          token: token,
+        ),
+      );
   @override
   Future<LoanQuoteModel> getQuote(
     String token, {
@@ -72,6 +111,7 @@ class LoanService implements LoanRepository {
     required double principal,
     required int termMonths,
     required String clientRequestId,
+    String? loanPurposeId,
   }) async => LoanApplicationModel.fromJson(
     await _client.postJson(MobileApiEndpoints.loanApplications, {
       'loanProductId': productId,
@@ -79,6 +119,7 @@ class LoanService implements LoanRepository {
       'principal': principal,
       'termMonths': termMonths,
       'clientRequestId': clientRequestId,
+      'loanPurposeId': ?loanPurposeId,
     }, token: token),
   );
 

@@ -2,6 +2,7 @@ using BankingApp.Application.Common.Pagination;
 using BankingApp.Application.Interfaces;
 using BankingApp.Application.Transactions;
 using BankingApp.Domain.Constants;
+using BankingApp.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -83,9 +84,10 @@ namespace BankingApp.Api.Controllers
             Ok(await transactionService.InternalTransferAsync(request, cancellationToken));
 
         [HttpGet("recent-recipients")]
-        public async Task<ActionResult<IReadOnlyCollection<RecentRecipientResponse>>> GetRecentRecipients(
+        public async Task<ActionResult<PagedResult<RecentRecipientResponse>>> GetRecentRecipients(
+            [FromQuery] PagedRequest request,
             CancellationToken cancellationToken) =>
-            Ok(await transactionService.GetRecentRecipientsAsync(cancellationToken));
+            Ok(await transactionService.GetRecentRecipientsAsync(request, cancellationToken));
 
         [HttpGet("recipients/lookup")]
         public async Task<ActionResult<RecentRecipientResponse>> LookupRecipient(
@@ -137,9 +139,11 @@ namespace BankingApp.Api.Controllers
         }
 
         [HttpPost("{id:guid}/documents")]
+        [RequestSizeLimit(FileValidationService.MaximumDocumentSizeBytes + 64 * 1024)]
         public async Task<ActionResult<TransactionResponse>> UploadDocument(
             Guid id,
             IFormFile file,
+            [FromForm] Guid? documentTypeId,
             CancellationToken cancellationToken)
         {
             if (file.Length == 0)
@@ -157,7 +161,8 @@ namespace BankingApp.Api.Controllers
                 {
                     FileName = file.FileName,
                     ContentType = ResolveContentType(file.FileName, file.ContentType),
-                    Content = memoryStream.ToArray()
+                    Content = memoryStream.ToArray(),
+                    DocumentTypeId = documentTypeId
                 },
                 cancellationToken);
 

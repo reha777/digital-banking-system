@@ -28,6 +28,31 @@ class _BankingMobileAppState extends State<BankingMobileApp> {
     _session = AuthSession(ApiClient());
     _themeController = ThemeController();
     _initializeThemeFuture = _themeController.initialize();
+    _session.onSessionEnded = _showSessionEnded;
+  }
+
+  Future<void> _showSessionEnded(String message) async {
+    final navigator = _navigatorKey.currentState;
+    if (navigator == null) return;
+    navigator.pushAndRemoveUntil(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            LoginScreen(session: _session, themeController: _themeController),
+      ),
+      (_) => false,
+    );
+    _showMessageAfterNavigation(message);
+  }
+
+  void _showMessageAfterNavigation(String message) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final context = _navigatorKey.currentContext;
+      if (context != null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
+      }
+    });
   }
 
   @override
@@ -52,25 +77,38 @@ class _BankingMobileAppState extends State<BankingMobileApp> {
 
                   _navigatorKey.currentState?.pushReplacement(
                     MaterialPageRoute<void>(
-                      builder: (_) => _session.isAuthenticated
-                          ? MobileDashboardScreen(
-                              session: _session,
-                              themeController: _themeController,
-                            )
-                          : OnboardingScreen(
-                              onFinished: () {
-                                _navigatorKey.currentState?.pushReplacement(
-                                  MaterialPageRoute<void>(
-                                    builder: (_) => LoginScreen(
-                                      session: _session,
-                                      themeController: _themeController,
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
+                      builder: (_) {
+                        if (_session.isAuthenticated) {
+                          return MobileDashboardScreen(
+                            session: _session,
+                            themeController: _themeController,
+                          );
+                        }
+                        if (_session.sessionEndedMessage != null) {
+                          return LoginScreen(
+                            session: _session,
+                            themeController: _themeController,
+                          );
+                        }
+                        return OnboardingScreen(
+                          onFinished: () {
+                            _navigatorKey.currentState?.pushReplacement(
+                              MaterialPageRoute<void>(
+                                builder: (_) => LoginScreen(
+                                  session: _session,
+                                  themeController: _themeController,
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
                     ),
                   );
+                  final sessionMessage = _session.sessionEndedMessage;
+                  if (sessionMessage != null) {
+                    _showMessageAfterNavigation(sessionMessage);
+                  }
                 },
               );
             },

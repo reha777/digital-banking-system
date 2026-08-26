@@ -56,17 +56,22 @@ class _CardCarouselState extends State<CardCarousel> {
           itemCount: widget.cards.length,
           onPageChanged: widget.onCardChanged,
           itemBuilder: (context, index) {
-            final scale = (1 - ((_page - index).abs() * .06)).clamp(.94, 1.0);
+            final distance = (_page - index).abs().clamp(0.0, 1.0);
+            final scale = 1 - (distance * .055);
+            final verticalOffset = distance * 8;
             final card = widget.cards[index];
-            return Transform.scale(
-              scale: scale,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 5),
-                child: BankCard(
-                  card: card,
-                  onTap: widget.onCardTap == null
-                      ? null
-                      : () => widget.onCardTap!(card),
+            return Transform.translate(
+              offset: Offset(0, verticalOffset),
+              child: Transform.scale(
+                scale: scale,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
+                  child: BankCard(
+                    card: card,
+                    onTap: widget.onCardTap == null
+                        ? null
+                        : () => widget.onCardTap!(card),
+                  ),
                 ),
               ),
             );
@@ -86,7 +91,9 @@ class _CardCarouselState extends State<CardCarousel> {
               decoration: BoxDecoration(
                 color: _page.round() == index
                     ? Theme.of(context).colorScheme.primary
-                    : Colors.white24,
+                    : Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: .18),
                 borderRadius: BorderRadius.circular(8),
               ),
             ),

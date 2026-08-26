@@ -1,4 +1,5 @@
 using BankingApp.Application.Common.Exceptions;
+using BankingApp.Application.Common.Pagination;
 using BankingApp.Application.Interfaces;
 using BankingApp.Application.Transactions;
 using BankingApp.Domain.Constants;
@@ -13,6 +14,41 @@ namespace BankingApp.Infrastructure.Tests;
 
 public class CardSecurityTests
 {
+    [Fact]
+    public async Task My_cards_are_owned_deterministic_and_paged()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var olderAccount = new Account
+        {
+            Id = Guid.NewGuid(), UserId = fixture.Owner.Id, User = fixture.Owner,
+            AccountNumber = "older-source", Currency = "USD", Balance = 50,
+            AccountType = AccountType.Savings,
+            CreatedAtUtc = fixture.Source.CreatedAtUtc.AddDays(-1)
+        };
+        var older = new BankCard
+        {
+            Id = Guid.NewGuid(), AccountId = olderAccount.Id, Account = olderAccount,
+            CardNumber = "4562000000000002", CardholderName = "Owner Customer",
+            Cvv = "456", ExpiryDate = DateTime.UtcNow.AddYears(3),
+            Brand = CardBrand.Mastercard, Status = CardStatus.Active,
+            CreatedAtUtc = fixture.Card.CreatedAtUtc.AddDays(-1)
+        };
+        fixture.Db.Accounts.Add(olderAccount);
+        fixture.Db.BankCards.Add(older);
+        await fixture.Db.SaveChangesAsync();
+        var service = new CardService(fixture.Db, new CurrentUser(fixture.Owner.Id));
+
+        var first = await service.GetMyCardsAsync(new PagedRequest { PageSize = 1 });
+        var second = await service.GetMyCardsAsync(new PagedRequest { Page = 2, PageSize = 1 });
+        var capped = await service.GetMyCardsAsync(new PagedRequest { PageSize = 999 });
+
+        Assert.Equal(2, first.TotalCount);
+        Assert.Equal(2, first.TotalPages);
+        Assert.Equal(fixture.Card.Id, first.Items.Single().Id);
+        Assert.Equal(older.Id, second.Items.Single().Id);
+        Assert.Equal(100, capped.PageSize);
+    }
+
     [Fact]
     public async Task Customer_cannot_freeze_or_reveal_another_customers_card()
     {

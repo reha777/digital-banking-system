@@ -2,6 +2,7 @@ using BankingApp.Application.Auth;
 using BankingApp.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace BankingApp.Api.Controllers
 {
@@ -46,6 +47,20 @@ namespace BankingApp.Api.Controllers
             CancellationToken cancellationToken)
         {
             await authService.LogoutAsync(request, cancellationToken);
+            return NoContent();
+        }
+
+        [AllowAnonymous]
+        [HttpPost("forgot-password")]
+        [EnableRateLimiting("forgot-password")]
+        public async Task<ActionResult<ForgotPasswordResponse>> ForgotPassword(ForgotPasswordRequest request, CancellationToken cancellationToken)
+            => Ok(await authService.ForgotPasswordAsync(request, cancellationToken));
+
+        [AllowAnonymous]
+        [HttpPost("reset-password")]
+        public async Task<IActionResult> ResetPassword(ResetPasswordRequest request, CancellationToken cancellationToken)
+        {
+            await authService.ResetPasswordAsync(request, cancellationToken);
             return NoContent();
         }
     }

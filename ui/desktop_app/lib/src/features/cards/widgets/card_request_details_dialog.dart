@@ -131,6 +131,43 @@ class _CardRequestDetailsDialogState extends State<CardRequestDetailsDialog> {
                         ),
                         Text(request.note),
                       ],
+                      if (request.statusValue == 2 &&
+                          request.approvedAccountNumber != null) ...[
+                        const SizedBox(height: 20),
+                        Text(
+                          'Issued result',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 24,
+                          runSpacing: 12,
+                          children: [
+                            _Details(
+                              label: 'Issued account',
+                              value: request.approvedAccountNumber!,
+                            ),
+                            _Details(
+                              label: 'Issued card',
+                              value: request.approvedMaskedCardNumber ?? '-',
+                            ),
+                            _Details(
+                              label: 'Card brand',
+                              value: request.approvedCardBrand ?? '-',
+                            ),
+                            _Details(
+                              label: 'Card status',
+                              value: request.approvedCardStatus ?? '-',
+                            ),
+                            _Details(
+                              label: 'Expiry',
+                              value: request.approvedCardExpiryDate == null
+                                  ? '-'
+                                  : '${request.approvedCardExpiryDate!.month.toString().padLeft(2, '0')}/${request.approvedCardExpiryDate!.year}',
+                            ),
+                          ],
+                        ),
+                      ],
                       const SizedBox(height: 20),
                       Text(
                         'Documents',

@@ -1,9 +1,11 @@
 import 'dart:typed_data';
 
-Future<bool> openDocumentBytes({
+import 'document_open_result.dart';
+
+Future<DocumentOpenResult> openDocumentBytes({
   required Uint8List bytes,
   required String fileName,
   required String contentType,
 }) async {
-  return false;
+  return const DocumentOpenResult(opened: false);
 }

@@ -50,11 +50,19 @@ class _TransactionReviewDialogState extends State<TransactionReviewDialog> {
     });
     try {
       final bytes = await future;
-      await openDocumentBytes(
+      final result = await openDocumentBytes(
         bytes: bytes,
         fileName: document.fileName,
         contentType: document.contentType,
       );
+      if (!result.opened && mounted) {
+        final message = result.savedPath == null
+            ? 'Document could not be opened.'
+            : 'Document was saved to ${result.savedPath}, but could not be opened.';
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
+      }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -169,9 +177,10 @@ class _TransactionReviewDialogState extends State<TransactionReviewDialog> {
                           children: [
                             _Info('Reference', transaction.referenceNumber),
                             _Info('Status', transaction.status),
+                            _Info('Type', transaction.type.label),
                             _Info(
                               'Amount',
-                              '\$${transaction.amount.toStringAsFixed(2)}',
+                              '${transaction.currency} ${transaction.amount.toStringAsFixed(2)}',
                             ),
                             _Info(
                               'From',

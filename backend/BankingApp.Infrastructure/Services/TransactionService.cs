@@ -2,7 +2,10 @@ using BankingApp.Application.Common.Exceptions;
 using BankingApp.Application.Common.Pagination;
 using BankingApp.Application.Interfaces;
 using BankingApp.Application.Transactions;
+using BankingApp.Application.AuditLogs;
+using BankingApp.Application.Notifications;
 using BankingApp.Domain.Entities;
+using BankingApp.Domain.Constants;
 using BankingApp.Domain.Enums;
 using BankingApp.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -12,7 +15,10 @@ namespace BankingApp.Infrastructure.Services
     public class TransactionService(
         BankingAppDbContext dbContext,
         ICurrentUserService currentUserService,
-        ICurrencyConversionService currencyConversionService) : ITransactionService
+        ICurrencyConversionService currencyConversionService,
+        IAuditLogService? auditLogService = null,
+        IFileValidationService? fileValidationService = null,
+        INotificationWriter? notificationWriter = null) : ITransactionService
     {
         private const decimal HighRiskReviewThreshold = 10000m;
 
@@ -71,6 +77,7 @@ namespace BankingApp.Infrastructure.Services
                 ReferenceNumber = CreateReferenceNumber(),
                 Amount = request.Amount,
                 Type = TransactionType.Transfer,
+                TransactionCategoryId = ReferenceDataIds.TransferTransactionCategory,
                 Description = request.Description.Trim(),
                 Status = TransactionStatus.Pending,
                 CreatedAtUtc = DateTime.UtcNow
@@ -87,6 +94,36 @@ namespace BankingApp.Infrastructure.Services
             MoneyTransferRequest request,
             CancellationToken cancellationToken = default)
         {
+            var strategy = dbContext.Database.CreateExecutionStrategy();
+            return await strategy.ExecuteAsync(async () =>
+            {
+                await using var databaseTransaction = dbContext.Database.IsRelational()
+                    ? await dbContext.Database.BeginTransactionAsync(
+                        System.Data.IsolationLevel.Serializable,
+                        cancellationToken)
+                    : null;
+
+                try
+                {
+                    var result = await SendMoneyCoreAsync(request, cancellationToken);
+                    if (databaseTransaction is not null)
+                        await databaseTransaction.CommitAsync(cancellationToken);
+                    return result;
+                }
+                catch
+                {
+                    if (databaseTransaction is not null)
+                        await databaseTransaction.RollbackAsync(cancellationToken);
+                    dbContext.ChangeTracker.Clear();
+                    throw;
+                }
+            });
+        }
+
+        private async Task<MoneyTransferResponse> SendMoneyCoreAsync(
+            MoneyTransferRequest request,
+            CancellationToken cancellationToken)
+        {
             if (currentUserService.IsAdmin)
             {
                 throw new BusinessException("Admin korisnik ne moze slati novac u ime klijenta.");
@@ -101,18 +138,25 @@ namespace BankingApp.Infrastructure.Services
             }, cancellationToken);
 
             var sourceAccount = await dbContext.Accounts
+                .Include(account => account.User)
                 .FirstOrDefaultAsync(
                     account =>
                         account.Id == request.SourceAccountId &&
-                        account.UserId == currentUserService.UserId,
+                        account.UserId == currentUserService.UserId &&
+                        !account.User.IsDeleted &&
+                        account.User.Status == CustomerStatus.Active,
                     cancellationToken)
-                ?? throw new NotFoundException("Racun sa kojeg saljete novac nije pronadjen.");
+                ?? throw new NotFoundException("Racun sa kojeg saljete novac nije dostupan.");
 
             var destinationAccount = await dbContext.Accounts
+                .Include(account => account.User)
                 .FirstOrDefaultAsync(
-                    account => account.AccountNumber == request.DestinationAccountNumber.Trim(),
+                    account =>
+                        account.AccountNumber == request.DestinationAccountNumber.Trim() &&
+                        !account.User.IsDeleted &&
+                        account.User.Status == CustomerStatus.Active,
                     cancellationToken)
-                ?? throw new NotFoundException("Racun primaoca nije pronadjen.");
+                ?? throw new NotFoundException("Racun primaoca nije dostupan.");
 
             if (sourceAccount.Balance < quote.DebitAmount)
             {
@@ -137,6 +181,7 @@ namespace BankingApp.Infrastructure.Services
                 ReferenceNumber = referenceNumber,
                 Amount = -quote.DebitAmount,
                 Type = TransactionType.Transfer,
+                TransactionCategoryId = ReferenceDataIds.TransferTransactionCategory,
                 TransferAmount = quote.Amount,
                 TransferCurrency = quote.TransferCurrency,
                 DestinationAmount = quote.DestinationAmount,
@@ -164,6 +209,7 @@ namespace BankingApp.Infrastructure.Services
                     ReferenceNumber = referenceNumber,
                     Amount = quote.DestinationAmount,
                     Type = TransactionType.Transfer,
+                    TransactionCategoryId = ReferenceDataIds.TransferTransactionCategory,
                     TransferAmount = quote.Amount,
                     TransferCurrency = quote.TransferCurrency,
                     DestinationAmount = quote.DestinationAmount,
@@ -178,6 +224,8 @@ namespace BankingApp.Infrastructure.Services
             {
                 dbContext.Transactions.Add(creditTransaction);
             }
+            if (requiresReview && notificationWriter is not null)
+                await notificationWriter.AddForAdminsAsync(new NotificationCreate(Guid.Empty, NotificationType.NewHighRiskTransaction, "Transaction requires review", "A high-value transaction is waiting for review.", NotificationEntityTypes.Transaction, debitTransaction.Id), cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
 
             debitTransaction.Account = sourceAccount;
@@ -217,10 +265,14 @@ namespace BankingApp.Infrastructure.Services
                 throw new BusinessException("Valuta nije podrzana. Dozvoljene valute su USD, EUR i BAM.");
 
             var source = await dbContext.Accounts.AsNoTracking()
+                .Include(account => account.User)
                 .FirstOrDefaultAsync(account =>
                     account.Id == request.SourceAccountId &&
-                    account.UserId == currentUserService.UserId, cancellationToken)
-                ?? throw new NotFoundException("Racun sa kojeg saljete novac nije pronadjen.");
+                    account.UserId == currentUserService.UserId &&
+                    !account.User.IsDeleted &&
+                    account.User.Status == CustomerStatus.Active,
+                    cancellationToken)
+                ?? throw new NotFoundException("Racun sa kojeg saljete novac nije dostupan.");
 
             var cardStatus = await dbContext.BankCards.AsNoTracking()
                 .Where(card => card.AccountId == source.Id)
@@ -233,8 +285,13 @@ namespace BankingApp.Infrastructure.Services
             if (string.IsNullOrWhiteSpace(destinationNumber))
                 throw new BusinessException("Racun primaoca je obavezan.");
             var destination = await dbContext.Accounts.AsNoTracking()
-                .FirstOrDefaultAsync(account => account.AccountNumber == destinationNumber, cancellationToken)
-                ?? throw new NotFoundException("Racun primaoca nije pronadjen.");
+                .Include(account => account.User)
+                .FirstOrDefaultAsync(account =>
+                    account.AccountNumber == destinationNumber &&
+                    !account.User.IsDeleted &&
+                    account.User.Status == CustomerStatus.Active,
+                    cancellationToken)
+                ?? throw new NotFoundException("Racun primaoca nije dostupan.");
             if (source.Id == destination.Id)
                 throw new BusinessException("Novac nije moguce poslati na isti racun.");
             if (source.UserId == destination.UserId)
@@ -337,6 +394,7 @@ namespace BankingApp.Infrastructure.Services
                         ReferenceNumber = referenceNumber,
                         Amount = -quote.DebitAmount,
                         Type = TransactionType.InternalTransfer,
+                        TransactionCategoryId = ReferenceDataIds.TransferTransactionCategory,
                         TransferAmount = quote.Amount,
                         TransferCurrency = quote.TransferCurrency,
                         DestinationAmount = quote.DestinationAmount,
@@ -354,6 +412,7 @@ namespace BankingApp.Infrastructure.Services
                         ReferenceNumber = referenceNumber,
                         Amount = quote.DestinationAmount,
                         Type = TransactionType.InternalTransfer,
+                        TransactionCategoryId = ReferenceDataIds.TransferTransactionCategory,
                         TransferAmount = quote.Amount,
                         TransferCurrency = quote.TransferCurrency,
                         DestinationAmount = quote.DestinationAmount,
@@ -429,13 +488,14 @@ namespace BankingApp.Infrastructure.Services
             };
         }
 
-        public async Task<IReadOnlyCollection<RecentRecipientResponse>> GetRecentRecipientsAsync(
+        public async Task<PagedResult<RecentRecipientResponse>> GetRecentRecipientsAsync(
+            PagedRequest request,
             CancellationToken cancellationToken = default)
         {
             if (currentUserService.IsAdmin)
                 throw new BusinessException("Admin korisnik nema recent primaoce.");
 
-            var outgoing = await dbContext.Transactions
+            var recent = dbContext.Transactions
                 .AsNoTracking()
                 .Where(transaction =>
                     transaction.Account.UserId == currentUserService.UserId &&
@@ -443,33 +503,38 @@ namespace BankingApp.Infrastructure.Services
                     (transaction.Status == TransactionStatus.Completed ||
                         transaction.Status == TransactionStatus.Pending) &&
                     transaction.DestinationAccountId != null)
-                .OrderByDescending(transaction => transaction.CreatedAtUtc)
-                .Select(transaction => new
+                .GroupBy(transaction => transaction.DestinationAccountId!.Value)
+                .Select(group => new
                 {
-                    DestinationAccountId = transaction.DestinationAccountId!.Value,
-                    transaction.CreatedAtUtc
-                })
-                .Take(100)
+                    DestinationAccountId = group.Key,
+                    LastUsedAtUtc = group.Max(transaction => transaction.CreatedAtUtc)
+                });
+            var eligible = from item in recent
+                join account in dbContext.Accounts.AsNoTracking()
+                    on item.DestinationAccountId equals account.Id
+                where !account.User.IsDeleted &&
+                    account.User.Status == CustomerStatus.Active
+                orderby item.LastUsedAtUtc descending, account.Id
+                select new { Account = account, item.LastUsedAtUtc };
+            var bounded = eligible.Take(8);
+            var total = await bounded.CountAsync(cancellationToken);
+            var items = await bounded
+                .Skip((request.Page - 1) * request.PageSize)
+                .Take(request.PageSize)
+                .Select(item => new RecentRecipientResponse(
+                    item.Account.Id,
+                    item.Account.User.FirstName,
+                    item.Account.User.LastName,
+                    item.Account.AccountNumber,
+                    item.LastUsedAtUtc))
                 .ToListAsync(cancellationToken);
-
-            var latestByAccount = outgoing
-                .GroupBy(item => item.DestinationAccountId)
-                .Select(group => group.First())
-                .Take(8)
-                .ToList();
-            if (latestByAccount.Count == 0) return [];
-
-            var ids = latestByAccount.Select(item => item.DestinationAccountId).ToList();
-            var accounts = await dbContext.Accounts
-                .AsNoTracking()
-                .Include(account => account.User)
-                .Where(account => ids.Contains(account.Id))
-                .ToDictionaryAsync(account => account.Id, cancellationToken);
-
-            return latestByAccount
-                .Where(item => accounts.ContainsKey(item.DestinationAccountId))
-                .Select(item => ToRecipient(accounts[item.DestinationAccountId], item.CreatedAtUtc))
-                .ToList();
+            return new PagedResult<RecentRecipientResponse>
+            {
+                Items = items,
+                Page = request.Page,
+                PageSize = request.PageSize,
+                TotalCount = total
+            };
         }
 
         public async Task<RecentRecipientResponse> LookupRecipientAsync(
@@ -485,8 +550,12 @@ namespace BankingApp.Infrastructure.Services
             var account = await dbContext.Accounts
                 .AsNoTracking()
                 .Include(value => value.User)
-                .SingleOrDefaultAsync(value => value.AccountNumber == normalized, cancellationToken)
-                ?? throw new NotFoundException("Racun primaoca nije pronadjen.");
+                .SingleOrDefaultAsync(value =>
+                    value.AccountNumber == normalized &&
+                    !value.User.IsDeleted &&
+                    value.User.Status == CustomerStatus.Active,
+                    cancellationToken)
+                ?? throw new NotFoundException("Racun primaoca nije dostupan.");
             if (account.UserId == currentUserService.UserId)
                 throw new BusinessException("Novac nije moguce poslati samom sebi.");
             return ToRecipient(account, null);
@@ -555,6 +624,7 @@ namespace BankingApp.Infrastructure.Services
                 ReferenceNumber = transaction.ReferenceNumber,
                 Amount = destinationAmount,
                 Type = TransactionType.Transfer,
+                TransactionCategoryId = ReferenceDataIds.TransferTransactionCategory,
                 TransferAmount = transaction.TransferAmount,
                 TransferCurrency = transaction.TransferCurrency,
                 DestinationAmount = destinationAmount,
@@ -564,6 +634,17 @@ namespace BankingApp.Infrastructure.Services
             };
 
             dbContext.Transactions.Add(creditTransaction);
+            if (notificationWriter is not null)
+                await notificationWriter.AddAsync(new NotificationCreate(sourceAccount.UserId, NotificationType.TransactionApproved, "Transaction approved", "Your transaction review was approved.", NotificationEntityTypes.Transaction, transaction.Id), cancellationToken);
+            if (auditLogService is not null)
+                await auditLogService.RecordAsync(new AuditLogRecordRequest
+                {
+                    Action = AuditLogActions.TransactionApproved,
+                    EntityType = AuditEntityTypes.Transaction,
+                    EntityId = id.ToString(),
+                    Description = "Transaction review approved.",
+                    Reason = transaction.AdminNote
+                }, cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
 
             transaction.Account = sourceAccount;
@@ -590,6 +671,18 @@ namespace BankingApp.Infrastructure.Services
             transaction.AdminNote = request.AdminNote?.Trim();
             transaction.ReviewedAtUtc = DateTime.UtcNow;
             transaction.ReviewedByUserId = currentUserService.UserId;
+            if (notificationWriter is not null)
+                await notificationWriter.AddAsync(new NotificationCreate(transaction.Account.UserId, NotificationType.TransactionRejected, "Transaction rejected", "Your transaction review was rejected. Open it for details.", NotificationEntityTypes.Transaction, transaction.Id), cancellationToken);
+
+            if (auditLogService is not null)
+                await auditLogService.RecordAsync(new AuditLogRecordRequest
+                {
+                    Action = AuditLogActions.TransactionRejected,
+                    EntityType = AuditEntityTypes.Transaction,
+                    EntityId = id.ToString(),
+                    Description = "Transaction review rejected.",
+                    Reason = transaction.AdminNote
+                }, cancellationToken);
 
             await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -613,6 +706,18 @@ namespace BankingApp.Infrastructure.Services
             transaction.Status = TransactionStatus.DocumentsRequested;
             transaction.DocumentsRequestNote = request.AdminNote?.Trim();
             transaction.DocumentsRequestedAtUtc = DateTime.UtcNow;
+            if (notificationWriter is not null)
+                await notificationWriter.AddAsync(new NotificationCreate(transaction.Account.UserId, NotificationType.TransactionDocumentsRequested, "Transaction documents requested", "Additional documents are required for your transaction.", NotificationEntityTypes.Transaction, transaction.Id), cancellationToken);
+
+            if (auditLogService is not null)
+                await auditLogService.RecordAsync(new AuditLogRecordRequest
+                {
+                    Action = AuditLogActions.TransactionDocumentsRequested,
+                    EntityType = AuditEntityTypes.Transaction,
+                    EntityId = id.ToString(),
+                    Description = "Transaction documents requested.",
+                    Reason = transaction.DocumentsRequestNote
+                }, cancellationToken);
 
             await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -626,15 +731,12 @@ namespace BankingApp.Infrastructure.Services
             TransactionDocumentUploadRequest request,
             CancellationToken cancellationToken = default)
         {
-            if (request.Content.Length == 0)
-            {
-                throw new BusinessException("Dokument ne moze biti prazan.");
-            }
+            var validatedFile = (fileValidationService ?? new FileValidationService()).ValidateDocument(request.FileName, request.ContentType, request.Content);
 
-            if (request.Content.Length > 5 * 1024 * 1024)
-            {
-                throw new BusinessException("Dokument moze biti maksimalno 5 MB.");
-            }
+            if (request.DocumentTypeId.HasValue && !await dbContext.ReferenceDataItems.AsNoTracking().AnyAsync(
+                value => value.Id == request.DocumentTypeId && value.Type == "document-types" && value.IsActive,
+                cancellationToken))
+                throw new BusinessException("Odabrani tip dokumenta nije dostupan.");
 
             var transaction = await dbContext.Transactions
                 .Include(item => item.Account)
@@ -660,14 +762,17 @@ namespace BankingApp.Infrastructure.Services
             {
                 Id = Guid.NewGuid(),
                 TransactionId = transaction.Id,
-                FileName = request.FileName.Trim(),
-                ContentType = request.ContentType.Trim(),
+                DocumentTypeId = request.DocumentTypeId,
+                FileName = validatedFile.FileName,
+                ContentType = validatedFile.ContentType,
                 SizeBytes = request.Content.LongLength,
                 Content = request.Content,
                 UploadedAtUtc = DateTime.UtcNow
             };
 
             dbContext.TransactionDocuments.Add(document);
+            if (notificationWriter is not null)
+                await notificationWriter.AddForAdminsAsync(new NotificationCreate(Guid.Empty, NotificationType.TransactionDocumentsUploaded, "Transaction documents uploaded", "A customer uploaded documents for a transaction review.", NotificationEntityTypes.Transaction, transaction.Id), cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
 
             transaction.Documents.Add(document);
@@ -744,12 +849,27 @@ namespace BankingApp.Infrastructure.Services
 
             if (request.AccountId.HasValue)
             {
-                query = query.Where(transaction => transaction.AccountId == request.AccountId.Value);
+                query = query.Where(transaction =>
+                    transaction.AccountId == request.AccountId.Value ||
+                    transaction.SourceAccountId == request.AccountId.Value ||
+                    transaction.DestinationAccountId == request.AccountId.Value);
+            }
+
+            if (request.CustomerId.HasValue)
+            {
+                if (!currentUserService.IsAdmin)
+                    throw new BusinessException("Customer filter je dostupan samo admin korisniku.");
+                query = query.Where(transaction => transaction.Account.UserId == request.CustomerId.Value);
             }
 
             if (request.Status.HasValue)
             {
                 query = query.Where(transaction => transaction.Status == request.Status.Value);
+            }
+
+            if (request.Type.HasValue)
+            {
+                query = query.Where(transaction => transaction.Type == request.Type.Value);
             }
 
             if (request.HighRiskOnly == true)
@@ -851,6 +971,7 @@ namespace BankingApp.Infrastructure.Services
                 DestinationAccountId = transaction.DestinationAccountId,
                 ReferenceNumber = transaction.ReferenceNumber,
                 Amount = transaction.Amount,
+                Currency = transaction.Account.Currency,
                 Type = transaction.Type,
                 Description = transaction.Description,
                 Status = transaction.Status,
@@ -920,8 +1041,15 @@ namespace BankingApp.Infrastructure.Services
             {
                 TotalTransactions = await query.CountAsync(cancellationToken),
                 CompletedTransactions = await completedQuery.CountAsync(cancellationToken),
-                TotalTransferred = await completedQuery
-                    .SumAsync(transaction => transaction.Amount < 0 ? -transaction.Amount : transaction.Amount, cancellationToken)
+                TransferredByCurrency = await completedQuery
+                    .GroupBy(transaction => transaction.Account.Currency)
+                    .Select(group => new BankingApp.Application.Common.Models.CurrencyAmountResponse
+                    {
+                        Currency = group.Key,
+                        Amount = group.Sum(transaction => transaction.Amount < 0 ? -transaction.Amount : transaction.Amount)
+                    })
+                    .OrderBy(item => item.Currency)
+                    .ToListAsync(cancellationToken)
             };
         }
 

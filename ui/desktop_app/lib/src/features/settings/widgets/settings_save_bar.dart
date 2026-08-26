@@ -7,8 +7,10 @@ class SettingsSaveBar extends StatelessWidget {
     required this.dirty,
     required this.saving,
     required this.onSave,
+    this.valid = true,
   });
   final bool dirty, saving;
+  final bool valid;
   final VoidCallback onSave;
   @override
   Widget build(BuildContext context) => Row(
@@ -24,7 +26,7 @@ class SettingsSaveBar extends StatelessWidget {
       ),
       const SizedBox(width: 16),
       ElevatedButton.icon(
-        onPressed: dirty && !saving ? onSave : null,
+        onPressed: dirty && valid && !saving ? onSave : null,
         icon: saving
             ? const SizedBox.square(
                 dimension: 16,

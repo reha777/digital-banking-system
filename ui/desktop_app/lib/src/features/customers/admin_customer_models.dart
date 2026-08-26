@@ -1,3 +1,5 @@
+import '../../core/currency_amount.dart';
+
 class AdminCustomerPage {
   const AdminCustomerPage({
     required this.items,
@@ -65,7 +67,7 @@ class AdminCustomer {
     required this.status,
     required this.statusValue,
     required this.accountCount,
-    required this.totalBalance,
+    required this.balances,
     required this.createdAtUtc,
   });
 
@@ -80,7 +82,9 @@ class AdminCustomer {
       status: _statusLabel(json['status']),
       statusValue: _statusValue(json['status']),
       accountCount: json['accountCount'] as int? ?? 0,
-      totalBalance: (json['totalBalance'] as num? ?? 0).toDouble(),
+      balances: (json['balances'] as List? ?? [])
+          .map((item) => CurrencyAmount.fromJson(item as Map<String, dynamic>))
+          .toList(),
       createdAtUtc:
           DateTime.tryParse(json['createdAtUtc']?.toString() ?? '') ??
           DateTime.now().toUtc(),
@@ -96,7 +100,7 @@ class AdminCustomer {
   final String status;
   final int statusValue;
   final int accountCount;
-  final double totalBalance;
+  final List<CurrencyAmount> balances;
   final DateTime createdAtUtc;
 }
 

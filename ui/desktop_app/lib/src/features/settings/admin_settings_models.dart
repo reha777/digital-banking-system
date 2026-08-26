@@ -110,13 +110,21 @@ class AdminProfile {
     required this.lastName,
     required this.email,
     required this.phoneNumber,
+    this.hasProfilePhoto = false,
+    this.profilePhotoUpdatedAtUtc,
   });
   final String firstName, lastName, email, phoneNumber;
+  final bool hasProfilePhoto;
+  final DateTime? profilePhotoUpdatedAtUtc;
   factory AdminProfile.fromJson(Map<String, dynamic> j) => AdminProfile(
     firstName: j['firstName'].toString(),
     lastName: j['lastName'].toString(),
     email: j['email'].toString(),
     phoneNumber: j['phoneNumber'].toString(),
+    hasProfilePhoto: j['hasProfilePhoto'] as bool? ?? false,
+    profilePhotoUpdatedAtUtc: DateTime.tryParse(
+      j['profilePhotoUpdatedAtUtc']?.toString() ?? '',
+    ),
   );
   Map<String, dynamic> toJson() => {
     'firstName': firstName,

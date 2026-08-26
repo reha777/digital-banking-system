@@ -23,7 +23,7 @@ class HomeQuickActions extends StatelessWidget {
       children: [
         Expanded(
           child: _ActionButton(
-            icon: Icons.arrow_upward,
+            icon: LucideIcons.send,
             label: 'Send',
             onPressed: onSendMoney,
           ),
@@ -31,7 +31,7 @@ class HomeQuickActions extends StatelessWidget {
         const SizedBox(width: 12),
         Expanded(
           child: _ActionButton(
-            icon: Icons.arrow_downward,
+            icon: LucideIcons.scanLine,
             label: 'Receive',
             onPressed: onReceiveMoney,
           ),
@@ -57,7 +57,7 @@ class HomeQuickActions extends StatelessWidget {
   }
 }
 
-class _ActionButton extends StatelessWidget {
+class _ActionButton extends StatefulWidget {
   const _ActionButton({
     required this.icon,
     required this.label,
@@ -69,27 +69,74 @@ class _ActionButton extends StatelessWidget {
   final VoidCallback? onPressed;
 
   @override
+  State<_ActionButton> createState() => _ActionButtonState();
+}
+
+class _ActionButtonState extends State<_ActionButton> {
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: onPressed,
-      child: Column(
-        children: [
-          CircleAvatar(
-            radius: 24,
-            backgroundColor: isDark
-                ? AppTheme.darkSurface
-                : const Color(0xFFF5F6FA),
-            child: Icon(
-              icon,
-              color: isDark ? Colors.white : const Color(0xFF10163A),
-              size: 25,
-            ),
+    return Semantics(
+      button: true,
+      label: widget.label,
+      child: GestureDetector(
+        onTapDown: widget.onPressed == null
+            ? null
+            : (_) => setState(() => _pressed = true),
+        onTapCancel: widget.onPressed == null
+            ? null
+            : () => setState(() => _pressed = false),
+        onTapUp: widget.onPressed == null
+            ? null
+            : (_) => setState(() => _pressed = false),
+        onTap: widget.onPressed,
+        child: AnimatedScale(
+          duration: const Duration(milliseconds: 120),
+          scale: _pressed ? .94 : 1,
+          child: Column(
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? AppTheme.darkSurface
+                      : const Color(0xFFF4F7FC),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: .06)
+                        : const Color(0xFFE6EBF3),
+                  ),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x120066FF),
+                      blurRadius: 14,
+                      offset: Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  widget.icon,
+                  color: isDark ? Colors.white : const Color(0xFF10163A),
+                  size: 23,
+                ),
+              ),
+              const SizedBox(height: 9),
+              Text(
+                widget.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
-          Text(label, style: Theme.of(context).textTheme.bodySmall),
-        ],
+        ),
       ),
     );
   }

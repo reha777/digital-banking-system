@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../core/app_theme.dart';
-import '../../../core/theme_controller.dart';
 import '../admin_section.dart';
+import '../../auth/auth_models.dart';
+import 'admin_avatar.dart';
 
 class AdminSidebar extends StatelessWidget {
   const AdminSidebar({
@@ -11,16 +12,21 @@ class AdminSidebar extends StatelessWidget {
     required this.userName,
     required this.selectedSection,
     required this.onSectionSelected,
-    required this.themeController,
     required this.onLogout,
     required this.compact,
+    this.systemName = 'Digital Banking System',
+    this.systemShortName = 'DBS',
+    this.user,
+    this.token,
   });
   final String userName;
   final AdminSection selectedSection;
   final ValueChanged<AdminSection> onSectionSelected;
-  final ThemeController themeController;
   final VoidCallback onLogout;
   final bool compact;
+  final String systemName, systemShortName;
+  final AuthUser? user;
+  final String? token;
 
   @override
   Widget build(BuildContext context) => AnimatedContainer(
@@ -32,231 +38,211 @@ class AdminSidebar extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: AppTheme.primary,
-                borderRadius: BorderRadius.circular(8),
+        Expanded(
+          child: ListView(
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      LucideIcons.shieldCheck,
+                      color: Colors.white,
+                      size: 21,
+                    ),
+                  ),
+                  if (!compact) ...[
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        systemName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (compact)
+                    Expanded(
+                      child: Text(
+                        systemShortName,
+                        maxLines: 1,
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                ],
               ),
-              child: const Icon(
-                LucideIcons.shieldCheck,
-                color: Colors.white,
-                size: 21,
+              const SizedBox(height: 18),
+              Divider(color: Colors.white.withValues(alpha: .1), height: 1),
+              const SizedBox(height: 18),
+              _SidebarItem(
+                icon: LucideIcons.layoutDashboard,
+                title: 'Dashboard',
+                active: selectedSection == AdminSection.dashboard,
+                compact: compact,
+                onTap: () => onSectionSelected(AdminSection.dashboard),
               ),
-            ),
-            if (!compact) ...[
-              const SizedBox(width: 10),
-              const Expanded(
-                child: Text(
-                  'Banking Admin',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
+              _SidebarItem(
+                icon: LucideIcons.receipt,
+                title: 'Transactions',
+                active: selectedSection == AdminSection.transactions,
+                compact: compact,
+                onTap: () => onSectionSelected(AdminSection.transactions),
+              ),
+              _SidebarItem(
+                icon: LucideIcons.shieldAlert,
+                title: 'Transaction Review',
+                active: selectedSection == AdminSection.transactionReviews,
+                compact: compact,
+                onTap: () => onSectionSelected(AdminSection.transactionReviews),
+              ),
+              _SidebarItem(
+                icon: LucideIcons.users,
+                title: 'Customers',
+                active: selectedSection == AdminSection.customers,
+                compact: compact,
+                onTap: () => onSectionSelected(AdminSection.customers),
+              ),
+              _SidebarItem(
+                icon: LucideIcons.creditCard,
+                title: 'Card Requests',
+                active: selectedSection == AdminSection.cardRequests,
+                compact: compact,
+                onTap: () => onSectionSelected(AdminSection.cardRequests),
+              ),
+              _SidebarItem(
+                icon: LucideIcons.coins,
+                title: 'Loans',
+                active: selectedSection == AdminSection.loans,
+                compact: compact,
+                onTap: () => onSectionSelected(AdminSection.loans),
+              ),
+              const SizedBox(height: 10),
+              Divider(color: Colors.white.withValues(alpha: .1), height: 1),
+              if (!compact) ...[
+                const SizedBox(height: 18),
+                const Padding(
+                  padding: EdgeInsets.only(left: 10, bottom: 10),
+                  child: Text(
+                    'SYSTEM',
+                    style: TextStyle(
+                      color: Colors.white54,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
+              ] else
+                const SizedBox(height: 12),
+              _SidebarItem(
+                icon: LucideIcons.scrollText,
+                title: 'Audit Logs',
+                active: selectedSection == AdminSection.auditLogs,
+                compact: compact,
+                onTap: () => onSectionSelected(AdminSection.auditLogs),
+              ),
+              _SidebarItem(
+                icon: LucideIcons.database,
+                title: 'Reference Data',
+                active: selectedSection == AdminSection.referenceData,
+                compact: compact,
+                onTap: () => onSectionSelected(AdminSection.referenceData),
+              ),
+              _SidebarItem(
+                icon: LucideIcons.fileText,
+                title: 'Reports',
+                active: selectedSection == AdminSection.reports,
+                compact: compact,
+                onTap: () => onSectionSelected(AdminSection.reports),
+              ),
+              _SidebarItem(
+                icon: LucideIcons.settings,
+                title: 'Settings',
+                active: selectedSection == AdminSection.settings,
+                compact: compact,
+                onTap: () => onSectionSelected(AdminSection.settings),
               ),
             ],
-          ],
-        ),
-        const SizedBox(height: 18),
-        Divider(color: Colors.white.withValues(alpha: .1), height: 1),
-        const SizedBox(height: 18),
-        _SidebarItem(
-          icon: LucideIcons.layoutDashboard,
-          title: 'Dashboard',
-          active: selectedSection == AdminSection.dashboard,
-          compact: compact,
-          onTap: () => onSectionSelected(AdminSection.dashboard),
-        ),
-        _SidebarItem(
-          icon: LucideIcons.receipt,
-          title: 'Transactions',
-          active: selectedSection == AdminSection.transactions,
-          compact: compact,
-          onTap: () => onSectionSelected(AdminSection.transactions),
-        ),
-        _SidebarItem(
-          icon: LucideIcons.shieldAlert,
-          title: 'Transaction Review',
-          active: selectedSection == AdminSection.transactionReviews,
-          compact: compact,
-          onTap: () => onSectionSelected(AdminSection.transactionReviews),
-        ),
-        _SidebarItem(
-          icon: LucideIcons.users,
-          title: 'Customers',
-          active: selectedSection == AdminSection.customers,
-          compact: compact,
-          onTap: () => onSectionSelected(AdminSection.customers),
-        ),
-        _SidebarItem(
-          icon: LucideIcons.creditCard,
-          title: 'Card Requests',
-          active: selectedSection == AdminSection.cardRequests,
-          compact: compact,
-          onTap: () => onSectionSelected(AdminSection.cardRequests),
-        ),
-        _SidebarItem(
-          icon: LucideIcons.coins,
-          title: 'Loans',
-          active: selectedSection == AdminSection.loans,
-          compact: compact,
-          onTap: () => onSectionSelected(AdminSection.loans),
-        ),
-        const SizedBox(height: 10),
-        Divider(color: Colors.white.withValues(alpha: .1), height: 1),
-        if (!compact) ...[
-          const SizedBox(height: 18),
-          const Padding(
-            padding: EdgeInsets.only(left: 10, bottom: 10),
-            child: Text(
-              'SYSTEM',
-              style: TextStyle(
-                color: Colors.white54,
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
           ),
-        ] else
-          const SizedBox(height: 12),
-        _SidebarItem(
-          icon: LucideIcons.barChart3,
-          title: 'Reports',
-          active: false,
-          compact: compact,
-          onTap: () => _unavailable(context, 'Reports'),
         ),
-        _SidebarItem(
-          icon: LucideIcons.settings,
-          title: 'Settings',
-          active: selectedSection == AdminSection.settings,
-          compact: compact,
-          onTap: () => onSectionSelected(AdminSection.settings),
-        ),
-        _SidebarItem(
-          icon: LucideIcons.history,
-          title: 'Audit Logs',
-          active: false,
-          compact: compact,
-          onTap: () => _unavailable(context, 'Audit Logs'),
-        ),
-        const Spacer(),
-        AnimatedBuilder(
-          animation: themeController,
-          builder: (context, _) => Container(
-            width: double.infinity,
-            padding: EdgeInsets.all(compact ? 8 : 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF172235),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.white.withValues(alpha: .08)),
-            ),
-            child: compact
-                ? Column(
-                    children: [
-                      IconButton(
-                        onPressed: () => themeController.toggleDarkMode(
-                          !themeController.isDarkMode,
-                        ),
-                        tooltip: themeController.isDarkMode
-                            ? 'Use light mode'
-                            : 'Use dark mode',
-                        icon: Icon(
-                          themeController.isDarkMode
-                              ? LucideIcons.sun
-                              : LucideIcons.moon,
-                          color: Colors.white70,
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: onLogout,
-                        tooltip: 'Sign out $userName',
-                        icon: const Icon(
-                          LucideIcons.logOut,
-                          color: Colors.white70,
-                        ),
-                      ),
-                    ],
-                  )
-                : Row(
-                    children: [
-                      const CircleAvatar(
-                        radius: 19,
-                        backgroundColor: Color(0xFF334155),
-                        child: Icon(
-                          LucideIcons.user,
-                          color: Colors.white70,
-                          size: 19,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              userName.isEmpty ? 'Admin' : userName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const Text(
-                              'Administrator',
-                              style: TextStyle(
-                                color: Colors.white54,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => themeController.toggleDarkMode(
-                          !themeController.isDarkMode,
-                        ),
-                        tooltip: themeController.isDarkMode
-                            ? 'Use light mode'
-                            : 'Use dark mode',
-                        icon: Icon(
-                          themeController.isDarkMode
-                              ? LucideIcons.sun
-                              : LucideIcons.moon,
-                          color: Colors.white70,
-                          size: 18,
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: onLogout,
-                        tooltip: 'Sign out',
-                        icon: const Icon(
-                          LucideIcons.logOut,
-                          color: Colors.white54,
-                          size: 18,
-                        ),
-                      ),
-                    ],
-                  ),
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(compact ? 8 : 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF172235),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white.withValues(alpha: .08)),
           ),
+          child: compact
+              ? IconButton(
+                  onPressed: onLogout,
+                  tooltip: 'Sign out $userName',
+                  icon: const Icon(LucideIcons.logOut, color: Colors.white70),
+                )
+              : Row(
+                  children: [
+                    AdminAvatar(
+                      user: user,
+                      token: token,
+                      radius: 19,
+                      backgroundColor: const Color(0xFF334155),
+                      foregroundColor: Colors.white70,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            userName.isEmpty ? 'Admin' : userName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const Text(
+                            'Administrator',
+                            style: TextStyle(
+                              color: Colors.white54,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: onLogout,
+                      tooltip: 'Sign out',
+                      icon: const Icon(
+                        LucideIcons.logOut,
+                        color: Colors.white54,
+                        size: 18,
+                      ),
+                    ),
+                  ],
+                ),
         ),
       ],
     ),
   );
-
-  void _unavailable(BuildContext context, String section) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('$section is not available yet.')));
-  }
 }
 
 class _SidebarItem extends StatefulWidget {

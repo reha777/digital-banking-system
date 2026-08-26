@@ -1,5 +1,14 @@
 import 'package:flutter/material.dart';
 
+class AdminPageHeaderScope extends InheritedWidget {
+  const AdminPageHeaderScope({super.key, required super.child});
+  static bool isEmbedded(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<AdminPageHeaderScope>() !=
+      null;
+  @override
+  bool updateShouldNotify(AdminPageHeaderScope oldWidget) => false;
+}
+
 class AppPageHeader extends StatelessWidget {
   const AppPageHeader({
     super.key,
@@ -24,7 +33,12 @@ class AppPageHeader extends StatelessWidget {
           height: 42,
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.primary.withValues(alpha: .1),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: .1),
+            ),
           ),
           child: Icon(icon, color: Theme.of(context).colorScheme.primary),
         ),

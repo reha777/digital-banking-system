@@ -38,6 +38,12 @@ namespace BankingApp.Application.Cards
 
         public string? ApprovedMaskedCardNumber { get; set; }
 
+        public DateTime? ApprovedCardExpiryDate { get; set; }
+
+        public CardStatus? ApprovedCardStatus { get; set; }
+
+        public CardBrand? ApprovedCardBrand { get; set; }
+
         public DateTime CreatedAtUtc { get; set; }
 
         public DateTime? ReviewedAtUtc { get; set; }

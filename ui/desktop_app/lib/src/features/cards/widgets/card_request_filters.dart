@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/app_theme.dart';
+import '../../../widgets/app_date_range_picker.dart';
+import '../../../widgets/app_dropdown_field.dart';
 
 class CardRequestFilters extends StatelessWidget {
   const CardRequestFilters({
@@ -9,6 +11,8 @@ class CardRequestFilters extends StatelessWidget {
     required this.status,
     required this.onSearchChanged,
     required this.onStatusChanged,
+    required this.dateRange,
+    required this.onDateChanged,
     required this.onRefresh,
     required this.onReset,
   });
@@ -16,6 +20,8 @@ class CardRequestFilters extends StatelessWidget {
   final int? status;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<int?> onStatusChanged;
+  final DateTimeRange? dateRange;
+  final ValueChanged<DateTimeRange?> onDateChanged;
   final VoidCallback onRefresh;
   final VoidCallback onReset;
 
@@ -49,18 +55,25 @@ class CardRequestFilters extends StatelessWidget {
             ),
           ),
           SizedBox(
+            width: 245,
+            child: AppDateRangePicker(
+              dateFrom: dateRange?.start,
+              dateTo: dateRange?.end,
+              onApply: onDateChanged,
+              onClear: () => onDateChanged(null),
+            ),
+          ),
+          SizedBox(
             width: 210,
-            child: DropdownButtonFormField<int?>(
-              key: ValueKey(status),
-              initialValue: status,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Status'),
+            child: AppDropdownField<int?>(
+              label: 'Status',
+              value: status,
               items: const [
-                DropdownMenuItem(value: null, child: Text('All statuses')),
-                DropdownMenuItem(value: 1, child: Text('Pending')),
-                DropdownMenuItem(value: 4, child: Text('Documents requested')),
-                DropdownMenuItem(value: 2, child: Text('Approved')),
-                DropdownMenuItem(value: 3, child: Text('Rejected')),
+                AppDropdownItem(value: null, label: 'All statuses'),
+                AppDropdownItem(value: 1, label: 'Pending'),
+                AppDropdownItem(value: 4, label: 'Documents requested'),
+                AppDropdownItem(value: 2, label: 'Approved'),
+                AppDropdownItem(value: 3, label: 'Rejected'),
               ],
               onChanged: onStatusChanged,
             ),

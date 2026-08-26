@@ -9,6 +9,11 @@ class AppTheme {
   static const Color textMuted = Color(0xFF85889A);
   static const Color inputBorder = Color(0xFFE7E9F0);
   static const Color error = Color(0xFFE5484D);
+  static const Color success = Color(0xFF168A4A);
+  static const Color warning = Color(0xFFE08A00);
+  static const double radiusSmall = 10;
+  static const double radiusMedium = 16;
+  static const double radiusLarge = 24;
 
   static ThemeData get light {
     return _base(
@@ -39,7 +44,14 @@ class AppTheme {
       brightness: brightness,
       primary: primary,
       error: error,
+      surface: brightness == Brightness.dark
+          ? const Color(0xFF1D1E2D)
+          : const Color(0xFFFFFFFF),
     );
+    final surface = colorScheme.surface;
+    final border = brightness == Brightness.dark
+        ? const Color(0xFF303244)
+        : inputBorder;
 
     return ThemeData(
       useMaterial3: true,
@@ -47,16 +59,19 @@ class AppTheme {
       scaffoldBackgroundColor: scaffoldBackgroundColor,
       colorScheme: colorScheme,
       fontFamily: 'Arial',
+      visualDensity: VisualDensity.standard,
       textTheme: TextTheme(
         headlineMedium: TextStyle(
           color: textColor,
           fontSize: 28,
           fontWeight: FontWeight.w700,
+          letterSpacing: -0.6,
         ),
         titleLarge: TextStyle(
           color: textColor,
           fontSize: 22,
           fontWeight: FontWeight.w700,
+          letterSpacing: -0.35,
         ),
         titleMedium: TextStyle(
           color: textColor,
@@ -76,24 +91,43 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: inputFill,
-        contentPadding: const EdgeInsets.symmetric(vertical: 14),
+        fillColor: brightness == Brightness.dark
+            ? const Color(0xFF1D1E2D)
+            : const Color(0xFFF8F9FC),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         hintStyle: const TextStyle(color: textMuted, fontSize: 13),
         labelStyle: const TextStyle(color: textMuted, fontSize: 12),
         errorStyle: const TextStyle(color: error, fontSize: 11, height: 1.3),
         prefixIconColor: textMuted,
         suffixIconColor: textMuted,
-        enabledBorder: const UnderlineInputBorder(
-          borderSide: BorderSide(color: inputBorder),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(radiusMedium),
+          borderSide: BorderSide(color: border),
         ),
-        focusedBorder: const UnderlineInputBorder(
-          borderSide: BorderSide(color: primary, width: 1.4),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(radiusMedium),
+          borderSide: const BorderSide(color: primary, width: 1.5),
         ),
-        errorBorder: const UnderlineInputBorder(
-          borderSide: BorderSide(color: error),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(radiusMedium),
+          borderSide: const BorderSide(color: error),
         ),
-        focusedErrorBorder: const UnderlineInputBorder(
-          borderSide: BorderSide(color: error, width: 1.4),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(radiusMedium),
+          borderSide: const BorderSide(color: error, width: 1.5),
+        ),
+      ),
+      cardTheme: CardThemeData(
+        color: surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusMedium),
+          side: BorderSide(color: border),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -102,9 +136,87 @@ class AppTheme {
           foregroundColor: Colors.white,
           elevation: 0,
           minimumSize: const Size.fromHeight(54),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          shadowColor: primary.withValues(alpha: .28),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
         ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(44, 50),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          side: BorderSide(color: border),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          minimumSize: const Size(44, 44),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+      dividerTheme: DividerThemeData(
+        color: border.withValues(alpha: .8),
+        thickness: .8,
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusLarge),
+        ),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        showDragHandle: true,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(radiusLarge),
+          ),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+      switchTheme: SwitchThemeData(
+        trackColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? primary.withValues(alpha: .45)
+              : textMuted.withValues(alpha: .25),
+        ),
+        thumbColor: WidgetStateProperty.resolveWith(
+          (states) =>
+              states.contains(WidgetState.selected) ? primary : Colors.white,
+        ),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        elevation: 0,
+        backgroundColor: surface,
+        indicatorColor: primary.withValues(alpha: .12),
+        labelTextStyle: WidgetStateProperty.resolveWith(
+          (states) => TextStyle(
+            fontSize: 11,
+            fontWeight: states.contains(WidgetState.selected)
+                ? FontWeight.w700
+                : FontWeight.w500,
+            color: states.contains(WidgetState.selected) ? primary : textMuted,
+          ),
+        ),
+      ),
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.windows: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.linux: FadeForwardsPageTransitionsBuilder(),
+        },
       ),
     );
   }

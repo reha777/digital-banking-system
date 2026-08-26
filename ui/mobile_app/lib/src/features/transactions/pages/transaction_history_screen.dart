@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/api_client.dart';
 import '../../../widgets/mobile_shell.dart';
@@ -140,15 +141,6 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     }
   }
 
-  void _selectNavigation(int index) {
-    if (index == 0) {
-      Navigator.of(context).pop();
-      return;
-    }
-
-    Navigator.of(context).pop(index);
-  }
-
   Future<void> _refreshAfterDocumentUpload() async {
     await _loadFirstPage();
     if (!mounted) {
@@ -170,10 +162,8 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return MobileShell(
-      currentIndex: 0,
-      onSelected: _selectNavigation,
-      child: SafeArea(
+    return Scaffold(
+      body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
           child: Column(
@@ -250,7 +240,7 @@ class _HistoryHeader extends StatelessWidget {
     return Row(
       children: [
         CircleIconButton(
-          icon: Icons.arrow_back_ios_new,
+          icon: LucideIcons.arrowLeft,
           onPressed: () => Navigator.of(context).pop(),
           tooltip: 'Back',
         ),

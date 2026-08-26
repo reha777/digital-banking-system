@@ -1,10 +1,12 @@
 using BankingApp.Application.Loans;
+using BankingApp.Application.Common.Pagination;
 
 namespace BankingApp.Application.Interfaces;
 
 public interface ILoanService
 {
-    Task<IReadOnlyCollection<LoanProductResponse>> GetActiveProductsAsync(
+    Task<PagedResult<LoanProductResponse>> GetActiveProductsAsync(
+        PagedRequest request,
         CancellationToken cancellationToken = default);
 
     Task<LoanQuoteResponse> QuoteAsync(

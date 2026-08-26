@@ -35,6 +35,8 @@ namespace BankingApp.Domain.Entities
         public ICollection<Account> Accounts { get; set; } = new List<Account>();
 
         public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+        public ICollection<PasswordResetToken> PasswordResetTokens { get; set; } = new List<PasswordResetToken>();
+        public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
 
         public ICollection<CardRequest> CardRequests { get; set; } = new List<CardRequest>();
 

@@ -8,11 +8,15 @@ abstract class AdminLoanRepository {
     required int pageSize,
     String? search,
     int? status,
+    DateTime? dateFromUtc,
+    DateTime? dateToUtc,
   });
   Future<AdminLoanSummary> getSummary({
     required String token,
     String? search,
     int? status,
+    DateTime? dateFromUtc,
+    DateTime? dateToUtc,
   });
   Future<AdminLoanApplicationDetails> getApplicationDetails({
     required String token,
@@ -36,6 +40,7 @@ abstract class AdminLoanRepository {
     String? search,
     DateTime? dateFromUtc,
     DateTime? dateToUtc,
+    bool? overdueOnly,
   });
   Future<AdminLoanDetails> getLoanDetails({
     required String token,
@@ -47,10 +52,17 @@ abstract class AdminLoanRepository {
 class AdminLoanService implements AdminLoanRepository {
   const AdminLoanService(this._client);
   final ApiClient _client;
-  Map<String, String> _query({String? search, int? status}) {
+  Map<String, String> _query({
+    String? search,
+    int? status,
+    DateTime? dateFromUtc,
+    DateTime? dateToUtc,
+  }) {
     final result = <String, String>{};
     if (search?.trim().isNotEmpty == true) result['search'] = search!.trim();
     if (status != null) result['status'] = '$status';
+    if (dateFromUtc != null) result['dateFromUtc'] = _date(dateFromUtc);
+    if (dateToUtc != null) result['dateToUtc'] = _date(dateToUtc);
     return result;
   }
 
@@ -61,9 +73,16 @@ class AdminLoanService implements AdminLoanRepository {
     required int pageSize,
     String? search,
     int? status,
+    DateTime? dateFromUtc,
+    DateTime? dateToUtc,
+    bool? overdueOnly,
   }) async {
-    final query = _query(search: search, status: status)
-      ..addAll({'page': '$page', 'pageSize': '$pageSize'});
+    final query = _query(
+      search: search,
+      status: status,
+      dateFromUtc: dateFromUtc,
+      dateToUtc: dateToUtc,
+    )..addAll({'page': '$page', 'pageSize': '$pageSize'});
     final json = await _client.getJson(
       Uri(
         path: '/api/admin/loans/applications',
@@ -79,11 +98,18 @@ class AdminLoanService implements AdminLoanRepository {
     required String token,
     String? search,
     int? status,
+    DateTime? dateFromUtc,
+    DateTime? dateToUtc,
   }) async {
     final json = await _client.getJson(
       Uri(
         path: '/api/admin/loans/applications/summary',
-        queryParameters: _query(search: search, status: status),
+        queryParameters: _query(
+          search: search,
+          status: status,
+          dateFromUtc: dateFromUtc,
+          dateToUtc: dateToUtc,
+        ),
       ).toString(),
       token: token,
     );
@@ -129,6 +155,7 @@ class AdminLoanService implements AdminLoanRepository {
     String? search,
     DateTime? dateFromUtc,
     DateTime? dateToUtc,
+    bool? overdueOnly,
   }) async {
     final query = <String, String>{
       'page': '$page',
@@ -142,6 +169,7 @@ class AdminLoanService implements AdminLoanRepository {
     if (dateToUtc != null) {
       query['dateToUtc'] = dateToUtc.toUtc().toIso8601String();
     }
+    if (overdueOnly != null) query['overdueOnly'] = '$overdueOnly';
     return AdminLoanPage.fromJson(
       await _client.getJson(
         Uri(path: '/api/admin/loans', queryParameters: query).toString(),
@@ -162,4 +190,9 @@ class AdminLoanService implements AdminLoanRepository {
       AdminLoansOverview.fromJson(
         await _client.getJson('/api/admin/loans/summary', token: token),
       );
+
+  static String _date(DateTime value) =>
+      '${value.year.toString().padLeft(4, '0')}-'
+      '${value.month.toString().padLeft(2, '0')}-'
+      '${value.day.toString().padLeft(2, '0')}';
 }

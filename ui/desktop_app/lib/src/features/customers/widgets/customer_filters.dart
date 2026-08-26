@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/app_theme.dart';
+import '../../../widgets/app_dropdown_field.dart';
 
 class CustomerFilters extends StatelessWidget {
   const CustomerFilters({
@@ -50,16 +51,14 @@ class CustomerFilters extends StatelessWidget {
           ),
           SizedBox(
             width: 190,
-            child: DropdownButtonFormField<int?>(
-              key: ValueKey(status),
-              initialValue: status,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Status'),
+            child: AppDropdownField<int?>(
+              label: 'Status',
+              value: status,
               items: const [
-                DropdownMenuItem(value: null, child: Text('All statuses')),
-                DropdownMenuItem(value: 1, child: Text('Active')),
-                DropdownMenuItem(value: 2, child: Text('Inactive')),
-                DropdownMenuItem(value: 3, child: Text('Blocked')),
+                AppDropdownItem(value: null, label: 'All statuses'),
+                AppDropdownItem(value: 1, label: 'Active'),
+                AppDropdownItem(value: 2, label: 'Inactive'),
+                AppDropdownItem(value: 3, label: 'Blocked'),
               ],
               onChanged: onStatusChanged,
             ),

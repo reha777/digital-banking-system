@@ -13,6 +13,7 @@ namespace BankingApp.Domain.Entities
         public Guid? SourceAccountId { get; set; }
 
         public Guid? DestinationAccountId { get; set; }
+        public Guid? TransactionCategoryId { get; set; }
 
         public string ReferenceNumber { get; set; } = string.Empty;
 
@@ -48,5 +49,6 @@ namespace BankingApp.Domain.Entities
 
         public ICollection<TransactionDocument> Documents { get; set; } =
             new List<TransactionDocument>();
+        public ReferenceDataItem? TransactionCategory { get; set; }
     }
 }

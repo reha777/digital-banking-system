@@ -274,6 +274,44 @@ class ActiveLoanCard extends StatelessWidget {
               ),
             ),
             const Divider(height: 30),
+            if (loan.hasOverdue) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: .10),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red.withValues(alpha: .35)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(LucideIcons.triangleAlert, color: Colors.red),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Payment overdue',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              color: Colors.red,
+                            ),
+                          ),
+                          Text(
+                            '${loan.overdueInstallmentsCount} overdue installment${loan.overdueInstallmentsCount == 1 ? '' : 's'}',
+                          ),
+                          Text(
+                            '${formatMoney(loan.totalOverdueAmount)} ${loan.currency} overdue',
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+            ],
             _summaryLine(
               'Monthly Payment',
               '${formatMoney(loan.monthlyPayment)} ${loan.currency}',

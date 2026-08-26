@@ -5,6 +5,8 @@ import '../../../widgets/profile_avatar.dart';
 import '../profile_photo_picker.dart';
 import '../settings_service.dart';
 import '../widgets/settings_widgets.dart';
+import '../../auth/auth_session.dart';
+import '../../notifications/notifications_page.dart';
 import 'personal_information_page.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -16,6 +18,7 @@ class ProfilePage extends StatefulWidget {
     this.onProfileUpdated,
     this.accessToken,
     this.photoPicker,
+    this.session,
   });
 
   final AuthUser user;
@@ -24,6 +27,7 @@ class ProfilePage extends StatefulWidget {
   final VoidCallback? onProfileUpdated;
   final String? accessToken;
   final Future<PickedProfilePhoto?> Function()? photoPicker;
+  final AuthSession? session;
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -219,15 +223,17 @@ class _ProfilePageState extends State<ProfilePage> {
               icon: Icons.credit_card_outlined,
               onTap: widget.onOpenCards,
             ),
-            const SettingsNavigationTile(
+            SettingsNavigationTile(
               label: 'Notifications',
               icon: Icons.notifications_none,
-              value: 'API required',
-            ),
-            const SettingsNavigationTile(
-              label: 'Address',
-              icon: Icons.location_on_outlined,
-              value: 'API required',
+              onTap: widget.session == null
+                  ? null
+                  : () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) =>
+                            NotificationsPage(session: widget.session!),
+                      ),
+                    ),
             ),
             SettingsNavigationTile(
               label: 'Settings',

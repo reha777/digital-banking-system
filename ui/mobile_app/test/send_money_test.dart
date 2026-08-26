@@ -149,6 +149,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('mobile-bottom-navigation')),
+      findsNothing,
+    );
     await tester.scrollUntilVisible(
       find.text('Add'),
       250,

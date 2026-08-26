@@ -12,5 +12,6 @@ namespace BankingApp.Application.Transactions
 
         [Required]
         public byte[] Content { get; set; } = [];
+        public Guid? DocumentTypeId { get; set; }
     }
 }

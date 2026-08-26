@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/app_theme.dart';
 import '../../../widgets/profile_avatar.dart';
+import '../../auth/auth_session.dart';
+import '../../notifications/notifications_page.dart';
 
 class HomeProfileHeader extends StatelessWidget {
   const HomeProfileHeader({
@@ -11,6 +12,8 @@ class HomeProfileHeader extends StatelessWidget {
     required this.hasProfilePhoto,
     required this.accessToken,
     required this.onProfileTap,
+    this.session,
+    this.onNotificationsTap,
     this.profilePhotoUpdatedAtUtc,
   });
 
@@ -20,11 +23,12 @@ class HomeProfileHeader extends StatelessWidget {
   final String? accessToken;
   final DateTime? profilePhotoUpdatedAtUtc;
   final VoidCallback onProfileTap;
+  final AuthSession? session;
+  final Future<void> Function()? onNotificationsTap;
 
   @override
   Widget build(BuildContext context) {
     final fullName = '$firstName $lastName'.trim();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       children: [
         ProfileAvatar(
@@ -54,21 +58,8 @@ class HomeProfileHeader extends StatelessWidget {
             ],
           ),
         ),
-        IconButton.filledTonal(
-          onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Search ce biti povezan kasnije.')),
-            );
-          },
-          icon: const Icon(Icons.search),
-          tooltip: 'Search',
-          style: IconButton.styleFrom(
-            backgroundColor: isDark
-                ? AppTheme.darkSurface
-                : const Color(0xFFF5F6FA),
-            foregroundColor: isDark ? Colors.white : AppTheme.textDark,
-          ),
-        ),
+        if (session != null && onNotificationsTap != null)
+          NotificationBell(session: session!, onTap: onNotificationsTap!),
       ],
     );
   }

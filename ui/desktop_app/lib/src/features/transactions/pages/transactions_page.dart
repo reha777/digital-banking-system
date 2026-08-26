@@ -12,9 +12,13 @@ import '../../../widgets/app_pagination.dart';
 import '../../../widgets/app_status_badge.dart';
 import '../../../widgets/app_summary_card.dart';
 import '../../../widgets/app_status_tabs.dart';
+import '../../../widgets/app_table_row_hover.dart';
+import '../../../widgets/app_dropdown_field.dart';
 import '../admin_transaction_models.dart';
 import '../admin_transaction_service.dart';
+import '../widgets/transaction_details_dialog.dart';
 import '../../settings/admin_formatters.dart';
+import '../../../core/currency_amount.dart';
 
 class TransactionsPage extends StatefulWidget {
   const TransactionsPage({
@@ -22,11 +26,13 @@ class TransactionsPage extends StatefulWidget {
     required this.token,
     required this.defaultPageSize,
     required this.dateFormatter,
+    this.service,
     this.showHeader = true,
   });
   final String token;
   final int defaultPageSize;
   final String Function(DateTime) dateFormatter;
+  final AdminTransactionService? service;
   final bool showHeader;
 
   @override
@@ -42,13 +48,14 @@ class _TransactionsPageState extends State<TransactionsPage> {
   int _page = 1;
   late int _pageSize;
   int? _status;
+  int? _type;
   DateTimeRange? _dateRange;
 
   @override
   void initState() {
     super.initState();
     _pageSize = widget.defaultPageSize;
-    _service = AdminTransactionService(ApiClient());
+    _service = widget.service ?? AdminTransactionService(ApiClient());
     _future = _load();
   }
 
@@ -67,6 +74,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
       pageSize: _pageSize,
       search: _searchController.text,
       status: _status,
+      type: _type,
       dateFrom: _dateRange?.start,
       dateTo: _dateRange?.end,
     );
@@ -74,6 +82,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
       token: widget.token,
       search: _searchController.text,
       status: _status,
+      type: _type,
       dateFrom: _dateRange?.start,
       dateTo: _dateRange?.end,
     );
@@ -83,7 +92,9 @@ class _TransactionsPageState extends State<TransactionsPage> {
   void _refresh({bool firstPage = false}) {
     if (firstPage) _page = 1;
     if (_scrollController.hasClients) _scrollController.jumpTo(0);
-    setState(() => _future = _load());
+    setState(() {
+      _future = _load();
+    });
   }
 
   void _onSearchChanged(String _) {
@@ -97,6 +108,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
     _debounce?.cancel();
     _searchController.clear();
     _status = null;
+    _type = null;
     _dateRange = null;
     _refresh(firstPage: true);
   }
@@ -117,10 +129,15 @@ class _TransactionsPageState extends State<TransactionsPage> {
         _TransactionFilters(
           searchController: _searchController,
           status: _status,
+          type: _type,
           dateRange: _dateRange,
           onSearchChanged: _onSearchChanged,
           onStatusChanged: (value) {
             _status = value;
+            _refresh(firstPage: true);
+          },
+          onTypeChanged: (value) {
+            _type = value;
             _refresh(firstPage: true);
           },
           onDateChanged: (value) {
@@ -185,6 +202,15 @@ class _TransactionsPageState extends State<TransactionsPage> {
                         _pageSize = value;
                         _refresh(firstPage: true);
                       },
+                      onDetails: (item) => showDialog<void>(
+                        context: context,
+                        builder: (_) => TransactionDetailsDialog(
+                          token: widget.token,
+                          transactionId: item.id,
+                          dateFormatter: widget.dateFormatter,
+                          service: _service,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -201,87 +227,107 @@ class _TransactionFilters extends StatelessWidget {
   const _TransactionFilters({
     required this.searchController,
     required this.status,
+    required this.type,
     required this.dateRange,
     required this.onSearchChanged,
     required this.onStatusChanged,
+    required this.onTypeChanged,
     required this.onDateChanged,
     required this.onRefresh,
     required this.onReset,
   });
   final TextEditingController searchController;
   final int? status;
+  final int? type;
   final DateTimeRange? dateRange;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<int?> onStatusChanged;
+  final ValueChanged<int?> onTypeChanged;
   final ValueChanged<DateTimeRange?> onDateChanged;
   final VoidCallback onRefresh;
   final VoidCallback onReset;
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Theme.of(context).cardColor,
-      borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: _pageBorder(context)),
-    ),
-    child: LayoutBuilder(
-      builder: (context, constraints) => Wrap(
-        spacing: 14,
-        runSpacing: 12,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          SizedBox(
-            width: constraints.maxWidth < 300 ? constraints.maxWidth : 300,
-            child: TextField(
-              controller: searchController,
-              onChanged: onSearchChanged,
-              decoration: const InputDecoration(
-                prefixIcon: Icon(LucideIcons.search),
-                labelText: 'Search reference, customer or account',
+  Widget build(BuildContext context) {
+    final row = Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _pageBorder(context)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) => Wrap(
+          spacing: 14,
+          runSpacing: 12,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            SizedBox(
+              width: constraints.maxWidth < 300 ? constraints.maxWidth : 300,
+              child: TextField(
+                controller: searchController,
+                onChanged: onSearchChanged,
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(LucideIcons.search),
+                  labelText: 'Search reference, customer or account',
+                ),
               ),
             ),
-          ),
-          SizedBox(
-            width: 190,
-            child: DropdownButtonFormField<int?>(
-              key: ValueKey(status),
-              initialValue: status,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Status'),
-              items: const [
-                DropdownMenuItem(value: null, child: Text('All statuses')),
-                DropdownMenuItem(value: 1, child: Text('Pending')),
-                DropdownMenuItem(value: 2, child: Text('Completed')),
-                DropdownMenuItem(value: 3, child: Text('Failed')),
-                DropdownMenuItem(value: 4, child: Text('Cancelled')),
-                DropdownMenuItem(value: 5, child: Text('Documents requested')),
-              ],
-              onChanged: onStatusChanged,
+            SizedBox(
+              width: 210,
+              child: AppDropdownField<int?>(
+                label: 'Type',
+                value: type,
+                items: const [
+                  AppDropdownItem(value: null, label: 'All types'),
+                  AppDropdownItem(value: 1, label: 'Transfer'),
+                  AppDropdownItem(value: 2, label: 'Internal Transfer'),
+                  AppDropdownItem(value: 3, label: 'Loan Disbursement'),
+                  AppDropdownItem(value: 4, label: 'Loan Repayment'),
+                ],
+                onChanged: onTypeChanged,
+              ),
             ),
-          ),
-          SizedBox(
-            width: 245,
-            child: AppDateRangePicker(
-              dateFrom: dateRange?.start,
-              dateTo: dateRange?.end,
-              onApply: onDateChanged,
-              onClear: () => onDateChanged(null),
+            SizedBox(
+              width: 190,
+              child: AppDropdownField<int?>(
+                label: 'Status',
+                value: status,
+                items: const [
+                  AppDropdownItem(value: null, label: 'All statuses'),
+                  AppDropdownItem(value: 1, label: 'Pending'),
+                  AppDropdownItem(value: 2, label: 'Completed'),
+                  AppDropdownItem(value: 3, label: 'Failed'),
+                  AppDropdownItem(value: 4, label: 'Cancelled'),
+                  AppDropdownItem(value: 5, label: 'Documents requested'),
+                ],
+                onChanged: onStatusChanged,
+              ),
             ),
-          ),
-          IconButton.filledTonal(
-            onPressed: onRefresh,
-            tooltip: 'Refresh data',
-            icon: const Icon(LucideIcons.refreshCw),
-          ),
-          IconButton.filledTonal(
-            onPressed: onReset,
-            tooltip: 'Reset filters',
-            icon: const Icon(LucideIcons.rotateCcw),
-          ),
-        ],
+            SizedBox(
+              width: 245,
+              child: AppDateRangePicker(
+                dateFrom: dateRange?.start,
+                dateTo: dateRange?.end,
+                onApply: onDateChanged,
+                onClear: () => onDateChanged(null),
+              ),
+            ),
+            IconButton.filledTonal(
+              onPressed: onRefresh,
+              tooltip: 'Refresh data',
+              icon: const Icon(LucideIcons.refreshCw),
+            ),
+            IconButton.filledTonal(
+              onPressed: onReset,
+              tooltip: 'Reset filters',
+              icon: const Icon(LucideIcons.rotateCcw),
+            ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+    return row;
+  }
 }
 
 class _TransactionSummary extends StatelessWidget {
@@ -311,10 +357,7 @@ class _TransactionSummary extends StatelessWidget {
       Expanded(
         child: AppSummaryCard(
           title: 'Total transferred',
-          value: AdminFormatters.number(
-            summary.totalTransferred,
-            currency: true,
-          ),
+          value: formatCurrencyAmounts(summary.transferredByCurrency),
           icon: LucideIcons.circleDollarSign,
           tone: const Color(0xFF7C3AED),
         ),
@@ -331,6 +374,7 @@ class _TransactionsTable extends StatelessWidget {
     required this.dateFormatter,
     required this.onPageSelected,
     required this.onPageSizeChanged,
+    required this.onDetails,
   });
   final AdminTransactionPage page;
   final ScrollController controller;
@@ -338,6 +382,7 @@ class _TransactionsTable extends StatelessWidget {
   final String Function(DateTime) dateFormatter;
   final ValueChanged<int> onPageSelected;
   final ValueChanged<int> onPageSizeChanged;
+  final ValueChanged<AdminTransaction> onDetails;
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
@@ -362,10 +407,12 @@ class _TransactionsTable extends StatelessWidget {
                     'SL No',
                     'Date',
                     'Reference',
+                    'Type',
                     'From',
                     'To',
                     'Amount',
                     'Status',
+                    'View',
                   ],
                   header: true,
                 ),
@@ -381,16 +428,19 @@ class _TransactionsTable extends StatelessWidget {
                           '${((page.page - 1) * page.pageSize) + index + 1}.',
                           dateFormatter(item.createdAtUtc),
                           item.referenceNumber,
+                          item.type.label,
                           item.sourceCustomerName ??
                               item.sourceAccountNumber ??
                               item.accountNumber,
                           item.destinationCustomerName ??
                               item.destinationAccountNumber ??
                               '-',
-                          AdminFormatters.number(item.amount, currency: true),
+                          '${item.currency} ${AdminFormatters.number(item.amount)}',
                           item.status,
+                          '',
                         ],
                         status: item.status,
+                        onView: () => onDetails(item),
                       );
                     },
                   ),
@@ -426,50 +476,61 @@ class _TransactionTableRow extends StatelessWidget {
     required this.values,
     this.header = false,
     this.status,
+    this.onView,
   });
   final List<String> values;
   final bool header;
   final String? status;
+  final VoidCallback? onView;
   @override
-  Widget build(BuildContext context) => Container(
-    height: header ? 48 : null,
-    constraints: header ? null : const BoxConstraints(minHeight: 58),
-    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-    color: header
-        ? (Theme.of(context).brightness == Brightness.dark
-              ? const Color(0xFF202033)
-              : const Color(0xFFF8FAFC))
-        : Theme.of(context).cardColor,
-    child: Row(
-      children: [
-        for (var i = 0; i < values.length; i++)
-          Expanded(
-            flex: const [1, 2, 3, 4, 4, 2, 2][i],
-            child: i == values.length - 1 && !header
-                ? Align(
-                    alignment: Alignment.centerLeft,
-                    child: AppStatusBadge(status: status!),
-                  )
-                : Text(
-                    values[i],
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: header
-                          ? (Theme.of(context).brightness == Brightness.dark
-                                ? const Color(0xFF87A7FF)
-                                : const Color(0xFF5A77B8))
-                          : null,
-                      fontSize: header ? 12 : 13,
-                      fontWeight: header || i == 5
-                          ? FontWeight.w800
-                          : FontWeight.w400,
+  Widget build(BuildContext context) {
+    final row = Container(
+      height: header ? 48 : null,
+      constraints: header ? null : const BoxConstraints(minHeight: 58),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+      color: header
+          ? (Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF202033)
+                : const Color(0xFFF8FAFC))
+          : Theme.of(context).cardColor,
+      child: Row(
+        children: [
+          for (var i = 0; i < values.length; i++)
+            Expanded(
+              flex: const [1, 2, 3, 2, 4, 4, 2, 2, 1][i],
+              child: i == 7 && !header
+                  ? Align(
+                      alignment: Alignment.centerLeft,
+                      child: AppStatusBadge(status: status!),
+                    )
+                  : i == 8 && !header
+                  ? IconButton(
+                      tooltip: 'View details',
+                      onPressed: onView,
+                      icon: const Icon(LucideIcons.eye, size: 18),
+                    )
+                  : Text(
+                      values[i],
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: header
+                            ? (Theme.of(context).brightness == Brightness.dark
+                                  ? const Color(0xFF87A7FF)
+                                  : const Color(0xFF5A77B8))
+                            : null,
+                        fontSize: header ? 12 : 13,
+                        fontWeight: header || i == 6
+                            ? FontWeight.w800
+                            : FontWeight.w400,
+                      ),
                     ),
-                  ),
-          ),
-      ],
-    ),
-  );
+            ),
+        ],
+      ),
+    );
+    return header ? row : AppTableRowHover(child: row);
+  }
 }
 
 class _TransactionsData {

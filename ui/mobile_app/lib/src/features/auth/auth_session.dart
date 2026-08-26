@@ -8,6 +8,7 @@ class AuthSession {
     ApiClient.configureAuth(
       accessTokenProvider: () => token,
       refreshSession: refresh,
+      invalidateSession: endDisabledSession,
     );
   }
 
@@ -20,6 +21,8 @@ class AuthSession {
   DateTime? refreshTokenExpiresAtUtc;
   AuthUser? user;
   Future<void>? _refreshFuture;
+  Future<void> Function(String message)? onSessionEnded;
+  String? sessionEndedMessage;
 
   bool get isAuthenticated => token != null && user != null;
 
@@ -45,7 +48,15 @@ class AuthSession {
     if (tokenExpiresAtUtc!.isBefore(
       DateTime.now().toUtc().add(const Duration(minutes: 1)),
     )) {
-      await refresh();
+      try {
+        await refresh();
+      } on ApiException catch (error) {
+        if (error.statusCode != 400 &&
+            error.statusCode != 401 &&
+            error.statusCode != 403) {
+          rethrow;
+        }
+      }
     }
   }
 
@@ -114,7 +125,11 @@ class AuthSession {
       if (error.statusCode == 400 ||
           error.statusCode == 401 ||
           error.statusCode == 403) {
-        await _clearLocalSession();
+        if (error.code == 'account_disabled') {
+          await endDisabledSession(error.message);
+        } else {
+          await _clearLocalSession();
+        }
       }
       rethrow;
     }
@@ -135,6 +150,12 @@ class AuthSession {
     }
 
     await _clearLocalSession();
+  }
+
+  Future<void> endDisabledSession(String message) async {
+    sessionEndedMessage = message;
+    await _clearLocalSession();
+    await onSessionEnded?.call(message);
   }
 
   Future<void> updateCurrentUser(AuthUser updatedUser) async {
@@ -178,6 +199,7 @@ class AuthSession {
     }
 
     token = result.token;
+    sessionEndedMessage = null;
     refreshToken = result.refreshToken;
     tokenExpiresAtUtc = result.tokenExpiresAtUtc;
     refreshTokenExpiresAtUtc = result.refreshTokenExpiresAtUtc;

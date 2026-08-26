@@ -1,5 +1,6 @@
 using BankingApp.Application.Common.Exceptions;
 using BankingApp.Application.Interfaces;
+using BankingApp.Application.Common.Pagination;
 using BankingApp.Application.Loans;
 using BankingApp.Domain.Entities;
 using BankingApp.Infrastructure.Persistence;
@@ -15,11 +16,11 @@ public class LoanProductQuoteTests
     public async Task Products_returns_only_active_items_sorted_by_currency()
     {
         await using var fixture = await Fixture.CreateAsync();
-        var result = await fixture.Service.GetActiveProductsAsync();
+        var result = await fixture.Service.GetActiveProductsAsync(new PagedRequest());
 
-        Assert.Equal(3, result.Count);
-        Assert.Equal(["BAM", "EUR", "USD"], result.Select(value => value.Currency));
-        Assert.DoesNotContain(result, value => value.Id == fixture.Inactive.Id);
+        Assert.Equal(3, result.TotalCount);
+        Assert.Equal(["BAM", "EUR", "USD"], result.Items.Select(value => value.Currency));
+        Assert.DoesNotContain(result.Items, value => value.Id == fixture.Inactive.Id);
     }
 
     [Theory]
@@ -89,7 +90,7 @@ public class LoanProductQuoteTests
     public async Task Admin_cannot_use_customer_products_service()
     {
         await using var fixture = await Fixture.CreateAsync(admin: true);
-        await Assert.ThrowsAsync<BusinessException>(() => fixture.Service.GetActiveProductsAsync());
+        await Assert.ThrowsAsync<BusinessException>(() => fixture.Service.GetActiveProductsAsync(new PagedRequest()));
     }
 
     private sealed class Fixture : IAsyncDisposable
@@ -150,6 +151,21 @@ public class LoanProductQuoteTests
         };
 
         public ValueTask DisposeAsync() => Db.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Products_support_page_two_and_enforce_max_page_size()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var second = await fixture.Service.GetActiveProductsAsync(
+            new PagedRequest { Page = 2, PageSize = 1 });
+        var capped = await fixture.Service.GetActiveProductsAsync(
+            new PagedRequest { PageSize = 1000 });
+
+        Assert.Equal(3, second.TotalCount);
+        Assert.Equal(3, second.TotalPages);
+        Assert.Equal("EUR", second.Items.Single().Currency);
+        Assert.Equal(100, capped.PageSize);
     }
 
     private sealed class CurrentUser(bool admin) : ICurrentUserService

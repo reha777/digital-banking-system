@@ -5,45 +5,68 @@ import 'package:http/http.dart' as http;
 
 typedef AccessTokenProvider = String? Function();
 typedef SessionRefreshCallback = Future<void> Function();
+typedef SessionInvalidatedCallback = Future<void> Function(String message);
 
 class ApiClient {
   ApiClient({
     http.Client? httpClient,
     AccessTokenProvider? accessTokenProvider,
     SessionRefreshCallback? refreshSession,
+    SessionInvalidatedCallback? invalidateSession,
   }) : _httpClient = httpClient ?? http.Client(),
        _accessTokenProvider = accessTokenProvider,
-       _refreshSession = refreshSession;
+       _refreshSession = refreshSession,
+       _invalidateSession = invalidateSession;
 
   static const String _configuredBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
   );
   static AccessTokenProvider? _globalAccessTokenProvider;
   static SessionRefreshCallback? _globalRefreshSession;
+  static SessionInvalidatedCallback? _globalInvalidateSession;
 
   static void configureAuth({
     required AccessTokenProvider accessTokenProvider,
     required SessionRefreshCallback refreshSession,
+    required SessionInvalidatedCallback invalidateSession,
   }) {
     _globalAccessTokenProvider = accessTokenProvider;
     _globalRefreshSession = refreshSession;
+    _globalInvalidateSession = invalidateSession;
   }
 
   static String get baseUrl {
-    if (_configuredBaseUrl.isNotEmpty) {
-      return _configuredBaseUrl;
-    }
-    return kIsWeb ? 'http://localhost:5026' : 'http://10.0.2.2:5026';
+    return resolveBaseUrl(
+      configuredBaseUrl: _configuredBaseUrl,
+      isWeb: kIsWeb,
+      platform: defaultTargetPlatform,
+    );
+  }
+
+  @visibleForTesting
+  static String resolveBaseUrl({
+    required String configuredBaseUrl,
+    required bool isWeb,
+    required TargetPlatform platform,
+  }) {
+    if (configuredBaseUrl.isNotEmpty) return configuredBaseUrl;
+    if (isWeb) return 'http://localhost:5026';
+    return platform == TargetPlatform.android
+        ? 'http://10.0.2.2:5026'
+        : 'http://localhost:5026';
   }
 
   final http.Client _httpClient;
   final AccessTokenProvider? _accessTokenProvider;
   final SessionRefreshCallback? _refreshSession;
+  final SessionInvalidatedCallback? _invalidateSession;
 
   AccessTokenProvider? get _tokenProvider =>
       _accessTokenProvider ?? _globalAccessTokenProvider;
   SessionRefreshCallback? get _refreshCallback =>
       _refreshSession ?? _globalRefreshSession;
+  SessionInvalidatedCallback? get _invalidateCallback =>
+      _invalidateSession ?? _globalInvalidateSession;
 
   Future<Map<String, dynamic>> getJson(String path, {String? token}) async {
     final response = await _sendWithAuthRetry(
@@ -149,6 +172,14 @@ class ApiClient {
     required Future<http.Response> Function(String? token) send,
   }) async {
     final response = await send(token);
+    if (_errorCode(response) == 'account_disabled') {
+      final message = _errorMessage(
+        response,
+        'Your account is no longer active. Please contact support.',
+      );
+      await _invalidateCallback?.call(message);
+      return response;
+    }
     final refresh = _refreshCallback;
     if (response.statusCode != 401 || token == null || refresh == null) {
       return response;
@@ -186,8 +217,38 @@ class ApiClient {
 
   void _throwIfFailed(http.Response response, Map<String, dynamic> decoded) {
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw ApiException(_extractErrorMessage(decoded), response.statusCode);
+      throw ApiException(
+        _extractErrorMessage(decoded),
+        response.statusCode,
+        code: decoded['code']?.toString(),
+      );
     }
+  }
+
+  String? _errorCode(http.Response response) {
+    if (response.body.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(response.body);
+      return decoded is Map<String, dynamic>
+          ? decoded['code']?.toString()
+          : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _errorMessage(http.Response response, String fallback) {
+    if (response.body.isEmpty) return fallback;
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        final message = decoded['message']?.toString();
+        if (message != null && message.isNotEmpty) return message;
+      }
+    } catch (_) {
+      // Authentication responses must not expose decode failures to the UI.
+    }
+    return fallback;
   }
 
   String _extractErrorMessage(Map<String, dynamic> decoded) {
@@ -217,10 +278,11 @@ class ApiClient {
 }
 
 class ApiException implements Exception {
-  ApiException(this.message, this.statusCode);
+  ApiException(this.message, this.statusCode, {this.code});
 
   final String message;
   final int statusCode;
+  final String? code;
 
   @override
   String toString() => message;

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import '../../../core/app_error_message.dart';
 import '../../../core/api_client.dart';
 import '../../../widgets/app_page_header.dart';
 import '../../../widgets/app_page_states.dart';
@@ -19,11 +20,15 @@ class LoansPage extends StatefulWidget {
     required this.defaultPageSize,
     required this.dateFormatter,
     this.repository,
+    this.refreshRevision = 0,
+    this.showHeader = true,
   });
   final String token;
   final int defaultPageSize;
   final String Function(DateTime) dateFormatter;
   final AdminLoanRepository? repository;
+  final int refreshRevision;
+  final bool showHeader;
   @override
   State<LoansPage> createState() => _LoansPageState();
 }
@@ -46,12 +51,25 @@ class _LoansPageState extends State<LoansPage> {
   _LoanTab _tab = _LoanTab.applications;
   Future<_AdminLoansData>? _loansFuture;
   DateTime? _loanDateFrom, _loanDateTo;
+  DateTimeRange? _applicationDateRange;
+  bool? _overdueOnly;
   @override
   void initState() {
     super.initState();
     _pageSize = widget.defaultPageSize;
     _repository = widget.repository ?? AdminLoanService(ApiClient());
     _future = _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant LoansPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.refreshRevision == oldWidget.refreshRevision) return;
+    if (_tab == _LoanTab.applications) {
+      _refresh();
+    } else {
+      _refreshLoans();
+    }
   }
 
   @override
@@ -70,11 +88,15 @@ class _LoansPageState extends State<LoansPage> {
         pageSize: _pageSize,
         search: _search.text,
         status: _status,
+        dateFromUtc: _applicationDateRange?.start,
+        dateToUtc: _applicationDateRange?.end,
       ),
       _repository.getSummary(
         token: widget.token,
         search: _search.text,
         status: _status,
+        dateFromUtc: _applicationDateRange?.start,
+        dateToUtc: _applicationDateRange?.end,
       ),
     ]);
     return _LoanData(
@@ -106,6 +128,7 @@ class _LoansPageState extends State<LoansPage> {
     _debounce?.cancel();
     _search.clear();
     _status = null;
+    _applicationDateRange = null;
     _firstPage();
   }
 
@@ -119,6 +142,7 @@ class _LoansPageState extends State<LoansPage> {
         search: _search.text,
         dateFromUtc: _loanDateFrom,
         dateToUtc: _loanDateTo,
+        overdueOnly: _tab == _LoanTab.active ? _overdueOnly : null,
       ),
       _repository.getLoansOverview(token: widget.token),
     ]);
@@ -128,7 +152,12 @@ class _LoansPageState extends State<LoansPage> {
     );
   }
 
-  void _refreshLoans() => setState(() => _loansFuture = _loadLoans());
+  void _refreshLoans() {
+    setState(() {
+      _loansFuture = _loadLoans();
+    });
+  }
+
   void _changeTab(_LoanTab value) {
     _debounce?.cancel();
     _search.clear();
@@ -136,6 +165,7 @@ class _LoansPageState extends State<LoansPage> {
     _page = 1;
     _loanDateFrom = null;
     _loanDateTo = null;
+    _overdueOnly = null;
     setState(() {
       _tab = value;
       if (value != _LoanTab.applications) _loansFuture = _loadLoans();
@@ -166,7 +196,10 @@ class _LoansPageState extends State<LoansPage> {
                 width: 500,
                 height: 300,
                 child: AppErrorState(
-                  message: snapshot.error.toString(),
+                  message: AppErrorMessage.from(
+                    snapshot.error!,
+                    fallback: 'Unable to load loan applications.',
+                  ),
                   onRetry: () {
                     Navigator.pop(context);
                     _loanDetails(item);
@@ -208,7 +241,10 @@ class _LoansPageState extends State<LoansPage> {
                 width: 480,
                 height: 260,
                 child: AppErrorState(
-                  message: snapshot.error.toString(),
+                  message: AppErrorMessage.from(
+                    snapshot.error!,
+                    fallback: 'Unable to load loan applications.',
+                  ),
                   onRetry: () {
                     Navigator.pop(context);
                     _details(item);
@@ -246,13 +282,15 @@ class _LoansPageState extends State<LoansPage> {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      const AppPageHeader(
-        icon: LucideIcons.coins,
-        title: 'Loans',
-        subtitle:
-            'Review customer loan applications and prepare lending decisions.',
-      ),
-      const SizedBox(height: 16),
+      if (widget.showHeader) ...[
+        const AppPageHeader(
+          icon: LucideIcons.coins,
+          title: 'Loans',
+          subtitle:
+              'Review customer loan applications and prepare lending decisions.',
+        ),
+        const SizedBox(height: 16),
+      ],
       AppStatusTabs<_LoanTab>(
         value: _tab,
         tabs: const [
@@ -280,6 +318,11 @@ class _LoansPageState extends State<LoansPage> {
         },
         onRefresh: _refresh,
         onReset: _reset,
+        dateRange: _applicationDateRange,
+        onDateRange: (value) {
+          _applicationDateRange = value;
+          _firstPage();
+        },
       ),
       const SizedBox(height: 16),
       Expanded(
@@ -292,7 +335,10 @@ class _LoansPageState extends State<LoansPage> {
             }
             if (snapshot.hasError) {
               return AppErrorState(
-                message: snapshot.error.toString(),
+                message: AppErrorMessage.from(
+                  snapshot.error!,
+                  fallback: 'Unable to load loans.',
+                ),
                 onRetry: _refresh,
               );
             }
@@ -351,6 +397,7 @@ class _LoansPageState extends State<LoansPage> {
           _search.clear();
           _loanDateFrom = null;
           _loanDateTo = null;
+          _overdueOnly = null;
           _page = 1;
           _refreshLoans();
         },
@@ -375,6 +422,13 @@ class _LoansPageState extends State<LoansPage> {
           _page = 1;
           _refreshLoans();
         },
+        showOverdue: _tab == _LoanTab.active,
+        overdueOnly: _overdueOnly,
+        onOverdueChanged: (value) {
+          _overdueOnly = value;
+          _page = 1;
+          _refreshLoans();
+        },
       ),
       const SizedBox(height: 16),
       Expanded(
@@ -387,7 +441,10 @@ class _LoansPageState extends State<LoansPage> {
             }
             if (snapshot.hasError) {
               return AppErrorState(
-                message: snapshot.error.toString(),
+                message: AppErrorMessage.from(
+                  snapshot.error!,
+                  fallback: 'Unable to load loans.',
+                ),
                 onRetry: _refreshLoans,
               );
             }

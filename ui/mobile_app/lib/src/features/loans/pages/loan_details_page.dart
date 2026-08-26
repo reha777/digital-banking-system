@@ -119,6 +119,17 @@ class _LoanDetailsPageState extends State<LoanDetailsPage> {
                           : _date(loan.nextPaymentDateUtc!),
                     ),
                     _row('Maturity', _date(loan.maturityDateUtc)),
+                    if (loan.hasOverdue) ...[
+                      const Divider(height: 24),
+                      _row(
+                        'Overdue installments',
+                        '${loan.overdueInstallmentsCount}',
+                      ),
+                      _row(
+                        'Overdue amount',
+                        '${formatMoney(loan.totalOverdueAmount)} ${loan.currency}',
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -215,12 +226,27 @@ class _LoanDetailsPageState extends State<LoanDetailsPage> {
     ),
   );
   Widget _installment(LoanInstallmentModel item) => Card(
+    color: item.isOverdue ? Colors.red.withValues(alpha: .08) : null,
     child: ListTile(
       leading: Icon(
-        item.isPaid ? LucideIcons.circleCheck : LucideIcons.calendarDays,
+        item.isPaid
+            ? LucideIcons.circleCheck
+            : item.isOverdue
+            ? LucideIcons.triangleAlert
+            : LucideIcons.calendarDays,
+        color: item.isPaid
+            ? Colors.green
+            : item.isOverdue
+            ? Colors.red
+            : null,
       ),
       title: Text('Installment #${item.installmentNumber}'),
-      subtitle: Text('Due ${_date(item.dueDateUtc)}'),
+      subtitle: Text(
+        item.isOverdue
+            ? 'Due ${_date(item.dueDateUtc)}\nOverdue by ${item.daysOverdue} day${item.daysOverdue == 1 ? '' : 's'}'
+            : 'Due ${_date(item.dueDateUtc)}',
+      ),
+      isThreeLine: item.isOverdue,
       trailing: Text(formatMoney(item.scheduledAmount)),
     ),
   );
@@ -246,15 +272,30 @@ class _LoanDetailsPageState extends State<LoanDetailsPage> {
             (i) => Card(
               child: ListTile(
                 leading: Icon(
-                  i.isPaid ? LucideIcons.circleCheck : LucideIcons.clock3,
+                  i.isPaid
+                      ? LucideIcons.circleCheck
+                      : i.isOverdue
+                      ? LucideIcons.triangleAlert
+                      : LucideIcons.clock3,
+                  color: i.isPaid
+                      ? Colors.green
+                      : i.isOverdue
+                      ? Colors.red
+                      : null,
                 ),
                 title: Text(
                   '#${i.installmentNumber} · ${formatMoney(i.scheduledAmount)}',
                 ),
                 subtitle: Text(
-                  'Due ${_date(i.dueDateUtc)}\nPrincipal ${formatMoney(i.principalAmount)} · Interest ${formatMoney(i.interestAmount)}',
+                  'Due ${_date(i.dueDateUtc)}${i.isOverdue ? '\nOverdue by ${i.daysOverdue} day${i.daysOverdue == 1 ? '' : 's'}' : ''}\nPrincipal ${formatMoney(i.principalAmount)} · Interest ${formatMoney(i.interestAmount)}',
                 ),
-                trailing: Text(i.isPaid ? 'Paid' : 'Pending'),
+                trailing: Text(
+                  i.isPaid
+                      ? 'Paid'
+                      : i.isOverdue
+                      ? 'Overdue'
+                      : 'Upcoming',
+                ),
                 isThreeLine: true,
               ),
             ),

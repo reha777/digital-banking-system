@@ -296,6 +296,9 @@ class AdminLoanListItem {
     required this.status,
     required this.paidInstallments,
     required this.remainingInstallments,
+    this.overdueInstallmentsCount = 0,
+    this.totalOverdueAmount = 0,
+    this.oldestOverdueDateUtc,
   });
   factory AdminLoanListItem.fromJson(Map<String, dynamic> json) =>
       AdminLoanListItem(
@@ -327,6 +330,11 @@ class AdminLoanListItem {
         status: _lifecycleStatus(json['status']),
         paidInstallments: _integer(json['paidInstallments']),
         remainingInstallments: _integer(json['remainingInstallments']),
+        overdueInstallmentsCount: _integer(json['overdueInstallmentsCount']),
+        totalOverdueAmount: _number(json['totalOverdueAmount']),
+        oldestOverdueDateUtc: DateTime.tryParse(
+          json['oldestOverdueDateUtc']?.toString() ?? '',
+        ),
       );
   final String loanId,
       applicationId,
@@ -340,9 +348,15 @@ class AdminLoanListItem {
       monthlyPayment,
       annualInterestRate,
       totalPaid;
-  final int termMonths, paidInstallments, remainingInstallments;
+  final int termMonths,
+      paidInstallments,
+      remainingInstallments,
+      overdueInstallmentsCount;
+  final double totalOverdueAmount;
   final DateTime startDateUtc, maturityDateUtc;
-  final DateTime? nextPaymentDateUtc, completedAtUtc;
+  final DateTime? nextPaymentDateUtc, completedAtUtc, oldestOverdueDateUtc;
+  bool get hasOverdue =>
+      status == AdminLoanLifecycleStatus.active && overdueInstallmentsCount > 0;
   final AdminLoanLifecycleStatus status;
 }
 
@@ -356,6 +370,8 @@ class AdminLoanInstallment {
     required this.remaining,
     required this.paid,
     this.paidAt,
+    this.isOverdue = false,
+    this.daysOverdue = 0,
   });
   factory AdminLoanInstallment.fromJson(Map<String, dynamic> j) =>
       AdminLoanInstallment(
@@ -371,11 +387,15 @@ class AdminLoanInstallment {
             j['status']?.toString().toLowerCase() == 'paid' ||
             j['status']?.toString() == '2',
         paidAt: DateTime.tryParse(j['paidAtUtc']?.toString() ?? ''),
+        isOverdue: j['isOverdue'] == true,
+        daysOverdue: _integer(j['daysOverdue']),
       );
   final int number;
   final DateTime due;
   final double total, principal, interest, remaining;
   final bool paid;
+  final bool isOverdue;
+  final int daysOverdue;
   final DateTime? paidAt;
 }
 
@@ -482,6 +502,7 @@ class AdminLoansOverview {
     required this.activeLoans,
     required this.completedLoans,
     required this.currencies,
+    this.loansWithOverduePayments = 0,
   });
   factory AdminLoansOverview.fromJson(Map<String, dynamic> j) =>
       AdminLoansOverview(
@@ -489,6 +510,7 @@ class AdminLoansOverview {
         pendingApplications: _integer(j['pendingApplications']),
         activeLoans: _integer(j['activeLoans']),
         completedLoans: _integer(j['completedLoans']),
+        loansWithOverduePayments: _integer(j['loansWithOverduePayments']),
         currencies: (j['currencies'] as List? ?? [])
             .map(
               (e) =>
@@ -496,6 +518,10 @@ class AdminLoansOverview {
             )
             .toList(),
       );
-  final int totalApplications, pendingApplications, activeLoans, completedLoans;
+  final int totalApplications,
+      pendingApplications,
+      activeLoans,
+      completedLoans,
+      loansWithOverduePayments;
   final List<AdminLoanCurrencySummary> currencies;
 }

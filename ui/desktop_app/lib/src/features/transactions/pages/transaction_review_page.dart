@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import '../../../core/app_error_message.dart';
 
 import '../../../core/api_client.dart';
 import '../../../core/app_theme.dart';
@@ -12,6 +13,8 @@ import '../../../widgets/app_page_states.dart';
 import '../../../widgets/app_pagination.dart';
 import '../../../widgets/app_status_badge.dart';
 import '../../../widgets/app_status_tabs.dart';
+import '../../../widgets/app_table_row_hover.dart';
+import '../../../widgets/app_dropdown_field.dart';
 import '../admin_transaction_models.dart';
 import '../admin_transaction_service.dart';
 import '../widgets/transaction_review_dialog.dart';
@@ -23,11 +26,15 @@ class TransactionReviewPage extends StatefulWidget {
     required this.token,
     required this.defaultPageSize,
     required this.dateFormatter,
+    this.service,
+    this.refreshRevision = 0,
     this.showHeader = true,
   });
   final String token;
   final int defaultPageSize;
   final String Function(DateTime) dateFormatter;
+  final AdminTransactionService? service;
+  final int refreshRevision;
   final bool showHeader;
   @override
   State<TransactionReviewPage> createState() => _TransactionReviewPageState();
@@ -48,8 +55,14 @@ class _TransactionReviewPageState extends State<TransactionReviewPage> {
   void initState() {
     super.initState();
     _pageSize = widget.defaultPageSize;
-    _service = AdminTransactionService(ApiClient());
+    _service = widget.service ?? AdminTransactionService(ApiClient());
     _future = _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant TransactionReviewPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.refreshRevision != oldWidget.refreshRevision) _refresh();
   }
 
   @override
@@ -85,7 +98,9 @@ class _TransactionReviewPageState extends State<TransactionReviewPage> {
   void _refresh({bool firstPage = false}) {
     if (firstPage) _page = 1;
     if (_scrollController.hasClients) _scrollController.jumpTo(0);
-    setState(() => _future = _load());
+    setState(() {
+      _future = _load();
+    });
   }
 
   void _searchChanged(String _) {
@@ -148,7 +163,7 @@ class _TransactionReviewPageState extends State<TransactionReviewPage> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        ).showSnackBar(SnackBar(content: Text(AppErrorMessage.from(error))));
       }
       return false;
     }
@@ -214,20 +229,15 @@ class _TransactionReviewPageState extends State<TransactionReviewPage> {
             ),
             SizedBox(
               width: 190,
-              child: DropdownButtonFormField<int?>(
-                key: ValueKey(_status),
-                initialValue: _status,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Status'),
+              child: AppDropdownField<int?>(
+                label: 'Status',
+                value: _status,
                 items: const [
-                  DropdownMenuItem(value: null, child: Text('All statuses')),
-                  DropdownMenuItem(value: 1, child: Text('Pending')),
-                  DropdownMenuItem(
-                    value: 5,
-                    child: Text('Documents requested'),
-                  ),
-                  DropdownMenuItem(value: 2, child: Text('Completed')),
-                  DropdownMenuItem(value: 3, child: Text('Failed')),
+                  AppDropdownItem(value: null, label: 'All statuses'),
+                  AppDropdownItem(value: 1, label: 'Pending'),
+                  AppDropdownItem(value: 5, label: 'Documents requested'),
+                  AppDropdownItem(value: 2, label: 'Completed'),
+                  AppDropdownItem(value: 3, label: 'Failed'),
                 ],
                 onChanged: (value) {
                   _status = value;
@@ -301,14 +311,6 @@ class _TransactionReviewPageState extends State<TransactionReviewPage> {
               children: [
                 if (snapshot.connectionState != ConnectionState.done)
                   const LinearProgressIndicator(minHeight: 2),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    '${data.summary.totalTransactions} high-risk transactions',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                const SizedBox(height: 10),
                 Expanded(
                   child: _ReviewTable(
                     dateFormatter: widget.dateFormatter,
@@ -355,11 +357,11 @@ class _ReviewTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final width = constraints.maxWidth < 860 ? 1100.0 : constraints.maxWidth;
+      final width = constraints.maxWidth < 1180 ? 1320.0 : constraints.maxWidth;
       return Container(
         decoration: BoxDecoration(
           color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(color: _reviewBorder(context)),
         ),
         child: SingleChildScrollView(
@@ -373,6 +375,7 @@ class _ReviewTable extends StatelessWidget {
                   values: [
                     'Reference',
                     'Customer',
+                    'Type',
                     'Amount',
                     'Review reason',
                     'Status',
@@ -392,7 +395,8 @@ class _ReviewTable extends StatelessWidget {
                         values: [
                           item.referenceNumber,
                           item.sourceCustomerName ?? item.accountNumber,
-                          AdminFormatters.number(item.amount, currency: true),
+                          item.type.label,
+                          '${item.currency} ${AdminFormatters.number(item.amount)}',
                           item.reviewReason ?? item.description,
                           item.status,
                           dateFormatter(item.createdAtUtc),
@@ -442,55 +446,61 @@ class _ReviewRow extends StatelessWidget {
   final String? status;
   final VoidCallback? onView;
   @override
-  Widget build(BuildContext context) => Container(
-    height: header ? 48 : null,
-    constraints: header ? null : const BoxConstraints(minHeight: 58),
-    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-    color: header
-        ? (Theme.of(context).brightness == Brightness.dark
-              ? const Color(0xFF202033)
-              : const Color(0xFFF8FAFC))
-        : Theme.of(context).cardColor,
-    child: Row(
-      children: [
-        for (var i = 0; i < values.length; i++)
-          Expanded(
-            flex: const [3, 3, 2, 4, 2, 2, 2][i],
-            child: i == 4 && !header
-                ? Align(
-                    alignment: Alignment.centerLeft,
-                    child: AppStatusBadge(status: status!),
-                  )
-                : i == 6 && !header
-                ? Align(
-                    alignment: Alignment.centerLeft,
-                    child: IconButton(
-                      onPressed: onView,
-                      tooltip: 'Review details',
-                      icon: const Icon(LucideIcons.eye, size: 18),
-                    ),
-                  )
-                : Text(
-                    values[i],
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: i == 2 ? TextAlign.right : TextAlign.left,
-                    style: TextStyle(
-                      fontSize: header ? 12 : 13,
-                      fontWeight: header || i == 2
-                          ? FontWeight.w800
-                          : FontWeight.w400,
-                      color: header
-                          ? (Theme.of(context).brightness == Brightness.dark
-                                ? const Color(0xFF87A7FF)
-                                : const Color(0xFF5A77B8))
-                          : null,
-                    ),
-                  ),
-          ),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) {
+    final row = Container(
+      height: header ? 48 : null,
+      constraints: header ? null : const BoxConstraints(minHeight: 58),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      color: header
+          ? (Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF202033)
+                : const Color(0xFFF8FAFC))
+          : Theme.of(context).cardColor,
+      child: Row(
+        children: [
+          for (var i = 0; i < values.length; i++)
+            Expanded(
+              flex: const [4, 3, 2, 3, 5, 2, 3, 1][i],
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: i == 7 ? 4 : 10),
+                child: i == 5 && !header
+                    ? Align(
+                        alignment: Alignment.centerLeft,
+                        child: AppStatusBadge(status: status!),
+                      )
+                    : i == 7 && !header
+                    ? Align(
+                        alignment: Alignment.centerLeft,
+                        child: IconButton(
+                          onPressed: onView,
+                          tooltip: 'Review details',
+                          icon: const Icon(LucideIcons.eye, size: 18),
+                        ),
+                      )
+                    : Text(
+                        values[i],
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: i == 3 ? TextAlign.right : TextAlign.left,
+                        style: TextStyle(
+                          fontSize: header ? 12 : 13,
+                          fontWeight: header || i == 3
+                              ? FontWeight.w800
+                              : FontWeight.w400,
+                          color: header
+                              ? (Theme.of(context).brightness == Brightness.dark
+                                    ? const Color(0xFF87A7FF)
+                                    : const Color(0xFF5A77B8))
+                              : null,
+                        ),
+                      ),
+              ),
+            ),
+        ],
+      ),
+    );
+    return header ? row : AppTableRowHover(child: row);
+  }
 }
 
 Color _reviewBorder(BuildContext context) =>

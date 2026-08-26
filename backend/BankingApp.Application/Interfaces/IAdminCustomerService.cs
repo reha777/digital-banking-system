@@ -13,6 +13,10 @@ namespace BankingApp.Application.Interfaces
             CustomerQueryRequest request,
             CancellationToken cancellationToken = default);
 
+        Task<AdminCustomerDetailsResponse> GetDetailsAsync(
+            Guid id,
+            CancellationToken cancellationToken = default);
+
         Task<CustomerResponse> UpdateAsync(
             Guid id,
             CustomerUpdateRequest request,

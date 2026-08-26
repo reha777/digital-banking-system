@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import '../../../core/app_error_message.dart';
 
 import '../../../core/api_client.dart';
 import '../../../widgets/admin_modal.dart';
@@ -13,6 +14,8 @@ import '../widgets/customer_edit_dialog.dart';
 import '../widgets/customer_filters.dart';
 import '../widgets/customer_summary_cards.dart';
 import '../widgets/customers_table.dart';
+import 'customer_details_page.dart';
+import '../customer_details_service.dart';
 
 class CustomersPage extends StatefulWidget {
   const CustomersPage({
@@ -20,12 +23,16 @@ class CustomersPage extends StatefulWidget {
     required this.token,
     required this.defaultPageSize,
     required this.dateFormatter,
+    this.service,
+    this.detailsService,
     this.showHeader = true,
   });
 
   final String token;
   final int defaultPageSize;
   final String Function(DateTime) dateFormatter;
+  final AdminCustomerService? service;
+  final CustomerDetailsService? detailsService;
   final bool showHeader;
 
   @override
@@ -41,12 +48,13 @@ class _CustomersPageState extends State<CustomersPage> {
   int _page = 1;
   late int _pageSize;
   int? _status;
+  String? _selectedCustomerId;
 
   @override
   void initState() {
     super.initState();
     _pageSize = widget.defaultPageSize;
-    _service = AdminCustomerService(ApiClient());
+    _service = widget.service ?? AdminCustomerService(ApiClient());
     _customersFuture = _loadCustomers();
   }
 
@@ -131,7 +139,7 @@ class _CustomersPageState extends State<CustomersPage> {
       _showMessage('Customer updated successfully.');
       _refresh();
     } on ApiException catch (error) {
-      if (mounted) _showMessage(error.message);
+      if (mounted) _showMessage(AppErrorMessage.from(error));
     }
   }
 
@@ -148,7 +156,7 @@ class _CustomersPageState extends State<CustomersPage> {
       _showMessage('Customer status updated.');
       _refresh();
     } on ApiException catch (error) {
-      if (mounted) _showMessage(error.message);
+      if (mounted) _showMessage(AppErrorMessage.from(error));
     }
   }
 
@@ -174,7 +182,7 @@ class _CustomersPageState extends State<CustomersPage> {
       _showMessage('Customer deleted.');
       _refreshFromFirstPage();
     } on ApiException catch (error) {
-      if (mounted) _showMessage(error.message);
+      if (mounted) _showMessage(AppErrorMessage.from(error));
     }
   }
 
@@ -186,6 +194,17 @@ class _CustomersPageState extends State<CustomersPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_selectedCustomerId case final customerId?) {
+      return CustomerDetailsPage(
+        token: widget.token,
+        customerId: customerId,
+        dateFormatter: widget.dateFormatter,
+        onBack: () => setState(() => _selectedCustomerId = null),
+        onCustomerUpdated: _refresh,
+        service: widget.detailsService,
+        customerService: _service,
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -220,7 +239,10 @@ class _CustomersPageState extends State<CustomersPage> {
               }
               if (snapshot.hasError) {
                 return AppErrorState(
-                  message: snapshot.error.toString(),
+                  message: AppErrorMessage.from(
+                    snapshot.error!,
+                    fallback: 'Unable to load customers.',
+                  ),
                   onRetry: _refresh,
                 );
               }
@@ -248,6 +270,8 @@ class _CustomersPageState extends State<CustomersPage> {
                       pageSize: _pageSize,
                       controller: _tableScrollController,
                       onEdit: _editCustomer,
+                      onView: (customer) =>
+                          setState(() => _selectedCustomerId = customer.id),
                       onDelete: _deleteCustomer,
                       onStatusChanged: _changeStatus,
                       onPageSelected: (page) {

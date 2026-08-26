@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:file_picker/file_picker.dart';
+import '../../../core/app_error_message.dart';
 
 import '../../../widgets/app_page_header.dart';
 import '../../../widgets/app_page_states.dart';
@@ -22,12 +24,14 @@ class SettingsPage extends StatefulWidget {
     required this.onProfileUpdated,
     required this.initialSection,
     required this.headerAction,
+    this.showHeader = true,
   });
   final String token;
   final AdminSettingsController controller;
   final ValueChanged<AdminProfile> onProfileUpdated;
   final SettingsSection initialSection;
   final Widget headerAction;
+  final bool showHeader;
   @override
   State<SettingsPage> createState() => _SettingsPageState();
 }
@@ -40,7 +44,12 @@ class _SettingsPageState extends State<SettingsPage> {
   AdminPreferences? _preferences;
   bool _dirty = false;
   bool _saving = false;
+  bool _photoBusy = false;
   bool _enableDataCaching = true;
+  final _generalFormKey = GlobalKey<FormState>();
+  final _profileFormKey = GlobalKey<FormState>();
+  bool _generalValid = true;
+  bool _profileValid = true;
 
   @override
   void initState() {
@@ -97,6 +106,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _select(SettingsSection value) async {
+    if (_saving) return;
     if (_dirty && !await _confirmDiscard()) return;
     setState(() {
       _section = value;
@@ -125,6 +135,17 @@ class _SettingsPageState extends State<SettingsPage> {
       false;
 
   Future<void> _save() async {
+    if (_saving) return;
+    if (_section == SettingsSection.general &&
+        !(_generalFormKey.currentState?.validate() ?? false)) {
+      setState(() => _generalValid = false);
+      return;
+    }
+    if (_section == SettingsSection.profile &&
+        !(_profileFormKey.currentState?.validate() ?? false)) {
+      setState(() => _profileValid = false);
+      return;
+    }
     setState(() => _saving = true);
     try {
       switch (_section) {
@@ -144,7 +165,7 @@ class _SettingsPageState extends State<SettingsPage> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        ).showSnackBar(SnackBar(content: Text(AppErrorMessage.from(error))));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -161,17 +182,19 @@ class _SettingsPageState extends State<SettingsPage> {
         companyEmail: _general[3].text,
         companyPhone: _general[4].text,
         timezone: _general[5].text,
-        sessionTimeoutMinutes: int.parse(_general[6].text),
-        autoLogoutWarningMinutes: int.parse(_general[7].text),
+        sessionTimeoutMinutes: int.tryParse(_general[6].text.trim())!,
+        autoLogoutWarningMinutes: int.tryParse(_general[7].text.trim())!,
         enableDataCaching: _enableDataCaching,
         updatedAtUtc: widget.controller.settings!.system.updatedAtUtc,
       ),
     );
     await widget.controller.savePreferences(widget.token, _preferences!);
-    widget.controller.settings = AdminSettings(
-      system: saved,
-      preferences: _preferences!,
-      profile: widget.controller.settings!.profile,
+    widget.controller.replaceSettings(
+      AdminSettings(
+        system: saved,
+        preferences: _preferences!,
+        profile: widget.controller.settings!.profile,
+      ),
     );
   }
 
@@ -183,18 +206,24 @@ class _SettingsPageState extends State<SettingsPage> {
         lastName: _profile[1].text,
         email: _profile[2].text,
         phoneNumber: _profile[3].text,
+        hasProfilePhoto: widget.controller.settings!.profile.hasProfilePhoto,
+        profilePhotoUpdatedAtUtc:
+            widget.controller.settings!.profile.profilePhotoUpdatedAtUtc,
       ),
     );
     await widget.controller.savePreferences(widget.token, _preferences!);
-    widget.controller.settings = AdminSettings(
-      system: widget.controller.settings!.system,
-      preferences: widget.controller.settings!.preferences,
-      profile: saved,
+    widget.controller.replaceSettings(
+      AdminSettings(
+        system: widget.controller.settings!.system,
+        preferences: widget.controller.settings!.preferences,
+        profile: saved,
+      ),
     );
     widget.onProfileUpdated(saved);
   }
 
   Future<void> _savePassword() async {
+    if (_saving) return;
     setState(() => _saving = true);
     try {
       await widget.controller.service.changePassword(
@@ -215,7 +244,7 @@ class _SettingsPageState extends State<SettingsPage> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        ).showSnackBar(SnackBar(content: Text(AppErrorMessage.from(error))));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -236,13 +265,15 @@ class _SettingsPageState extends State<SettingsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AppPageHeader(
-          icon: LucideIcons.settings,
-          title: 'Settings',
-          subtitle: 'Manage your system preferences and configurations.',
-          action: widget.headerAction,
-        ),
-        const SizedBox(height: 20),
+        if (widget.showHeader) ...[
+          AppPageHeader(
+            icon: LucideIcons.settings,
+            title: 'Settings',
+            subtitle: 'Manage your system preferences and configurations.',
+            action: widget.headerAction,
+          ),
+          const SizedBox(height: 20),
+        ],
         Expanded(child: LayoutBuilder(builder: _layout)),
       ],
     );
@@ -298,47 +329,49 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
       const SizedBox(height: 14),
       Expanded(
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              GeneralSettingsSection(
-                controllers: _general,
-                onChanged: _markDirty,
-              ),
-              const SizedBox(height: 16),
-              AppearanceSettingsSection(
-                value: _preferences!,
-                onChanged: (value) => setState(() {
-                  _preferences = value;
-                  _dirty = true;
-                }),
-              ),
-              const SizedBox(height: 16),
-              FormatSettingsSection(
-                value: _preferences!,
-                onChanged: (value) => setState(() {
-                  _preferences = value;
-                  _dirty = true;
-                }),
-              ),
-              const SizedBox(height: 16),
-              SessionSettingsSection(
-                controllers: _general,
-                itemsPerPage: _preferences!.defaultItemsPerPage,
-                enableDataCaching: _enableDataCaching,
-                onItemsChanged: (value) => setState(() {
-                  _preferences = _copyPreferences(itemsPerPage: value);
-                  _dirty = true;
-                }),
-                onCachingChanged: (value) => setState(() {
-                  _enableDataCaching = value;
-                  _dirty = true;
-                }),
-                onChanged: _markDirty,
-              ),
-              const SizedBox(height: 16),
-              _footerInfo(),
-            ],
+        child: Form(
+          key: _generalFormKey,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          onChanged: () {
+            final valid = _generalFormKey.currentState?.validate() ?? false;
+            if (valid != _generalValid) setState(() => _generalValid = valid);
+          },
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                GeneralSettingsSection(
+                  controllers: _general,
+                  onChanged: _markDirty,
+                ),
+                const SizedBox(height: 16),
+                AppearanceSettingsSection(
+                  value: _preferences!,
+                  onChanged: _setPreferences,
+                ),
+                const SizedBox(height: 16),
+                FormatSettingsSection(
+                  value: _preferences!,
+                  onChanged: _setPreferences,
+                ),
+                const SizedBox(height: 16),
+                SessionSettingsSection(
+                  controllers: _general,
+                  itemsPerPage: _preferences!.defaultItemsPerPage,
+                  enableDataCaching: _enableDataCaching,
+                  onItemsChanged: (value) => setState(() {
+                    _preferences = _copyPreferences(itemsPerPage: value);
+                    _dirty = _hasChanges;
+                  }),
+                  onCachingChanged: (value) => setState(() {
+                    _enableDataCaching = value;
+                    _dirty = _hasChanges;
+                  }),
+                  onChanged: _markDirty,
+                ),
+                const SizedBox(height: 16),
+                _footerInfo(),
+              ],
+            ),
           ),
         ),
       ),
@@ -354,15 +387,25 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
       const SizedBox(height: 14),
       Expanded(
-        child: SingleChildScrollView(
-          child: ProfileSettingsSection(
-            controllers: _profile,
-            preferences: _preferences!,
-            onPreferencesChanged: (value) => setState(() {
-              _preferences = value;
-              _dirty = true;
-            }),
-            onChanged: _markDirty,
+        child: Form(
+          key: _profileFormKey,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          onChanged: () {
+            final valid = _profileFormKey.currentState?.validate() ?? false;
+            if (valid != _profileValid) setState(() => _profileValid = valid);
+          },
+          child: SingleChildScrollView(
+            child: ProfileSettingsSection(
+              controllers: _profile,
+              preferences: _preferences!,
+              onPreferencesChanged: _setPreferences,
+              onChanged: _markDirty,
+              profile: widget.controller.settings!.profile,
+              token: widget.token,
+              photoBusy: _photoBusy,
+              onChangePhoto: _changePhoto,
+              onRemovePhoto: _removePhoto,
+            ),
           ),
         ),
       ),
@@ -401,6 +444,9 @@ class _SettingsPageState extends State<SettingsPage> {
           final action = SettingsSaveBar(
             dirty: _dirty,
             saving: _saving,
+            valid:
+                (_section != SettingsSection.general || _generalValid) &&
+                (_section != SettingsSection.profile || _profileValid),
             onSave: _save,
           );
           if (constraints.maxWidth >= 620) {
@@ -444,7 +490,124 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _markDirty() => setState(() => _dirty = true);
+  void _markDirty() => setState(() => _dirty = _hasChanges);
+
+  void _setPreferences(AdminPreferences value) => setState(() {
+    _preferences = value;
+    _dirty = _hasChanges;
+  });
+
+  bool get _hasChanges {
+    if (_section == SettingsSection.security) {
+      return _security.any((controller) => controller.text.isNotEmpty);
+    }
+    final baseline = widget.controller.settings!;
+    if (!_samePreferences(_preferences!, baseline.preferences)) return true;
+    if (_section == SettingsSection.profile) {
+      return _profile[0].text != baseline.profile.firstName ||
+          _profile[1].text != baseline.profile.lastName ||
+          _profile[3].text != baseline.profile.phoneNumber;
+    }
+    final system = baseline.system;
+    final values = [
+      system.systemName,
+      system.systemShortName,
+      system.companyName,
+      system.companyEmail,
+      system.companyPhone,
+      system.timezone,
+      '${system.sessionTimeoutMinutes}',
+      '${system.autoLogoutWarningMinutes}',
+    ];
+    for (var index = 0; index < values.length; index++) {
+      if (_general[index].text != values[index]) return true;
+    }
+    return _enableDataCaching != system.enableDataCaching;
+  }
+
+  bool _samePreferences(AdminPreferences a, AdminPreferences b) =>
+      a.themeMode == b.themeMode &&
+      a.sidebarStyle == b.sidebarStyle &&
+      a.dateFormat == b.dateFormat &&
+      a.timeFormat == b.timeFormat &&
+      a.firstDayOfWeek == b.firstDayOfWeek &&
+      a.numberFormat == b.numberFormat &&
+      a.defaultItemsPerPage == b.defaultItemsPerPage &&
+      a.timezone == b.timezone;
+
+  Future<void> _changePhoto() async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['jpg', 'jpeg', 'png'],
+      withData: true,
+    );
+    if (result == null || !mounted) return;
+    final file = result.files.single;
+    if (file.bytes == null) {
+      _showPhotoError('The selected file could not be read.');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      _showPhotoError('Profile photo cannot be larger than 2 MB.');
+      return;
+    }
+    setState(() => _photoBusy = true);
+    try {
+      final saved = await widget.controller.service.uploadProfilePhoto(
+        widget.token,
+        file.bytes!,
+        file.name,
+      );
+      _replaceProfile(saved);
+      widget.onProfileUpdated(saved);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Profile photo updated.')));
+      }
+    } catch (error) {
+      _showPhotoError(AppErrorMessage.from(error));
+    } finally {
+      if (mounted) setState(() => _photoBusy = false);
+    }
+  }
+
+  Future<void> _removePhoto() async {
+    setState(() => _photoBusy = true);
+    try {
+      final saved = await widget.controller.service.deleteProfilePhoto(
+        widget.token,
+      );
+      _replaceProfile(saved);
+      widget.onProfileUpdated(saved);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Profile photo removed.')));
+      }
+    } catch (error) {
+      _showPhotoError(AppErrorMessage.from(error));
+    } finally {
+      if (mounted) setState(() => _photoBusy = false);
+    }
+  }
+
+  void _replaceProfile(AdminProfile profile) {
+    widget.controller.replaceSettings(
+      AdminSettings(
+        system: widget.controller.settings!.system,
+        preferences: widget.controller.settings!.preferences,
+        profile: profile,
+      ),
+    );
+  }
+
+  void _showPhotoError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
 
   AdminPreferences _copyPreferences({required int itemsPerPage}) =>
       AdminPreferences(

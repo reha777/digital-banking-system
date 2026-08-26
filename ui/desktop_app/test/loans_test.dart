@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:desktop_app/src/core/theme_controller.dart';
 import 'package:desktop_app/src/features/admin_shell/admin_section.dart';
 import 'package:desktop_app/src/features/admin_shell/widgets/admin_sidebar.dart';
 import 'package:desktop_app/src/features/loans/admin_loan_service.dart';
@@ -37,7 +36,6 @@ void main() {
             userName: 'Admin',
             selectedSection: AdminSection.dashboard,
             onSectionSelected: (value) => selected = value,
-            themeController: ThemeController(),
             onLogout: () {},
             compact: false,
           ),
@@ -79,7 +77,7 @@ void main() {
     expect(repository.lastSearch, 'amira');
     await tester.tap(find.text('All statuses'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Rejected').last);
+    await tester.tap(find.widgetWithText(MenuItemButton, 'Rejected'));
     await tester.pumpAndSettle();
     expect(repository.lastStatus, 3);
   });
@@ -128,7 +126,7 @@ void main() {
     expect(repository.reviewCalls, 1);
   });
 
-  testWidgets('approve is single flight and backend errors remain visible', (
+  testWidgets('approve is single flight and unknown errors are sanitized', (
     tester,
   ) async {
     final completer = Completer<AdminLoanApplicationDetails>();
@@ -147,7 +145,11 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     completer.completeError(Exception('Active loan already exists'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Active loan already exists'), findsOneWidget);
+    expect(
+      find.text('Something went wrong. Please try again.'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Exception'), findsNothing);
     expect(find.text('Approve Loan Application?'), findsOneWidget);
   });
 
@@ -204,6 +206,34 @@ void main() {
     await tester.tap(find.text('Completed'));
     await tester.pumpAndSettle();
     expect(find.text('Completed Loans'), findsOneWidget);
+  });
+
+  testWidgets('Active loans show overdue summary filter and details state', (
+    tester,
+  ) async {
+    final repository = _FakeRepository();
+    await tester.pumpWidget(_page(repository));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Active'));
+    await tester.pumpAndSettle();
+    expect(find.text('Loans overdue'), findsOneWidget);
+    expect(find.text('2 overdue'), findsOneWidget);
+
+    await tester.tap(find.text('All').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(MenuItemButton, 'Up to date'));
+    await tester.pumpAndSettle();
+    expect(repository.lastOverdueOnly, isFalse);
+
+    await tester.tap(find.text('Up to date'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(MenuItemButton, 'Overdue'));
+    await tester.pumpAndSettle();
+    expect(repository.lastOverdueOnly, isTrue);
+    await tester.tap(find.byTooltip('View Loan').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Overdue amount'), findsOneWidget);
+    expect(find.textContaining('5 days overdue'), findsOneWidget);
   });
 }
 
@@ -294,6 +324,7 @@ class _FakeRepository implements AdminLoanRepository {
   String? lastSearch;
   int? lastStatus;
   int reviewCalls = 0;
+  bool? lastOverdueOnly;
   @override
   Future<AdminLoanPage> getLoans({
     required String token,
@@ -303,18 +334,23 @@ class _FakeRepository implements AdminLoanRepository {
     String? search,
     DateTime? dateFromUtc,
     DateTime? dateToUtc,
-  }) async => AdminLoanPage(
-    items: [
-      _lifecycle(
-        status == 1
-            ? AdminLoanLifecycleStatus.active
-            : AdminLoanLifecycleStatus.completed,
-      ),
-    ],
-    page: page,
-    pageSize: pageSize,
-    totalCount: 1,
-  );
+    bool? overdueOnly,
+  }) async {
+    lastOverdueOnly = overdueOnly;
+    return AdminLoanPage(
+      items: [
+        _lifecycle(
+          status == 1
+              ? AdminLoanLifecycleStatus.active
+              : AdminLoanLifecycleStatus.completed,
+        ),
+      ],
+      page: page,
+      pageSize: pageSize,
+      totalCount: 1,
+    );
+  }
+
   @override
   Future<AdminLoansOverview> getLoansOverview({required String token}) async =>
       const AdminLoansOverview(
@@ -322,6 +358,7 @@ class _FakeRepository implements AdminLoanRepository {
         pendingApplications: 1,
         activeLoans: 1,
         completedLoans: 1,
+        loansWithOverduePayments: 1,
         currencies: [
           AdminLoanCurrencySummary(
             currency: 'BAM',
@@ -342,6 +379,8 @@ class _FakeRepository implements AdminLoanRepository {
     required int pageSize,
     String? search,
     int? status,
+    DateTime? dateFromUtc,
+    DateTime? dateToUtc,
   }) async {
     if (error) throw Exception('Loan API unavailable');
     lastSearch = search?.isEmpty == true ? null : search;
@@ -386,6 +425,8 @@ class _FakeRepository implements AdminLoanRepository {
     required String token,
     String? search,
     int? status,
+    DateTime? dateFromUtc,
+    DateTime? dateToUtc,
   }) async {
     if (error) throw Exception('Loan API unavailable');
     return const AdminLoanSummary(
@@ -397,35 +438,36 @@ class _FakeRepository implements AdminLoanRepository {
   }
 }
 
-AdminLoanListItem _lifecycle(AdminLoanLifecycleStatus status) =>
-    AdminLoanListItem(
-      loanId: 'loan',
-      applicationId: 'app',
-      customerId: 'customer',
-      customerName: 'Amira Hadzic',
-      customerEmail: 'amira@example.com',
-      productName: 'BAM Personal Loan',
-      currency: 'BAM',
-      originalPrincipal: 2000,
-      outstandingPrincipal: status == AdminLoanLifecycleStatus.active
-          ? 1000
-          : 0,
-      monthlyPayment: 350,
-      annualInterestRate: 6.5,
-      termMonths: 6,
-      totalPaid: status == AdminLoanLifecycleStatus.active ? 1000 : 2100,
-      startDateUtc: DateTime.utc(2026, 1),
-      nextPaymentDateUtc: status == AdminLoanLifecycleStatus.active
-          ? DateTime.utc(2026, 9)
-          : null,
-      maturityDateUtc: DateTime.utc(2026, 12),
-      completedAtUtc: status == AdminLoanLifecycleStatus.completed
-          ? DateTime.utc(2026, 8)
-          : null,
-      status: status,
-      paidInstallments: status == AdminLoanLifecycleStatus.active ? 3 : 6,
-      remainingInstallments: status == AdminLoanLifecycleStatus.active ? 3 : 0,
-    );
+AdminLoanListItem _lifecycle(
+  AdminLoanLifecycleStatus status,
+) => AdminLoanListItem(
+  loanId: 'loan',
+  applicationId: 'app',
+  customerId: 'customer',
+  customerName: 'Amira Hadzic',
+  customerEmail: 'amira@example.com',
+  productName: 'BAM Personal Loan',
+  currency: 'BAM',
+  originalPrincipal: 2000,
+  outstandingPrincipal: status == AdminLoanLifecycleStatus.active ? 1000 : 0,
+  monthlyPayment: 350,
+  annualInterestRate: 6.5,
+  termMonths: 6,
+  totalPaid: status == AdminLoanLifecycleStatus.active ? 1000 : 2100,
+  startDateUtc: DateTime.utc(2026, 1),
+  nextPaymentDateUtc: status == AdminLoanLifecycleStatus.active
+      ? DateTime.utc(2026, 9)
+      : null,
+  maturityDateUtc: DateTime.utc(2026, 12),
+  completedAtUtc: status == AdminLoanLifecycleStatus.completed
+      ? DateTime.utc(2026, 8)
+      : null,
+  status: status,
+  paidInstallments: status == AdminLoanLifecycleStatus.active ? 3 : 6,
+  remainingInstallments: status == AdminLoanLifecycleStatus.active ? 3 : 0,
+  overdueInstallmentsCount: status == AdminLoanLifecycleStatus.active ? 2 : 0,
+  totalOverdueAmount: status == AdminLoanLifecycleStatus.active ? 700 : 0,
+);
 AdminLoanDetails _lifecycleDetails() => AdminLoanDetails(
   loan: _lifecycle(AdminLoanLifecycleStatus.active),
   customerStatus: 'Active',
@@ -452,6 +494,18 @@ AdminLoanDetails _lifecycleDetails() => AdminLoanDetails(
       interest: 30,
       remaining: 1680,
       paid: true,
+      isOverdue: false,
+    ),
+    AdminLoanInstallment(
+      number: 2,
+      due: DateTime.utc(2026, 8),
+      total: 350,
+      principal: 325,
+      interest: 25,
+      remaining: 1355,
+      paid: false,
+      isOverdue: true,
+      daysOverdue: 5,
     ),
   ],
   payments: const [],

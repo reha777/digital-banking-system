@@ -1,4 +1,5 @@
 using BankingApp.Application.Interfaces;
+using BankingApp.Application.Common.Pagination;
 using BankingApp.Domain.Constants;
 using BankingApp.Domain.Entities;
 using BankingApp.Domain.Enums;
@@ -22,18 +23,33 @@ public class RecentRecipientTests
     public async Task Current_customer_receives_unique_recipients_in_last_used_order()
     {
         await using var fixture = await RecipientFixture.CreateAsync(withTransfers: true);
-        var result = await fixture.Service.GetRecentRecipientsAsync();
+        var result = await fixture.Service.GetRecentRecipientsAsync(new PagedRequest());
 
-        Assert.Equal(2, result.Count);
-        Assert.Equal("recipient-a", result.First().AccountNumber);
-        Assert.DoesNotContain(result, item => item.AccountNumber == "unrelated-recipient");
+        Assert.Equal(2, result.TotalCount);
+        Assert.Equal("recipient-a", result.Items.First().AccountNumber);
+        Assert.DoesNotContain(result.Items, item => item.AccountNumber == "unrelated-recipient");
     }
 
     [Fact]
     public async Task Customer_without_transfers_receives_empty_list()
     {
         await using var fixture = await RecipientFixture.CreateAsync(withTransfers: false);
-        Assert.Empty(await fixture.Service.GetRecentRecipientsAsync());
+        Assert.Empty((await fixture.Service.GetRecentRecipientsAsync(new PagedRequest())).Items);
+    }
+
+    [Fact]
+    public async Task Recent_recipients_support_page_two_with_stable_recent_order()
+    {
+        await using var fixture = await RecipientFixture.CreateAsync(withTransfers: true);
+        var first = await fixture.Service.GetRecentRecipientsAsync(
+            new PagedRequest { PageSize = 1 });
+        var second = await fixture.Service.GetRecentRecipientsAsync(
+            new PagedRequest { Page = 2, PageSize = 1 });
+
+        Assert.Equal(2, first.TotalCount);
+        Assert.Equal(2, first.TotalPages);
+        Assert.Equal("recipient-a", first.Items.Single().AccountNumber);
+        Assert.Equal("recipient-b", second.Items.Single().AccountNumber);
     }
 
     [Fact]

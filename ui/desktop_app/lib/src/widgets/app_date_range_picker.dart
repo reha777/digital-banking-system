@@ -26,10 +26,8 @@ class AppDateRangePicker extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasRange = dateFrom != null && dateTo != null;
     return Row(
-      mainAxisSize: MainAxisSize.min,
       children: [
-        ConstrainedBox(
-          constraints: const BoxConstraints(minWidth: 220, maxWidth: 270),
+        Expanded(
           child: OutlinedButton.icon(
             onPressed: enabled ? () => _open(context) : null,
             icon: const Icon(LucideIcons.calendarRange, size: 18),

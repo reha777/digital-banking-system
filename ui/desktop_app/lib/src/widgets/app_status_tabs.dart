@@ -19,47 +19,37 @@ class AppStatusTabs<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-    height: 42,
+    height: 40,
     child: ListView.separated(
       scrollDirection: Axis.horizontal,
       itemCount: tabs.length,
-      separatorBuilder: (_, _) => const SizedBox(width: 22),
+      separatorBuilder: (_, _) => const SizedBox(width: 6),
       itemBuilder: (_, index) {
         final tab = tabs[index];
         final active = tab.value == value;
         return InkWell(
           onTap: () => onChanged(tab.value),
           borderRadius: BorderRadius.circular(8),
-          child: Stack(
-            alignment: Alignment.bottomCenter,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 4,
-                  vertical: 10,
-                ),
-                child: AnimatedDefaultTextStyle(
-                  duration: const Duration(milliseconds: 180),
-                  style: Theme.of(context).textTheme.labelLarge!.copyWith(
-                    color: active
-                        ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).textTheme.bodySmall?.color,
-                    fontWeight: active ? FontWeight.w800 : FontWeight.w600,
-                  ),
-                  child: Text(tab.label),
-                ),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            decoration: BoxDecoration(
+              color: active
+                  ? Theme.of(context).colorScheme.primary.withValues(alpha: .1)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 180),
+              style: Theme.of(context).textTheme.labelLarge!.copyWith(
+                color: active
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).textTheme.bodySmall?.color,
+                fontWeight: active ? FontWeight.w800 : FontWeight.w600,
               ),
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                curve: Curves.easeOut,
-                width: active ? 28 : 0,
-                height: 2,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ],
+              child: Text(tab.label),
+            ),
           ),
         );
       },

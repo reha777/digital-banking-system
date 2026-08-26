@@ -12,6 +12,7 @@ class AdminTransactionService {
     required int pageSize,
     String? search,
     int? status,
+    int? type,
     DateTime? dateFrom,
     DateTime? dateTo,
     bool highRiskOnly = false,
@@ -19,6 +20,7 @@ class AdminTransactionService {
     final query = _buildFiltersQuery(
       search: search,
       status: status,
+      type: type,
       dateFrom: dateFrom,
       dateTo: dateTo,
       highRiskOnly: highRiskOnly,
@@ -34,6 +36,7 @@ class AdminTransactionService {
     required String token,
     String? search,
     int? status,
+    int? type,
     DateTime? dateFrom,
     DateTime? dateTo,
     bool highRiskOnly = false,
@@ -41,6 +44,7 @@ class AdminTransactionService {
     final query = _buildFiltersQuery(
       search: search,
       status: status,
+      type: type,
       dateFrom: dateFrom,
       dateTo: dateTo,
       highRiskOnly: highRiskOnly,
@@ -54,6 +58,7 @@ class AdminTransactionService {
   Map<String, String> _buildFiltersQuery({
     String? search,
     int? status,
+    int? type,
     DateTime? dateFrom,
     DateTime? dateTo,
     bool highRiskOnly = false,
@@ -66,6 +71,10 @@ class AdminTransactionService {
 
     if (status != null) {
       query['status'] = status.toString();
+    }
+
+    if (type != null) {
+      query['type'] = type.toString();
     }
 
     if (dateFrom != null) {
@@ -81,6 +90,17 @@ class AdminTransactionService {
     }
 
     return query;
+  }
+
+  Future<AdminTransaction> getDetails({
+    required String token,
+    required String id,
+  }) async {
+    final json = await _apiClient.getJson(
+      '/api/transactions/$id',
+      token: token,
+    );
+    return AdminTransaction.fromJson(json);
   }
 
   Future<AdminTransaction> requestDocuments({

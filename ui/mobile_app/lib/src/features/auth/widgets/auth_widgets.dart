@@ -15,22 +15,40 @@ class AuthScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 22),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 20),
-              if (showBackButton)
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: AuthBackButton(),
+      body: Stack(
+        children: [
+          Positioned(
+            top: -120,
+            right: -100,
+            child: IgnorePointer(
+              child: Container(
+                width: 260,
+                height: 260,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppTheme.primary.withValues(alpha: .07),
                 ),
-              Expanded(child: child),
-            ],
+              ),
+            ),
           ),
-        ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 22),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 20),
+                  if (showBackButton)
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: AuthBackButton(),
+                    ),
+                  Expanded(child: child),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -152,12 +170,16 @@ class AuthPrimaryButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return ElevatedButton(
       onPressed: isLoading ? null : onPressed,
-      child: isLoading
-          ? const SizedBox.square(
-              dimension: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : Text(label),
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 180),
+        child: isLoading
+            ? const SizedBox.square(
+                key: ValueKey('loading'),
+                dimension: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Text(label, key: const ValueKey('label')),
+      ),
     );
   }
 }

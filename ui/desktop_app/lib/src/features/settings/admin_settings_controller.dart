@@ -2,9 +2,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/theme_controller.dart';
+import '../../core/app_error_message.dart';
 import 'admin_settings_models.dart';
 import 'admin_settings_service.dart';
 import 'admin_formatters.dart';
+import 'admin_date_time_formatter.dart';
 
 class AdminSettingsController extends ChangeNotifier {
   AdminSettingsController(this.service, this.themeController);
@@ -45,7 +47,10 @@ class AdminSettingsController extends ChangeNotifier {
       settings = await service.get(token);
       await _applyPreferences(settings!.preferences);
     } catch (e) {
-      error = e.toString();
+      error = AppErrorMessage.from(
+        e,
+        fallback: 'Settings could not be loaded.',
+      );
     } finally {
       loading = false;
       notifyListeners();
@@ -80,16 +85,19 @@ class AdminSettingsController extends ChangeNotifier {
   }
 
   String formatDate(DateTime value) {
-    final d = value.toLocal(),
-        day = d.day.toString().padLeft(2, '0'),
-        month = d.month.toString().padLeft(2, '0');
-    return switch (preferences.dateFormat) {
-      'DD/MM/YYYY' => '$day/$month/${d.year}',
-      'MM/DD/YYYY' => '$month/$day/${d.year}',
-      'YYYY-MM-DD' => '${d.year}-$month-$day',
-      _ => '$day.$month.${d.year}.',
-    };
+    return AdminDateTimeFormatter(preferences).date(value);
   }
+
+  void replaceSettings(AdminSettings value) {
+    settings = value;
+    notifyListeners();
+  }
+
+  String formatDateTime(DateTime value) =>
+      AdminDateTimeFormatter(preferences).dateTime(value);
+
+  String formatTime(DateTime value) =>
+      AdminDateTimeFormatter(preferences).time(value);
 
   String formatNumber(num value, {bool currency = false}) {
     final fixed = value.toStringAsFixed(2);

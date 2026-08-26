@@ -1,5 +1,98 @@
 enum LoanApplicationStatus { pending, approved, rejected }
 
+class LoanPurposeModel {
+  const LoanPurposeModel({
+    required this.id,
+    required this.code,
+    required this.name,
+  });
+  factory LoanPurposeModel.fromJson(Map<String, dynamic> json) =>
+      LoanPurposeModel(
+        id: json['id'] as String,
+        code: json['code'] as String,
+        name: json['name'] as String,
+      );
+  final String id, code, name;
+}
+
+class LoanRecommendationModel {
+  const LoanRecommendationModel({
+    required this.productId,
+    required this.productName,
+    required this.score,
+    required this.rank,
+    required this.reasons,
+    required this.currency,
+    required this.interestRate,
+    required this.minAmount,
+    required this.maxAmount,
+    required this.minTermMonths,
+    required this.maxTermMonths,
+  });
+
+  factory LoanRecommendationModel.fromJson(Map<String, dynamic> json) {
+    T requiredValue<T>(String key) {
+      final value = json[key];
+      if (value is! T) {
+        throw FormatException('Missing recommendation field: $key');
+      }
+      return value;
+    }
+
+    return LoanRecommendationModel(
+      productId: requiredValue<String>('productId'),
+      productName: requiredValue<String>('productName'),
+      score: requiredValue<num>('score').toInt(),
+      rank: requiredValue<num>('rank').toInt(),
+      reasons: requiredValue<List<dynamic>>('reasons').cast<String>(),
+      currency: requiredValue<String>('currency'),
+      interestRate: requiredValue<num>('interestRate').toDouble(),
+      minAmount: requiredValue<num>('minAmount').toDouble(),
+      maxAmount: requiredValue<num>('maxAmount').toDouble(),
+      minTermMonths: requiredValue<num>('minTermMonths').toInt(),
+      maxTermMonths: requiredValue<num>('maxTermMonths').toInt(),
+    );
+  }
+
+  final String productId, productName, currency;
+  final int score, rank, minTermMonths, maxTermMonths;
+  final List<String> reasons;
+  final double interestRate, minAmount, maxAmount;
+}
+
+class LoanRecommendationsModel {
+  const LoanRecommendationsModel({
+    required this.canApply,
+    required this.disclaimer,
+    required this.recommendations,
+    this.blockReason,
+  });
+
+  factory LoanRecommendationsModel.fromJson(Map<String, dynamic> json) {
+    if (json['canApply'] is! bool ||
+        json['disclaimer'] is! String ||
+        json['recommendations'] is! List) {
+      throw const FormatException('Invalid loan recommendation response.');
+    }
+    return LoanRecommendationsModel(
+      canApply: json['canApply'] as bool,
+      disclaimer: json['disclaimer'] as String,
+      blockReason: json['blockReason'] as String?,
+      recommendations: (json['recommendations'] as List)
+          .map(
+            (value) =>
+                LoanRecommendationModel.fromJson(value as Map<String, dynamic>),
+          )
+          .toList(),
+    );
+  }
+
+  final bool canApply;
+  final String disclaimer;
+  final String? blockReason;
+  final List<LoanRecommendationModel> recommendations;
+}
+
 double _number(Map<String, dynamic> json, String key) =>
     (json[key] as num? ?? 0).toDouble();
 
@@ -199,6 +292,8 @@ class LoanModel {
     required this.maturityDateUtc,
     required this.paidInstallments,
     required this.remainingInstallments,
+    this.overdueInstallmentsCount = 0,
+    this.totalOverdueAmount = 0,
     required this.destinationAccountId,
     required this.destinationAccountNumber,
   });
@@ -226,6 +321,9 @@ class LoanModel {
         DateTime.fromMillisecondsSinceEpoch(0),
     paidInstallments: (json['paidInstallments'] as num? ?? 0).toInt(),
     remainingInstallments: (json['remainingInstallments'] as num? ?? 0).toInt(),
+    overdueInstallmentsCount: (json['overdueInstallmentsCount'] as num? ?? 0)
+        .toInt(),
+    totalOverdueAmount: _number(json, 'totalOverdueAmount'),
     destinationAccountId: json['destinationAccountId']?.toString() ?? '',
     destinationAccountNumber:
         json['destinationAccountNumber']?.toString() ?? '',
@@ -243,10 +341,15 @@ class LoanModel {
       monthlyPayment,
       totalRepayment,
       totalPaid;
-  final int termMonths, paidInstallments, remainingInstallments;
+  final int termMonths,
+      paidInstallments,
+      remainingInstallments,
+      overdueInstallmentsCount;
+  final double totalOverdueAmount;
   final DateTime startDateUtc, maturityDateUtc;
   final DateTime? nextPaymentDateUtc;
   bool get isCompleted => status == LoanStatus.completed;
+  bool get hasOverdue => !isCompleted && overdueInstallmentsCount > 0;
 }
 
 class LoanInstallmentModel {
@@ -260,6 +363,8 @@ class LoanInstallmentModel {
     required this.remainingPrincipalAfter,
     required this.status,
     this.paidAtUtc,
+    this.isOverdue = false,
+    this.daysOverdue = 0,
   });
   factory LoanInstallmentModel.fromJson(Map<String, dynamic> json) =>
       LoanInstallmentModel(
@@ -278,6 +383,8 @@ class LoanInstallmentModel {
             ? LoanInstallmentStatus.paid
             : LoanInstallmentStatus.pending,
         paidAtUtc: DateTime.tryParse(json['paidAtUtc']?.toString() ?? ''),
+        isOverdue: json['isOverdue'] == true,
+        daysOverdue: (json['daysOverdue'] as num? ?? 0).toInt(),
       );
   final String id;
   final int installmentNumber;
@@ -288,6 +395,8 @@ class LoanInstallmentModel {
       remainingPrincipalAfter;
   final LoanInstallmentStatus status;
   final DateTime? paidAtUtc;
+  final bool isOverdue;
+  final int daysOverdue;
   bool get isPaid => status == LoanInstallmentStatus.paid;
 }
 
@@ -357,6 +466,8 @@ class LoanPaymentQuoteModel {
     required this.outstandingBefore,
     required this.outstandingAfter,
     required this.isFinalInstallment,
+    this.isOverdue = false,
+    this.daysOverdue = 0,
   });
   factory LoanPaymentQuoteModel.fromJson(Map<String, dynamic> json) =>
       LoanPaymentQuoteModel(
@@ -373,6 +484,8 @@ class LoanPaymentQuoteModel {
         outstandingBefore: _number(json, 'outstandingBefore'),
         outstandingAfter: _number(json, 'outstandingAfter'),
         isFinalInstallment: json['isFinalInstallment'] == true,
+        isOverdue: json['isOverdue'] == true,
+        daysOverdue: (json['daysOverdue'] as num? ?? 0).toInt(),
       );
   final String loanId, installmentId, currency;
   final int installmentNumber;
@@ -383,6 +496,8 @@ class LoanPaymentQuoteModel {
       outstandingBefore,
       outstandingAfter;
   final bool isFinalInstallment;
+  final bool isOverdue;
+  final int daysOverdue;
 }
 
 class LoanPaymentResultModel {

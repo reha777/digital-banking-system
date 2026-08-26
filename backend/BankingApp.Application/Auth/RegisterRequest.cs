@@ -23,7 +23,7 @@ namespace BankingApp.Application.Auth
         public string PhoneNumber { get; set; } = string.Empty;
 
         [Required]
-        [MinLength(6)]
+        [MinLength(PasswordPolicy.MinimumLength)]
         public string Password { get; set; } = string.Empty;
     }
 }

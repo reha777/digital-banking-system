@@ -1,5 +1,6 @@
 using BankingApp.Application.Interfaces;
 using BankingApp.Application.Loans;
+using BankingApp.Application.Common.Pagination;
 using BankingApp.Domain.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -9,12 +10,20 @@ namespace BankingApp.Api.Controllers;
 [ApiController]
 [Authorize(Roles = AppRoles.Customer)]
 [Route("api/loans")]
-public class LoansController(ILoanService loanService) : ControllerBase
+public class LoansController(
+    ILoanService loanService,
+    ILoanRecommendationService recommendationService) : ControllerBase
 {
-    [HttpGet("products")]
-    public async Task<ActionResult<IReadOnlyCollection<LoanProductResponse>>> GetProducts(
+    [HttpGet("recommendations")]
+    public async Task<ActionResult<LoanRecommendationResponse>> GetRecommendations(
         CancellationToken cancellationToken) =>
-        Ok(await loanService.GetActiveProductsAsync(cancellationToken));
+        Ok(await recommendationService.GetRecommendationsAsync(cancellationToken));
+
+    [HttpGet("products")]
+    public async Task<ActionResult<PagedResult<LoanProductResponse>>> GetProducts(
+        [FromQuery] PagedRequest request,
+        CancellationToken cancellationToken) =>
+        Ok(await loanService.GetActiveProductsAsync(request, cancellationToken));
 
     [HttpPost("quote")]
     public async Task<ActionResult<LoanQuoteResponse>> Quote(

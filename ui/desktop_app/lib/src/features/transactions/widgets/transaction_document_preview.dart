@@ -3,7 +3,6 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
-import '../../../core/document_opener.dart';
 import '../admin_transaction_models.dart';
 
 class TransactionDocumentPreview extends StatelessWidget {
@@ -46,14 +45,7 @@ class TransactionDocumentPreview extends StatelessWidget {
           ),
         );
       }
-      return OutlinedButton(
-        onPressed: () => openDocumentBytes(
-          bytes: bytes,
-          fileName: document.fileName,
-          contentType: document.contentType,
-        ),
-        child: const Text('Open document'),
-      );
+      return const SizedBox.shrink();
     },
   );
 }

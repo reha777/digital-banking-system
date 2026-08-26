@@ -96,7 +96,7 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                             Id = new Guid("dbdd0766-a83e-4a7d-944c-af7d0373ff50"),
                             AccountNumber = "BA-000001-CHECKING",
                             AccountType = "Checking",
-                            Balance = 1250.00m,
+                            Balance = 20000.00m,
                             CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Currency = "USD",
                             UserId = new Guid("9a99a021-b892-4f5a-bd98-36a5afbf0c79")
@@ -116,7 +116,7 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                             Id = new Guid("deed75d2-e898-4c2d-a7e3-2fa1152d7222"),
                             AccountNumber = "BA-000002-CHECKING",
                             AccountType = "Checking",
-                            Balance = 300.00m,
+                            Balance = 350.00m,
                             CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Currency = "USD",
                             UserId = new Guid("f5573a40-f822-45c4-a841-b6ab5d5a0c49")
@@ -179,6 +179,77 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("AdminUserPreferences", (string)null);
+                });
+
+            modelBuilder.Entity("BankingApp.Domain.Entities.AuditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("ActorName")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("ActorRole")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CorrelationId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("EntityId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("NewValue")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<string>("OldValue")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorUserId");
+
+                    b.HasIndex("CreatedAtUtc");
+
+                    b.HasIndex("Action", "EntityType");
+
+                    b.HasIndex("EntityType", "EntityId");
+
+                    b.ToTable("AuditLogs", (string)null);
                 });
 
             modelBuilder.Entity("BankingApp.Domain.Entities.BankCard", b =>
@@ -364,6 +435,9 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                         .HasMaxLength(120)
                         .HasColumnType("nvarchar(120)");
 
+                    b.Property<Guid?>("DocumentTypeId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("FileName")
                         .IsRequired()
                         .HasMaxLength(180)
@@ -378,6 +452,8 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CardRequestId");
+
+                    b.HasIndex("DocumentTypeId");
 
                     b.ToTable("CardRequestDocuments", (string)null);
                 });
@@ -516,6 +592,9 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("LoanProductId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("LoanPurposeId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<decimal>("Principal")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -551,6 +630,8 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                     b.HasIndex("DestinationAccountId");
 
                     b.HasIndex("LoanProductId");
+
+                    b.HasIndex("LoanPurposeId");
 
                     b.HasIndex("UserId")
                         .IsUnique()
@@ -791,6 +872,249 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("BankingApp.Domain.Entities.Notification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("EntityId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EntityType")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("ReadAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(140)
+                        .HasColumnType("nvarchar(140)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "CreatedAtUtc");
+
+                    b.HasIndex("UserId", "IsRead");
+
+                    b.HasIndex("UserId", "Type", "EntityType", "EntityId")
+                        .IsUnique()
+                        .HasFilter("[EntityType] IS NOT NULL AND [EntityId] IS NOT NULL");
+
+                    b.ToTable("Notifications", (string)null);
+                });
+
+            modelBuilder.Entity("BankingApp.Domain.Entities.PasswordResetToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("RevokedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime?>("UsedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "ExpiresAtUtc");
+
+                    b.ToTable("PasswordResetTokens", (string)null);
+                });
+
+            modelBuilder.Entity("BankingApp.Domain.Entities.ReferenceDataItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Type", "Code")
+                        .IsUnique();
+
+                    b.HasIndex("Type", "IsActive", "SortOrder");
+
+                    b.ToTable("ReferenceDataItems", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("10000000-0000-0000-0000-000000000001"),
+                            Code = "GENERAL",
+                            CreatedAtUtc = new DateTime(2026, 8, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Name = "General purpose",
+                            SortOrder = 10,
+                            Type = "loan-purposes",
+                            UpdatedAtUtc = new DateTime(2026, 8, 24, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("10000000-0000-0000-0000-000000000002"),
+                            Code = "HOME",
+                            CreatedAtUtc = new DateTime(2026, 8, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Name = "Home improvement",
+                            SortOrder = 20,
+                            Type = "loan-purposes",
+                            UpdatedAtUtc = new DateTime(2026, 8, 24, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("10000000-0000-0000-0000-000000000003"),
+                            Code = "EDUCATION",
+                            CreatedAtUtc = new DateTime(2026, 8, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Name = "Education",
+                            SortOrder = 30,
+                            Type = "loan-purposes",
+                            UpdatedAtUtc = new DateTime(2026, 8, 24, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000001"),
+                            Code = "IDENTITY",
+                            CreatedAtUtc = new DateTime(2026, 8, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Name = "Identity document",
+                            SortOrder = 10,
+                            Type = "document-types",
+                            UpdatedAtUtc = new DateTime(2026, 8, 24, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000002"),
+                            Code = "PROOF_OF_INCOME",
+                            CreatedAtUtc = new DateTime(2026, 8, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Name = "Proof of income",
+                            SortOrder = 20,
+                            Type = "document-types",
+                            UpdatedAtUtc = new DateTime(2026, 8, 24, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000003"),
+                            Code = "BANK_STATEMENT",
+                            CreatedAtUtc = new DateTime(2026, 8, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Name = "Bank statement",
+                            SortOrder = 30,
+                            Type = "document-types",
+                            UpdatedAtUtc = new DateTime(2026, 8, 24, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000001"),
+                            Code = "GENERAL",
+                            CreatedAtUtc = new DateTime(2026, 8, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Name = "General",
+                            SortOrder = 10,
+                            Type = "transaction-categories",
+                            UpdatedAtUtc = new DateTime(2026, 8, 24, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000002"),
+                            Code = "TRANSFER",
+                            CreatedAtUtc = new DateTime(2026, 8, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Name = "Transfer",
+                            SortOrder = 20,
+                            Type = "transaction-categories",
+                            UpdatedAtUtc = new DateTime(2026, 8, 24, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000003"),
+                            Code = "LOAN",
+                            CreatedAtUtc = new DateTime(2026, 8, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Name = "Loan",
+                            SortOrder = 30,
+                            Type = "transaction-categories",
+                            UpdatedAtUtc = new DateTime(2026, 8, 24, 0, 0, 0, 0, DateTimeKind.Utc)
+                        });
+                });
+
             modelBuilder.Entity("BankingApp.Domain.Entities.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -822,6 +1146,68 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("RefreshTokens", (string)null);
+                });
+
+            modelBuilder.Entity("BankingApp.Domain.Entities.ReportJob", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("CompletedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CorrelationId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("FailedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FileName")
+                        .HasMaxLength(180)
+                        .HasColumnType("nvarchar(180)");
+
+                    b.Property<string>("FilterJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("RequestedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("RequestedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("StartedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("StoragePath")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RequestedAtUtc");
+
+                    b.HasIndex("RequestedByUserId");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("ReportJobs", (string)null);
                 });
 
             modelBuilder.Entity("BankingApp.Domain.Entities.SystemSettings", b =>
@@ -950,6 +1336,9 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                         .HasMaxLength(25)
                         .HasColumnType("nvarchar(25)");
 
+                    b.Property<Guid?>("TransactionCategoryId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<decimal?>("TransferAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -971,6 +1360,8 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ReferenceNumber");
 
+                    b.HasIndex("TransactionCategoryId");
+
                     b.ToTable("Transactions", (string)null);
 
                     b.HasData(
@@ -978,7 +1369,7 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                         {
                             Id = new Guid("b8e0dbf7-536f-4301-99c7-5b3a1e03f450"),
                             AccountId = new Guid("dbdd0766-a83e-4a7d-944c-af7d0373ff50"),
-                            Amount = 1250.00m,
+                            Amount = 20050.00m,
                             CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Description = "Initial checking deposit",
                             IsHighRiskReview = false,
@@ -996,6 +1387,42 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                             IsHighRiskReview = false,
                             ReferenceNumber = "TXN-20260101-0002",
                             Status = "Completed",
+                            Type = "Transfer"
+                        },
+                        new
+                        {
+                            Id = new Guid("4a6e449e-6397-45f6-a446-5936e882c401"),
+                            AccountId = new Guid("dbdd0766-a83e-4a7d-944c-af7d0373ff50"),
+                            Amount = -50.00m,
+                            CreatedAtUtc = new DateTime(2026, 8, 25, 12, 0, 0, 0, DateTimeKind.Utc),
+                            Description = "Demo transfer to Yamilet Recipient",
+                            DestinationAccountId = new Guid("deed75d2-e898-4c2d-a7e3-2fa1152d7222"),
+                            DestinationAmount = 50.00m,
+                            IsHighRiskReview = false,
+                            ReferenceNumber = "TXN-20260825-DEMO-RECENT",
+                            SourceAccountId = new Guid("dbdd0766-a83e-4a7d-944c-af7d0373ff50"),
+                            Status = "Completed",
+                            TransactionCategoryId = new Guid("30000000-0000-0000-0000-000000000002"),
+                            TransferAmount = 50.00m,
+                            TransferCurrency = "USD",
+                            Type = "Transfer"
+                        },
+                        new
+                        {
+                            Id = new Guid("4a6e449e-6397-45f6-a446-5936e882c402"),
+                            AccountId = new Guid("deed75d2-e898-4c2d-a7e3-2fa1152d7222"),
+                            Amount = 50.00m,
+                            CreatedAtUtc = new DateTime(2026, 8, 25, 12, 0, 0, 0, DateTimeKind.Utc),
+                            Description = "Transfer from BA-000001-CHECKING",
+                            DestinationAccountId = new Guid("deed75d2-e898-4c2d-a7e3-2fa1152d7222"),
+                            DestinationAmount = 50.00m,
+                            IsHighRiskReview = false,
+                            ReferenceNumber = "TXN-20260825-DEMO-RECENT",
+                            SourceAccountId = new Guid("dbdd0766-a83e-4a7d-944c-af7d0373ff50"),
+                            Status = "Completed",
+                            TransactionCategoryId = new Guid("30000000-0000-0000-0000-000000000002"),
+                            TransferAmount = 50.00m,
+                            TransferCurrency = "USD",
                             Type = "Transfer"
                         });
                 });
@@ -1015,6 +1442,9 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                         .HasMaxLength(120)
                         .HasColumnType("nvarchar(120)");
 
+                    b.Property<Guid?>("DocumentTypeId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("FileName")
                         .IsRequired()
                         .HasMaxLength(180)
@@ -1030,6 +1460,8 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DocumentTypeId");
 
                     b.HasIndex("TransactionId");
 
@@ -1211,7 +1643,14 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("BankingApp.Domain.Entities.ReferenceDataItem", "DocumentType")
+                        .WithMany()
+                        .HasForeignKey("DocumentTypeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("CardRequest");
+
+                    b.Navigation("DocumentType");
                 });
 
             modelBuilder.Entity("BankingApp.Domain.Entities.Loan", b =>
@@ -1262,6 +1701,11 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("BankingApp.Domain.Entities.ReferenceDataItem", "LoanPurpose")
+                        .WithMany()
+                        .HasForeignKey("LoanPurposeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("BankingApp.Domain.Entities.User", "User")
                         .WithMany("LoanApplications")
                         .HasForeignKey("UserId")
@@ -1271,6 +1715,8 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                     b.Navigation("DestinationAccount");
 
                     b.Navigation("LoanProduct");
+
+                    b.Navigation("LoanPurpose");
 
                     b.Navigation("User");
                 });
@@ -1328,6 +1774,28 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                     b.Navigation("Transaction");
                 });
 
+            modelBuilder.Entity("BankingApp.Domain.Entities.Notification", b =>
+                {
+                    b.HasOne("BankingApp.Domain.Entities.User", "User")
+                        .WithMany("Notifications")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("BankingApp.Domain.Entities.PasswordResetToken", b =>
+                {
+                    b.HasOne("BankingApp.Domain.Entities.User", "User")
+                        .WithMany("PasswordResetTokens")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("BankingApp.Domain.Entities.RefreshToken", b =>
                 {
                     b.HasOne("BankingApp.Domain.Entities.User", "User")
@@ -1339,6 +1807,17 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("BankingApp.Domain.Entities.ReportJob", b =>
+                {
+                    b.HasOne("BankingApp.Domain.Entities.User", "RequestedByUser")
+                        .WithMany()
+                        .HasForeignKey("RequestedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("RequestedByUser");
+                });
+
             modelBuilder.Entity("BankingApp.Domain.Entities.Transaction", b =>
                 {
                     b.HasOne("BankingApp.Domain.Entities.Account", "Account")
@@ -1347,16 +1826,30 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("BankingApp.Domain.Entities.ReferenceDataItem", "TransactionCategory")
+                        .WithMany()
+                        .HasForeignKey("TransactionCategoryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Account");
+
+                    b.Navigation("TransactionCategory");
                 });
 
             modelBuilder.Entity("BankingApp.Domain.Entities.TransactionDocument", b =>
                 {
+                    b.HasOne("BankingApp.Domain.Entities.ReferenceDataItem", "DocumentType")
+                        .WithMany()
+                        .HasForeignKey("DocumentTypeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("BankingApp.Domain.Entities.Transaction", "Transaction")
                         .WithMany("Documents")
                         .HasForeignKey("TransactionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("DocumentType");
 
                     b.Navigation("Transaction");
                 });
@@ -1410,6 +1903,10 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                     b.Navigation("LoanApplications");
 
                     b.Navigation("Loans");
+
+                    b.Navigation("Notifications");
+
+                    b.Navigation("PasswordResetTokens");
 
                     b.Navigation("RefreshTokens");
                 });

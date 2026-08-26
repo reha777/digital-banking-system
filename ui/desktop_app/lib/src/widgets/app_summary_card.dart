@@ -29,12 +29,23 @@ class _AppSummaryCardState extends State<AppSummaryCard> {
       onExit: (_) => setState(() => _hovered = false),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        transform: Matrix4.translationValues(0, _hovered ? -2 : 0, 0),
+        curve: Curves.easeOutCubic,
+        transform: Matrix4.translationValues(0, _hovered ? -3 : 0, 0),
         constraints: const BoxConstraints(minHeight: 104),
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(8),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Theme.of(context).cardColor,
+              Color.alphaBlend(
+                widget.tone.withValues(alpha: dark ? .035 : .022),
+                Theme.of(context).cardColor,
+              ),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: dark ? const Color(0xFF303244) : AppTheme.border,
           ),
@@ -43,8 +54,8 @@ class _AppSummaryCardState extends State<AppSummaryCard> {
               color: const Color(
                 0xFF0F172A,
               ).withValues(alpha: dark ? .18 : .04),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
+              blurRadius: _hovered ? 24 : 18,
+              offset: Offset(0, _hovered ? 10 : 8),
             ),
           ],
         ),
@@ -55,7 +66,7 @@ class _AppSummaryCardState extends State<AppSummaryCard> {
               height: 46,
               decoration: BoxDecoration(
                 color: widget.tone.withValues(alpha: .10),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(widget.icon, color: widget.tone),
             ),
