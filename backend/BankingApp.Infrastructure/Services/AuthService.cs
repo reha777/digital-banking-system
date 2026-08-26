@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using System.ComponentModel.DataAnnotations;
 using BankingApp.Application.Auth;
 using BankingApp.Application.Common.Exceptions;
 using BankingApp.Application.Interfaces;
@@ -12,6 +13,7 @@ using BankingApp.Infrastructure.Authentication;
 using BankingApp.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
 
 namespace BankingApp.Infrastructure.Services
 {
@@ -19,9 +21,14 @@ namespace BankingApp.Infrastructure.Services
         BankingAppDbContext dbContext,
         IPasswordHasher passwordHasher,
         IJwtTokenGenerator jwtTokenGenerator,
-        IOptions<JwtOptions> jwtOptions) : IAuthService
+        IOptions<JwtOptions> jwtOptions,
+        IOptions<DemoAuthOptions> demoAuthOptions,
+        IEmailService emailService,
+        IUserSessionRevocationService sessionRevocationService,
+        ILogger<AuthService> logger) : IAuthService
     {
         private readonly JwtOptions _jwtOptions = jwtOptions.Value;
+        private readonly DemoAuthOptions _demoAuthOptions = demoAuthOptions.Value;
 
         public async Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
         {
@@ -107,6 +114,89 @@ namespace BankingApp.Infrastructure.Services
             {
                 await dbContext.SaveChangesAsync(cancellationToken);
             }
+        }
+
+        public async Task<ForgotPasswordResponse> ForgotPasswordAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default)
+        {
+            var response = new ForgotPasswordResponse();
+            var email = request.Email.Trim().ToLowerInvariant();
+            var user = await dbContext.Users.FirstOrDefaultAsync(value => value.Email == email, cancellationToken);
+            if (user is null || user.IsDeleted || (user.Role == AppRoles.Customer && user.Status != CustomerStatus.Active)) return response;
+
+            return await IssuePasswordResetAsync(user, user.Email, response, cancellationToken);
+        }
+
+        public async Task<ForgotPasswordResponse> DemoForgotPasswordAsync(
+            DemoForgotPasswordRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var response = new ForgotPasswordResponse();
+            if (!_demoAuthOptions.Enabled) return response;
+            if (!new EmailAddressAttribute().IsValid(request.Email))
+                throw new BusinessException("Demo delivery email is invalid.");
+
+            var isCustomer = request.ClientType.Equals("Customer", StringComparison.OrdinalIgnoreCase);
+            var isAdmin = request.ClientType.Equals("Admin", StringComparison.OrdinalIgnoreCase);
+            if (!isCustomer && !isAdmin)
+                throw new BusinessException("Demo password reset client type is invalid.");
+
+            var accountEmail = (isCustomer
+                ? _demoAuthOptions.CustomerAccountEmail
+                : _demoAuthOptions.AdminAccountEmail).Trim().ToLowerInvariant();
+            var expectedRole = isCustomer ? AppRoles.Customer : AppRoles.Admin;
+            var user = await dbContext.Users.FirstOrDefaultAsync(
+                value => value.Email == accountEmail && value.Role == expectedRole,
+                cancellationToken);
+            if (user is null)
+            {
+                logger.LogWarning(
+                    "Configured {DemoClientType} demo account was not found.",
+                    request.ClientType);
+                return response;
+            }
+            if (user.IsDeleted ||
+                (user.Role == AppRoles.Customer && user.Status != CustomerStatus.Active))
+                return response;
+
+            return await IssuePasswordResetAsync(
+                user,
+                request.Email.Trim().ToLowerInvariant(),
+                response,
+                cancellationToken);
+        }
+
+        private async Task<ForgotPasswordResponse> IssuePasswordResetAsync(
+            User user,
+            string deliveryEmail,
+            ForgotPasswordResponse response,
+            CancellationToken cancellationToken)
+        {
+            var now = DateTime.UtcNow;
+            var activeTokens = await dbContext.PasswordResetTokens.Where(value => value.UserId == user.Id && value.UsedAtUtc == null && value.RevokedAtUtc == null && value.ExpiresAtUtc > now).ToListAsync(cancellationToken);
+            foreach (var oldToken in activeTokens) oldToken.RevokedAtUtc = now;
+            var plaintext = CreatePasswordResetToken(); var expires = now.AddMinutes(30);
+            dbContext.PasswordResetTokens.Add(new PasswordResetToken { Id = Guid.NewGuid(), UserId = user.Id, TokenHash = HashSecurityToken(plaintext), CreatedAtUtc = now, ExpiresAtUtc = expires });
+            await dbContext.SaveChangesAsync(cancellationToken);
+            try { await emailService.SendPasswordResetAsync(deliveryEmail, plaintext, expires, cancellationToken); }
+            catch (Exception exception)
+            {
+                logger.LogError(exception, "Password reset email delivery failed.");
+                // The public response intentionally remains generic.
+            }
+            return response;
+        }
+
+        public async Task ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default)
+        {
+            const string safeError = "Reset code is invalid or expired.";
+            if (request.NewPassword != request.ConfirmPassword || request.NewPassword.Length < PasswordPolicy.MinimumLength) throw new BusinessException("New password does not meet the password requirements.");
+            var now = DateTime.UtcNow; var hash = HashSecurityToken(request.Token.Trim());
+            var resetToken = await dbContext.PasswordResetTokens.Include(value => value.User).SingleOrDefaultAsync(value => value.TokenHash == hash, cancellationToken);
+            if (resetToken is null || resetToken.UsedAtUtc != null || resetToken.RevokedAtUtc != null || resetToken.ExpiresAtUtc <= now || resetToken.User.IsDeleted || (resetToken.User.Role == AppRoles.Customer && resetToken.User.Status != CustomerStatus.Active)) throw new BusinessException(safeError);
+            resetToken.User.PasswordHash = passwordHasher.Hash(request.NewPassword); resetToken.UsedAtUtc = now;
+            await sessionRevocationService.RevokeAllRefreshTokensAsync(resetToken.UserId, cancellationToken);
+            try { await dbContext.SaveChangesAsync(cancellationToken); }
+            catch (DbUpdateConcurrencyException) { throw new BusinessException(safeError); }
         }
 
         private async Task<bool> RevokeAccessTokenAsync(string? accessToken, CancellationToken cancellationToken)
@@ -211,6 +301,9 @@ namespace BankingApp.Infrastructure.Services
             var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(refreshToken));
             return Convert.ToHexString(bytes);
         }
+
+        private static string CreatePasswordResetToken() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        private static string HashSecurityToken(string token) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 
         private static void EnsureUserCanAuthenticate(User user)
         {

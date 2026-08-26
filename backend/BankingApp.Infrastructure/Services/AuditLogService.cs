@@ -22,12 +22,19 @@ public sealed class AuditLogService(BankingAppDbContext dbContext, ICurrentUserS
             ?? throw new NotFoundException("Administrator nije pronadjen.");
         dbContext.AuditLogs.Add(new AuditLog
         {
-            Id = Guid.NewGuid(), ActorUserId = currentUser.UserId,
-            ActorName = $"{actor.FirstName} {actor.LastName}".Trim(), ActorRole = actor.Role,
-            Action = request.Action, EntityType = request.EntityType, EntityId = request.EntityId,
-            Description = request.Description, Reason = Clean(request.Reason),
-            OldValue = Clean(request.OldValue), NewValue = Clean(request.NewValue),
-            CorrelationId = Clean(request.CorrelationId), CreatedAtUtc = DateTime.UtcNow
+            Id = Guid.NewGuid(),
+            ActorUserId = currentUser.UserId,
+            ActorName = $"{actor.FirstName} {actor.LastName}".Trim(),
+            ActorRole = actor.Role,
+            Action = request.Action,
+            EntityType = request.EntityType,
+            EntityId = request.EntityId,
+            Description = request.Description,
+            Reason = Clean(request.Reason),
+            OldValue = Clean(request.OldValue),
+            NewValue = Clean(request.NewValue),
+            CorrelationId = Clean(request.CorrelationId),
+            CreatedAtUtc = DateTime.UtcNow
         });
     }
 
@@ -50,10 +57,19 @@ public sealed class AuditLogService(BankingAppDbContext dbContext, ICurrentUserS
             .Skip((request.Page - 1) * request.PageSize).Take(request.PageSize)
             .Select(x => new AuditLogResponse
             {
-                Id = x.Id, ActorName = x.ActorName, ActorRole = x.ActorRole, Action = x.Action,
-                ActionDisplayName = Display(x.Action), EntityType = x.EntityType, EntityId = x.EntityId,
-                Description = x.Description, Reason = x.Reason, OldValue = x.OldValue,
-                NewValue = x.NewValue, CorrelationId = x.CorrelationId, CreatedAtUtc = x.CreatedAtUtc
+                Id = x.Id,
+                ActorName = x.ActorName,
+                ActorRole = x.ActorRole,
+                Action = x.Action,
+                ActionDisplayName = Display(x.Action),
+                EntityType = x.EntityType,
+                EntityId = x.EntityId,
+                Description = x.Description,
+                Reason = x.Reason,
+                OldValue = x.OldValue,
+                NewValue = x.NewValue,
+                CorrelationId = x.CorrelationId,
+                CreatedAtUtc = x.CreatedAtUtc
             }).ToListAsync(cancellationToken);
         return new PagedResult<AuditLogResponse> { Items = items, Page = request.Page, PageSize = request.PageSize, TotalCount = total };
     }

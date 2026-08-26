@@ -89,6 +89,34 @@ void main() {
     expect(find.byTooltip('Review details'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('transaction review revision reloads the current query', (
+    tester,
+  ) async {
+    final requests = <Uri>[];
+    final service = _service(requests);
+
+    Widget page(int revision) => MaterialApp(
+      home: Scaffold(
+        body: TransactionReviewPage(
+          token: 'token',
+          defaultPageSize: 20,
+          dateFormatter: (_) => '21 Aug 2026',
+          service: service,
+          refreshRevision: revision,
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(page(0));
+    await tester.pumpAndSettle();
+    expect(requests, hasLength(2));
+
+    await tester.pumpWidget(page(1));
+    await tester.pumpAndSettle();
+    expect(requests, hasLength(4));
+    expect(tester.takeException(), isNull);
+  });
 }
 
 Future<void> _pumpTransactions(

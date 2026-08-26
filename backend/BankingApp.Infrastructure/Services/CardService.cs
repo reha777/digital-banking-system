@@ -3,6 +3,7 @@ using BankingApp.Application.AuditLogs;
 using BankingApp.Application.Common.Exceptions;
 using BankingApp.Application.Common.Pagination;
 using BankingApp.Application.Interfaces;
+using BankingApp.Application.Notifications;
 using BankingApp.Domain.Constants;
 using BankingApp.Domain.Entities;
 using BankingApp.Domain.Enums;
@@ -14,19 +15,33 @@ namespace BankingApp.Infrastructure.Services
     public class CardService(
         BankingAppDbContext dbContext,
         ICurrentUserService currentUserService,
-        IAuditLogService? auditLogService = null) : ICardService
+        IAuditLogService? auditLogService = null,
+        IFileValidationService? fileValidationService = null,
+        INotificationWriter? notificationWriter = null) : ICardService
     {
-        public async Task<IReadOnlyCollection<CardResponse>> GetMyCardsAsync(
+        public async Task<PagedResult<CardResponse>> GetMyCardsAsync(
+            PagedRequest request,
             CancellationToken cancellationToken = default)
         {
-            var cards = await dbContext.BankCards
+            var query = dbContext.BankCards
                 .AsNoTracking()
                 .Include(card => card.Account)
-                .Where(card => card.Account.UserId == currentUserService.UserId)
+                .Where(card => card.Account.UserId == currentUserService.UserId);
+            var total = await query.CountAsync(cancellationToken);
+            var cards = await query
                 .OrderByDescending(card => card.CreatedAtUtc)
+                .ThenBy(card => card.Id)
+                .Skip((request.Page - 1) * request.PageSize)
+                .Take(request.PageSize)
                 .ToListAsync(cancellationToken);
 
-            return cards.Select(ToCardResponse).ToList();
+            return new PagedResult<CardResponse>
+            {
+                Items = cards.Select(ToCardResponse).ToList(),
+                Page = request.Page,
+                PageSize = request.PageSize,
+                TotalCount = total
+            };
         }
 
         public async Task<CardSensitiveDataResponse> GetSensitiveDataAsync(
@@ -111,6 +126,8 @@ namespace BankingApp.Infrastructure.Services
             };
 
             dbContext.CardRequests.Add(cardRequest);
+            if (notificationWriter is not null)
+                await notificationWriter.AddForAdminsAsync(new NotificationCreate(Guid.Empty, NotificationType.NewCardRequest, "New card request", "A customer submitted a new card request.", NotificationEntityTypes.CardRequest, cardRequest.Id), cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
 
             cardRequest.User = customer;
@@ -263,11 +280,16 @@ namespace BankingApp.Infrastructure.Services
 
             dbContext.Accounts.Add(account);
             dbContext.BankCards.Add(card);
+            if (notificationWriter is not null)
+                await notificationWriter.AddAsync(new NotificationCreate(cardRequest.UserId, NotificationType.CardRequestApproved, "Card request approved", "Your card request was approved.", NotificationEntityTypes.CardRequest, cardRequest.Id), cancellationToken);
             if (auditLogService is not null)
                 await auditLogService.RecordAsync(new AuditLogRecordRequest
                 {
-                    Action = AuditLogActions.CardRequestApproved, EntityType = AuditEntityTypes.CardRequest,
-                    EntityId = id.ToString(), Description = "Card request approved.", Reason = cardRequest.AdminNote
+                    Action = AuditLogActions.CardRequestApproved,
+                    EntityType = AuditEntityTypes.CardRequest,
+                    EntityId = id.ToString(),
+                    Description = "Card request approved.",
+                    Reason = cardRequest.AdminNote
                 }, cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -292,12 +314,17 @@ namespace BankingApp.Infrastructure.Services
             cardRequest.AdminNote = request.AdminNote?.Trim();
             cardRequest.ReviewedAtUtc = DateTime.UtcNow;
             cardRequest.ReviewedByUserId = currentUserService.UserId;
+            if (notificationWriter is not null)
+                await notificationWriter.AddAsync(new NotificationCreate(cardRequest.UserId, NotificationType.CardRequestRejected, "Card request rejected", "Your card request was rejected. Open the request for details.", NotificationEntityTypes.CardRequest, cardRequest.Id), cancellationToken);
 
             if (auditLogService is not null)
                 await auditLogService.RecordAsync(new AuditLogRecordRequest
                 {
-                    Action = AuditLogActions.CardRequestRejected, EntityType = AuditEntityTypes.CardRequest,
-                    EntityId = id.ToString(), Description = "Card request rejected.", Reason = cardRequest.AdminNote
+                    Action = AuditLogActions.CardRequestRejected,
+                    EntityType = AuditEntityTypes.CardRequest,
+                    EntityId = id.ToString(),
+                    Description = "Card request rejected.",
+                    Reason = cardRequest.AdminNote
                 }, cancellationToken);
 
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -320,12 +347,17 @@ namespace BankingApp.Infrastructure.Services
             cardRequest.Status = CardRequestStatus.DocumentsRequested;
             cardRequest.DocumentsRequestNote = request.AdminNote?.Trim();
             cardRequest.DocumentsRequestedAtUtc = DateTime.UtcNow;
+            if (notificationWriter is not null)
+                await notificationWriter.AddAsync(new NotificationCreate(cardRequest.UserId, NotificationType.CardDocumentsRequested, "Card documents requested", "Additional documents are required for your card request.", NotificationEntityTypes.CardRequest, cardRequest.Id), cancellationToken);
 
             if (auditLogService is not null)
                 await auditLogService.RecordAsync(new AuditLogRecordRequest
                 {
-                    Action = AuditLogActions.CardDocumentsRequested, EntityType = AuditEntityTypes.CardRequest,
-                    EntityId = id.ToString(), Description = "Card request documents requested.", Reason = cardRequest.DocumentsRequestNote
+                    Action = AuditLogActions.CardDocumentsRequested,
+                    EntityType = AuditEntityTypes.CardRequest,
+                    EntityId = id.ToString(),
+                    Description = "Card request documents requested.",
+                    Reason = cardRequest.DocumentsRequestNote
                 }, cancellationToken);
 
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -338,15 +370,7 @@ namespace BankingApp.Infrastructure.Services
             CardRequestDocumentUploadRequest request,
             CancellationToken cancellationToken = default)
         {
-            if (request.Content.Length == 0)
-            {
-                throw new BusinessException("Dokument ne moze biti prazan.");
-            }
-
-            if (request.Content.Length > 5 * 1024 * 1024)
-            {
-                throw new BusinessException("Dokument moze biti maksimalno 5 MB.");
-            }
+            var validatedFile = (fileValidationService ?? new FileValidationService()).ValidateDocument(request.FileName, request.ContentType, request.Content);
 
             var cardRequest = await dbContext.CardRequests
                 .Include(item => item.User)
@@ -373,14 +397,16 @@ namespace BankingApp.Infrastructure.Services
             {
                 Id = Guid.NewGuid(),
                 CardRequestId = cardRequest.Id,
-                FileName = request.FileName.Trim(),
-                ContentType = request.ContentType.Trim(),
+                FileName = validatedFile.FileName,
+                ContentType = validatedFile.ContentType,
                 SizeBytes = request.Content.LongLength,
                 Content = request.Content,
                 UploadedAtUtc = DateTime.UtcNow
             };
 
             dbContext.CardRequestDocuments.Add(document);
+            if (notificationWriter is not null)
+                await notificationWriter.AddForAdminsAsync(new NotificationCreate(Guid.Empty, NotificationType.CardDocumentsUploaded, "Card documents uploaded", "A customer uploaded documents for a card request.", NotificationEntityTypes.CardRequest, cardRequest.Id), cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
 
             cardRequest.Documents.Add(document);

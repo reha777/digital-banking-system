@@ -22,11 +22,13 @@ class AuditLogsPage extends StatefulWidget {
     required this.defaultPageSize,
     required this.dateFormatter,
     this.service,
+    this.showHeader = true,
   });
   final String token;
   final int defaultPageSize;
   final String Function(DateTime) dateFormatter;
   final AuditLogService? service;
+  final bool showHeader;
   @override
   State<AuditLogsPage> createState() => _AuditLogsPageState();
 }
@@ -116,17 +118,19 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      AppPageHeader(
-        icon: LucideIcons.scrollText,
-        title: 'Audit Logs',
-        subtitle: 'Review administrative activity across the banking system.',
-        action: IconButton.filledTonal(
-          onPressed: _refresh,
-          tooltip: 'Refresh audit logs',
-          icon: const Icon(LucideIcons.refreshCw, size: 18),
+      if (widget.showHeader) ...[
+        AppPageHeader(
+          icon: LucideIcons.scrollText,
+          title: 'Audit Logs',
+          subtitle: 'Review administrative activity across the banking system.',
+          action: IconButton.filledTonal(
+            onPressed: _refresh,
+            tooltip: 'Refresh audit logs',
+            icon: const Icon(LucideIcons.refreshCw, size: 18),
+          ),
         ),
-      ),
-      const SizedBox(height: 20),
+        const SizedBox(height: 20),
+      ],
       _filters(),
       const SizedBox(height: 18),
       Expanded(child: _content()),

@@ -60,6 +60,22 @@ class ApiClient {
     return decoded;
   }
 
+  Future<List<dynamic>> getJsonList(String path, {String? token}) async {
+    final response = await _sendWithAuthRetry(
+      token: token,
+      send: (currentToken) => _httpClient.get(
+        Uri.parse('$baseUrl$path'),
+        headers: _headers(token: currentToken),
+      ),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException('Unable to load reference data.', response.statusCode);
+    }
+    return response.body.isEmpty
+        ? const []
+        : jsonDecode(response.body) as List<dynamic>;
+  }
+
   Future<Uint8List> getBytes(String path, {String? token}) async {
     final response = await _sendWithAuthRetry(
       token: token,

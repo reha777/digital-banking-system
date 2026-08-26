@@ -3,7 +3,9 @@ using BankingApp.Application.Common.Pagination;
 using BankingApp.Application.Interfaces;
 using BankingApp.Application.Loans;
 using BankingApp.Application.AuditLogs;
+using BankingApp.Application.Notifications;
 using BankingApp.Domain.Entities;
+using BankingApp.Domain.Constants;
 using BankingApp.Domain.Enums;
 using BankingApp.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -15,7 +17,8 @@ public class AdminLoanService(
     BankingAppDbContext dbContext,
     ICurrentUserService currentUserService,
     ILoanCalculationService calculationService,
-    IAuditLogService? auditLogService = null) : IAdminLoanService
+    IAuditLogService? auditLogService = null,
+    INotificationWriter? notificationWriter = null) : IAdminLoanService
 {
     public async Task<PagedResult<AdminLoanApplicationListItemResponse>> GetApplicationsAsync(
         AdminLoanApplicationQueryRequest request,
@@ -116,7 +119,10 @@ public class AdminLoanService(
             throw new BusinessException("Completed Loan sadrzi neplacene rate.");
         return new PagedResult<AdminLoanListItemResponse>
         {
-            Items = items, Page = request.Page, PageSize = request.PageSize, TotalCount = totalCount
+            Items = items,
+            Page = request.Page,
+            PageSize = request.PageSize,
+            TotalCount = totalCount
         };
     }
 
@@ -144,16 +150,27 @@ public class AdminLoanService(
             .ToList();
         return new AdminLoanDetailsResponse
         {
-            LoanId = response.LoanId, ApplicationId = response.ApplicationId,
-            CustomerId = response.CustomerId, CustomerName = response.CustomerName,
-            CustomerEmail = response.CustomerEmail, CustomerStatus = loan.User.Status,
-            ProductName = response.ProductName, Currency = response.Currency,
-            OriginalPrincipal = response.OriginalPrincipal, OutstandingPrincipal = response.OutstandingPrincipal,
-            MonthlyPayment = response.MonthlyPayment, AnnualInterestRate = response.AnnualInterestRate,
-            TermMonths = response.TermMonths, TotalPaid = response.TotalPaid, TotalRepayment = loan.TotalRepayment,
-            StartDateUtc = response.StartDateUtc, NextPaymentDateUtc = response.NextPaymentDateUtc,
-            MaturityDateUtc = response.MaturityDateUtc, CompletedAtUtc = response.CompletedAtUtc,
-            Status = response.Status, PaidInstallments = response.PaidInstallments,
+            LoanId = response.LoanId,
+            ApplicationId = response.ApplicationId,
+            CustomerId = response.CustomerId,
+            CustomerName = response.CustomerName,
+            CustomerEmail = response.CustomerEmail,
+            CustomerStatus = loan.User.Status,
+            ProductName = response.ProductName,
+            Currency = response.Currency,
+            OriginalPrincipal = response.OriginalPrincipal,
+            OutstandingPrincipal = response.OutstandingPrincipal,
+            MonthlyPayment = response.MonthlyPayment,
+            AnnualInterestRate = response.AnnualInterestRate,
+            TermMonths = response.TermMonths,
+            TotalPaid = response.TotalPaid,
+            TotalRepayment = loan.TotalRepayment,
+            StartDateUtc = response.StartDateUtc,
+            NextPaymentDateUtc = response.NextPaymentDateUtc,
+            MaturityDateUtc = response.MaturityDateUtc,
+            CompletedAtUtc = response.CompletedAtUtc,
+            Status = response.Status,
+            PaidInstallments = response.PaidInstallments,
             RemainingInstallments = response.RemainingInstallments,
             OverdueInstallmentsCount = overdueInstallments.Count,
             TotalOverdueAmount = overdueInstallments.Sum(value => value.ScheduledAmount),
@@ -178,18 +195,28 @@ public class AdminLoanService(
                 var overdue = LoanOverdueCalculator.Calculate(value.Status, value.DueDateUtc, nowUtc);
                 return new LoanInstallmentResponse
                 {
-                Id = value.Id, InstallmentNumber = value.InstallmentNumber, DueDateUtc = value.DueDateUtc,
-                ScheduledAmount = value.ScheduledAmount, PrincipalAmount = value.PrincipalAmount,
-                InterestAmount = value.InterestAmount, RemainingPrincipalAfter = value.RemainingPrincipalAfter,
-                    Status = value.Status, PaidAtUtc = value.PaidAtUtc,
-                    IsOverdue = overdue.IsOverdue, DaysOverdue = overdue.DaysOverdue
+                    Id = value.Id,
+                    InstallmentNumber = value.InstallmentNumber,
+                    DueDateUtc = value.DueDateUtc,
+                    ScheduledAmount = value.ScheduledAmount,
+                    PrincipalAmount = value.PrincipalAmount,
+                    InterestAmount = value.InterestAmount,
+                    RemainingPrincipalAfter = value.RemainingPrincipalAfter,
+                    Status = value.Status,
+                    PaidAtUtc = value.PaidAtUtc,
+                    IsOverdue = overdue.IsOverdue,
+                    DaysOverdue = overdue.DaysOverdue
                 };
             }).ToList(),
             Payments = loan.Payments.OrderByDescending(value => value.PaidAtUtc).Select(value => new LoanPaymentHistoryResponse
             {
-                PaymentId = value.Id, InstallmentNumber = value.LoanInstallment.InstallmentNumber,
-                Amount = value.Amount, PrincipalAmount = value.PrincipalAmount, InterestAmount = value.InterestAmount,
-                PaidAtUtc = value.PaidAtUtc, SourceAccountNumber = MaskAccount(value.SourceAccount.AccountNumber),
+                PaymentId = value.Id,
+                InstallmentNumber = value.LoanInstallment.InstallmentNumber,
+                Amount = value.Amount,
+                PrincipalAmount = value.PrincipalAmount,
+                InterestAmount = value.InterestAmount,
+                PaidAtUtc = value.PaidAtUtc,
+                SourceAccountNumber = MaskAccount(value.SourceAccount.AccountNumber),
                 TransactionReference = value.Transaction.ReferenceNumber
             }).ToList()
         };
@@ -245,11 +272,16 @@ public class AdminLoanService(
         application.ReviewedAtUtc = DateTime.UtcNow;
         application.ReviewedByUserId = currentUserService.UserId;
         application.AdminNote = note;
+        if (notificationWriter is not null)
+            await notificationWriter.AddAsync(new NotificationCreate(application.UserId, NotificationType.LoanRejected, "Loan application rejected", "Your loan application was rejected. Open it for details.", NotificationEntityTypes.LoanApplication, application.Id), cancellationToken);
         if (auditLogService is not null)
             await auditLogService.RecordAsync(new AuditLogRecordRequest
             {
-                Action = AuditLogActions.LoanRejected, EntityType = AuditEntityTypes.LoanApplication,
-                EntityId = id.ToString(), Description = "Loan application rejected.", Reason = note
+                Action = AuditLogActions.LoanRejected,
+                EntityType = AuditEntityTypes.LoanApplication,
+                EntityId = id.ToString(),
+                Description = "Loan application rejected.",
+                Reason = note
             }, cancellationToken);
         try
         {
@@ -309,6 +341,7 @@ public class AdminLoanService(
                     ReferenceNumber = $"LOAN-{application.Id:N}",
                     Amount = application.Principal,
                     Type = TransactionType.LoanDisbursement,
+                    TransactionCategoryId = ReferenceDataIds.LoanTransactionCategory,
                     Description = $"Loan disbursement - {application.LoanProduct.Name}",
                     Status = TransactionStatus.Completed,
                     IsHighRiskReview = false,
@@ -356,12 +389,17 @@ public class AdminLoanService(
                 application.ReviewedAtUtc = approvedAtUtc;
                 application.ReviewedByUserId = currentUserService.UserId;
                 application.AdminNote = string.IsNullOrWhiteSpace(request.AdminNote) ? null : request.AdminNote.Trim();
+                if (notificationWriter is not null)
+                    await notificationWriter.AddAsync(new NotificationCreate(application.UserId, NotificationType.LoanApproved, "Loan application approved", "Your loan application was approved and funds were disbursed.", NotificationEntityTypes.LoanApplication, application.Id), cancellationToken);
 
                 if (auditLogService is not null)
                     await auditLogService.RecordAsync(new AuditLogRecordRequest
                     {
-                        Action = AuditLogActions.LoanApproved, EntityType = AuditEntityTypes.LoanApplication,
-                        EntityId = id.ToString(), Description = "Loan application approved.", Reason = application.AdminNote
+                        Action = AuditLogActions.LoanApproved,
+                        EntityType = AuditEntityTypes.LoanApplication,
+                        EntityId = id.ToString(),
+                        Description = "Loan application approved.",
+                        Reason = application.AdminNote
                     }, cancellationToken);
 
                 await dbContext.SaveChangesAsync(cancellationToken);
@@ -387,55 +425,59 @@ public class AdminLoanService(
     }
 
     private static AdminLoanApplicationDetailsResponse ToDetails(LoanApplication value) => new()
+    {
+        Id = value.Id,
+        Status = value.Status,
+        SubmittedAtUtc = value.SubmittedAtUtc,
+        ReviewedAtUtc = value.ReviewedAtUtc,
+        AdminNote = value.AdminNote,
+        LoanPurposeId = value.LoanPurposeId,
+        LoanPurposeName = value.LoanPurpose?.Name,
+        Customer = new AdminLoanCustomerResponse
         {
-            Id = value.Id,
-            Status = value.Status,
-            SubmittedAtUtc = value.SubmittedAtUtc,
-            ReviewedAtUtc = value.ReviewedAtUtc,
-            AdminNote = value.AdminNote,
-            Customer = new AdminLoanCustomerResponse
-            {
-                Id = value.UserId,
-                FirstName = value.User.FirstName,
-                LastName = value.User.LastName,
-                Email = value.User.Email,
-                Status = value.User.Status
-            },
-            Product = new AdminLoanProductResponse
-            {
-                Id = value.LoanProductId,
-                Name = value.LoanProduct.Name,
-                Currency = value.LoanProduct.Currency
-            },
-            DestinationAccount = new AdminLoanDestinationAccountResponse
-            {
-                AccountId = value.DestinationAccountId,
-                MaskedAccountNumber = MaskAccount(value.DestinationAccount.AccountNumber),
-                AccountType = value.DestinationAccount.AccountType,
-                Currency = value.DestinationAccount.Currency,
-                CurrentBalance = value.DestinationAccount.Balance
-            },
-            Financials = new AdminLoanFinancialsResponse
-            {
-                Principal = value.Principal,
-                AnnualInterestRate = value.AnnualInterestRateSnapshot,
-                TermMonths = value.TermMonths,
-                EstimatedMonthlyPayment = value.EstimatedMonthlyPayment,
-                EstimatedTotalInterest = value.EstimatedTotalInterest,
-                EstimatedTotalRepayment = value.EstimatedTotalRepayment
-            }
-        };
+            Id = value.UserId,
+            FirstName = value.User.FirstName,
+            LastName = value.User.LastName,
+            Email = value.User.Email,
+            Status = value.User.Status
+        },
+        Product = new AdminLoanProductResponse
+        {
+            Id = value.LoanProductId,
+            Name = value.LoanProduct.Name,
+            Currency = value.LoanProduct.Currency
+        },
+        DestinationAccount = new AdminLoanDestinationAccountResponse
+        {
+            AccountId = value.DestinationAccountId,
+            MaskedAccountNumber = MaskAccount(value.DestinationAccount.AccountNumber),
+            AccountType = value.DestinationAccount.AccountType,
+            Currency = value.DestinationAccount.Currency,
+            CurrentBalance = value.DestinationAccount.Balance
+        },
+        Financials = new AdminLoanFinancialsResponse
+        {
+            Principal = value.Principal,
+            AnnualInterestRate = value.AnnualInterestRateSnapshot,
+            TermMonths = value.TermMonths,
+            EstimatedMonthlyPayment = value.EstimatedMonthlyPayment,
+            EstimatedTotalInterest = value.EstimatedTotalInterest,
+            EstimatedTotalRepayment = value.EstimatedTotalRepayment
+        }
+    };
 
     private IQueryable<LoanApplication> BaseQuery() => dbContext.LoanApplications
         .AsNoTracking()
         .Include(value => value.User)
         .Include(value => value.LoanProduct)
-        .Include(value => value.DestinationAccount);
+        .Include(value => value.DestinationAccount)
+        .Include(value => value.LoanPurpose);
 
     private IQueryable<LoanApplication> MutableQuery() => dbContext.LoanApplications
         .Include(value => value.User)
         .Include(value => value.LoanProduct)
-        .Include(value => value.DestinationAccount);
+        .Include(value => value.DestinationAccount)
+        .Include(value => value.LoanPurpose);
 
     private void EnsureAdmin()
     {
@@ -530,14 +572,24 @@ public class AdminLoanService(
 
     private static AdminLoanListItemResponse ToLoanListItem(Loan value) => new()
     {
-        LoanId = value.Id, ApplicationId = value.LoanApplicationId, CustomerId = value.UserId,
-        CustomerName = $"{value.User.FirstName} {value.User.LastName}".Trim(), CustomerEmail = value.User.Email,
-        ProductName = value.LoanApplication.LoanProduct.Name, Currency = value.Currency,
-        OriginalPrincipal = value.OriginalPrincipal, OutstandingPrincipal = value.OutstandingPrincipal,
-        MonthlyPayment = value.MonthlyPayment, AnnualInterestRate = value.AnnualInterestRate,
-        TermMonths = value.TermMonths, TotalPaid = value.TotalPaid, StartDateUtc = value.StartDateUtc,
+        LoanId = value.Id,
+        ApplicationId = value.LoanApplicationId,
+        CustomerId = value.UserId,
+        CustomerName = $"{value.User.FirstName} {value.User.LastName}".Trim(),
+        CustomerEmail = value.User.Email,
+        ProductName = value.LoanApplication.LoanProduct.Name,
+        Currency = value.Currency,
+        OriginalPrincipal = value.OriginalPrincipal,
+        OutstandingPrincipal = value.OutstandingPrincipal,
+        MonthlyPayment = value.MonthlyPayment,
+        AnnualInterestRate = value.AnnualInterestRate,
+        TermMonths = value.TermMonths,
+        TotalPaid = value.TotalPaid,
+        StartDateUtc = value.StartDateUtc,
         NextPaymentDateUtc = value.Status == LoanStatus.Completed ? null : value.NextPaymentDateUtc,
-        MaturityDateUtc = value.MaturityDateUtc, CompletedAtUtc = value.CompletedAtUtc, Status = value.Status,
+        MaturityDateUtc = value.MaturityDateUtc,
+        CompletedAtUtc = value.CompletedAtUtc,
+        Status = value.Status,
         PaidInstallments = value.Installments.Count(item => item.Status == LoanInstallmentStatus.Paid),
         RemainingInstallments = value.Installments.Count(item => item.Status == LoanInstallmentStatus.Pending)
     };

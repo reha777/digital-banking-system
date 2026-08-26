@@ -7,6 +7,7 @@ import '../../auth/auth_session.dart';
 import '../../cards/card_service.dart';
 import '../../cards/card_models.dart';
 import '../../transactions/transaction_service.dart';
+import '../../transactions/transaction_models.dart';
 import '../dashboard_data.dart';
 import '../widgets/home_balance_card.dart';
 import '../widgets/recent_transactions.dart';
@@ -23,6 +24,7 @@ class HomePage extends StatefulWidget {
     required this.onLogout,
     required this.onProfileTap,
     required this.onCardTap,
+    required this.onNotificationsTap,
   });
 
   final AuthSession session;
@@ -30,10 +32,11 @@ class HomePage extends StatefulWidget {
   final VoidCallback onReceiveMoney;
   final VoidCallback onTransfer;
   final VoidCallback onLoan;
-  final VoidCallback onTransactionHistory;
+  final ValueChanged<String?> onTransactionHistory;
   final VoidCallback onLogout;
   final VoidCallback onProfileTap;
   final ValueChanged<BankCardModel> onCardTap;
+  final Future<void> Function() onNotificationsTap;
 
   @override
   State<HomePage> createState() => HomePageState();
@@ -44,6 +47,11 @@ class HomePageState extends State<HomePage> {
   late final TransactionService _transactionService;
   late final CardService _cardService;
   late Future<DashboardData> _dashboardFuture;
+  List<BankTransaction> _recentTransactions = const [];
+  String? _activeAccountId;
+  String? _recentError;
+  bool _recentLoading = false;
+  int _recentRequestId = 0;
 
   @override
   void initState() {
@@ -62,13 +70,110 @@ class HomePageState extends State<HomePage> {
     }
 
     final balance = await _accountService.getBalanceSummary(token);
-    final transactions = await _transactionService.getRecentTransactions(token);
     final cards = await _cardService.getMyCards(token);
+    final activeCard =
+        cards.where((card) => card.accountId == _activeAccountId).firstOrNull ??
+        (cards.isEmpty ? null : cards.first);
+    final accountId = activeCard?.accountId;
+    final requestId = ++_recentRequestId;
+    try {
+      final transactions = accountId == null
+          ? await _transactionService.getRecentTransactions(token)
+          : (await _transactionService.getTransactions(
+              token: token,
+              page: 1,
+              pageSize: 4,
+              accountId: accountId,
+            )).items;
+      if (requestId == _recentRequestId) {
+        _activeAccountId = accountId;
+        _recentTransactions = transactions.take(4).toList();
+        _recentError = null;
+        _recentLoading = false;
+      }
+    } catch (_) {
+      if (requestId == _recentRequestId) {
+        _activeAccountId = accountId;
+        _recentTransactions = const [];
+        _recentError = 'Transactions could not be loaded.';
+        _recentLoading = false;
+      }
+    }
     return DashboardData(
       balance: balance,
-      transactions: transactions,
+      transactions: _recentTransactions,
       cards: cards,
     );
+  }
+
+  Future<void> _selectCard(BankCardModel card) async {
+    if (_activeAccountId == card.accountId) return;
+    final token = widget.session.token;
+    if (token == null) return;
+    final requestId = ++_recentRequestId;
+    setState(() {
+      _activeAccountId = card.accountId;
+      _recentLoading = true;
+      _recentError = null;
+    });
+    try {
+      final page = await _transactionService.getTransactions(
+        token: token,
+        page: 1,
+        pageSize: 4,
+        accountId: card.accountId,
+      );
+      if (!mounted || requestId != _recentRequestId) return;
+      setState(() {
+        _recentTransactions = page.items.take(4).toList();
+        _recentLoading = false;
+      });
+    } catch (_) {
+      if (!mounted || requestId != _recentRequestId) return;
+      setState(() {
+        _recentTransactions = const [];
+        _recentLoading = false;
+        _recentError = 'Transactions could not be loaded.';
+      });
+    }
+  }
+
+  Future<void> _retryRecent() async {
+    final data = await _dashboardFuture;
+    final card = data.cards
+        .where((item) => item.accountId == _activeAccountId)
+        .firstOrNull;
+    if (card != null) {
+      await _selectCardAfterRetry(card);
+      return;
+    }
+    final token = widget.session.token;
+    if (token == null) return;
+    final requestId = ++_recentRequestId;
+    setState(() {
+      _recentLoading = true;
+      _recentError = null;
+    });
+    try {
+      final items = await _transactionService.getRecentTransactions(token);
+      if (!mounted || requestId != _recentRequestId) return;
+      setState(() {
+        _recentTransactions = items.take(4).toList();
+        _recentLoading = false;
+      });
+    } catch (_) {
+      if (!mounted || requestId != _recentRequestId) return;
+      setState(() {
+        _recentTransactions = const [];
+        _recentLoading = false;
+        _recentError = 'Transactions could not be loaded.';
+      });
+    }
+  }
+
+  Future<void> _selectCardAfterRetry(BankCardModel card) async {
+    _activeAccountId = null;
+    await _selectCard(card);
   }
 
   void refresh() {
@@ -122,16 +227,28 @@ class HomePageState extends State<HomePage> {
                 onTransfer: widget.onTransfer,
                 onLoan: widget.onLoan,
                 onCardTap: widget.onCardTap,
+                onActiveCardChanged: _selectCard,
                 hasProfilePhoto: widget.session.user?.hasProfilePhoto ?? false,
                 accessToken: widget.session.token,
                 profilePhotoUpdatedAtUtc:
                     widget.session.user?.profilePhotoUpdatedAtUtc,
                 onProfileTap: widget.onProfileTap,
+                session: widget.session,
+                onNotificationsTap: widget.onNotificationsTap,
               ),
               const SizedBox(height: 24),
-              RecentTransactions(
-                transactions: data.transactions.take(4).toList(),
-                onSeeAll: widget.onTransactionHistory,
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 220),
+                child: RecentTransactions(
+                  key: ValueKey(
+                    'recent-${_activeAccountId ?? 'all'}-$_recentLoading-$_recentError',
+                  ),
+                  transactions: _recentTransactions,
+                  loading: _recentLoading,
+                  error: _recentError,
+                  onRetry: _retryRecent,
+                  onSeeAll: () => widget.onTransactionHistory(_activeAccountId),
+                ),
               ),
             ],
           ),

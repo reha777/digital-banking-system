@@ -34,6 +34,7 @@ void main() {
               onSendMoney: (_) {},
               onTransfer: () => transferTapped = true,
               onCardTap: (_) {},
+              onActiveCardChanged: (_) {},
               hasProfilePhoto: false,
               accessToken: null,
               onProfileTap: () {},
@@ -80,10 +81,81 @@ void main() {
       ),
     );
 
-    expect(find.text('Transaction'), findsOneWidget);
+    expect(find.text('Recent transactions'), findsOneWidget);
     expect(find.text('Grocery shopping'), findsOneWidget);
     expect(find.text(r'- $25.00'), findsOneWidget);
     expect(find.text('See All'), findsOneWidget);
+  });
+
+  testWidgets('home card swipe reports the active card account', (
+    tester,
+  ) async {
+    String? accountId;
+    final second = BankCardModel(
+      id: 'card-2',
+      accountId: 'account-2',
+      accountNumber: 'BA-2',
+      cardNumber: '',
+      maskedCardNumber: '**** **** **** 2222',
+      cardholderName: 'Test Customer',
+      cvv: '',
+      expiryDate: DateTime.utc(2030, 7),
+      brand: 'Mastercard',
+      status: 'Blocked',
+      balance: 240,
+      currency: 'EUR',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: HomeBalanceCard(
+            firstName: 'Test',
+            lastName: 'Customer',
+            summary: const AccountBalanceSummary(totals: [], accounts: []),
+            cards: [testCard, second],
+            onSendMoney: (_) {},
+            onCardTap: (_) {},
+            onActiveCardChanged: (card) => accountId = card.accountId,
+            hasProfilePhoto: false,
+            accessToken: null,
+            onProfileTap: () {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.fling(find.byType(PageView), const Offset(-500, 0), 1200);
+    await tester.pumpAndSettle();
+    expect(accountId, 'account-2');
+    expect(find.text('EUR 240.00'), findsOneWidget);
+  });
+
+  testWidgets('recent transactions has isolated empty and error states', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: RecentTransactions(transactions: const [], onSeeAll: () {}),
+        ),
+      ),
+    );
+    expect(find.text('No transactions yet'), findsOneWidget);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: RecentTransactions(
+            transactions: const [],
+            error: 'failed',
+            onRetry: () async {},
+            onSeeAll: () {},
+          ),
+        ),
+      ),
+    );
+    expect(find.text('Transactions could not be loaded.'), findsOneWidget);
+    expect(find.text('Retry'), findsOneWidget);
   });
 
   testWidgets('settings keeps theme control', (tester) async {

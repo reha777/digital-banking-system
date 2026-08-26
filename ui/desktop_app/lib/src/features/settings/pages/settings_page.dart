@@ -24,12 +24,14 @@ class SettingsPage extends StatefulWidget {
     required this.onProfileUpdated,
     required this.initialSection,
     required this.headerAction,
+    this.showHeader = true,
   });
   final String token;
   final AdminSettingsController controller;
   final ValueChanged<AdminProfile> onProfileUpdated;
   final SettingsSection initialSection;
   final Widget headerAction;
+  final bool showHeader;
   @override
   State<SettingsPage> createState() => _SettingsPageState();
 }
@@ -263,13 +265,15 @@ class _SettingsPageState extends State<SettingsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AppPageHeader(
-          icon: LucideIcons.settings,
-          title: 'Settings',
-          subtitle: 'Manage your system preferences and configurations.',
-          action: widget.headerAction,
-        ),
-        const SizedBox(height: 20),
+        if (widget.showHeader) ...[
+          AppPageHeader(
+            icon: LucideIcons.settings,
+            title: 'Settings',
+            subtitle: 'Manage your system preferences and configurations.',
+            action: widget.headerAction,
+          ),
+          const SizedBox(height: 20),
+        ],
         Expanded(child: LayoutBuilder(builder: _layout)),
       ],
     );

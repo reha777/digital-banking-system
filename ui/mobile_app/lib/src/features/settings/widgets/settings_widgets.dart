@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/app_theme.dart';
 import '../../../widgets/mobile_shell.dart';
@@ -13,7 +14,7 @@ class SettingsHeader extends StatelessWidget {
     return Row(
       children: [
         CircleIconButton(
-          icon: Icons.arrow_back_ios_new,
+          icon: LucideIcons.arrowLeft,
           onPressed: () => Navigator.of(context).pop(),
           tooltip: 'Back',
         ),

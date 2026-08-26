@@ -15,11 +15,13 @@ class AdminAccountMenu extends StatefulWidget {
     required this.onSecurity,
     required this.onLogout,
     this.token,
+    this.onOpening,
   });
   final AuthUser? user;
   final String? token;
   final bool showDetails;
   final VoidCallback onProfile, onPreferences, onSecurity, onLogout;
+  final VoidCallback? onOpening;
 
   @override
   State<AdminAccountMenu> createState() => _AdminAccountMenuState();
@@ -79,6 +81,7 @@ class _AdminAccountMenuState extends State<AdminAccountMenu>
 
   void _show() {
     if (_open) return;
+    widget.onOpening?.call();
     _entry = OverlayEntry(builder: _overlay);
     Overlay.of(context, rootOverlay: true).insert(_entry!);
     setState(() {});
@@ -181,7 +184,7 @@ class _AdminAccountMenuState extends State<AdminAccountMenu>
               children: [
                 AdminAvatar(user: widget.user, token: widget.token, radius: 18),
                 if (widget.showDetails &&
-                    MediaQuery.sizeOf(context).width >= 1100) ...[
+                    MediaQuery.sizeOf(context).width >= 720) ...[
                   const SizedBox(width: 10),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

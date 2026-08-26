@@ -5,7 +5,8 @@ namespace BankingApp.Application.Interfaces
 {
     public interface ICardService
     {
-        Task<IReadOnlyCollection<CardResponse>> GetMyCardsAsync(
+        Task<PagedResult<CardResponse>> GetMyCardsAsync(
+            PagedRequest request,
             CancellationToken cancellationToken = default);
 
         Task<CardSensitiveDataResponse> GetSensitiveDataAsync(

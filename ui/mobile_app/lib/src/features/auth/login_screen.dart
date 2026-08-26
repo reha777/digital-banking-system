@@ -5,6 +5,7 @@ import '../../core/theme_controller.dart';
 import '../dashboard/mobile_dashboard_screen.dart';
 import 'auth_session.dart';
 import 'register_screen.dart';
+import 'forgot_password_page.dart';
 import 'widgets/auth_widgets.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -23,10 +24,8 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController(
-    text: 'mobile@bankingapp.local',
-  );
-  final _passwordController = TextEditingController(text: 'test');
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
   bool _isLoading = false;
   String? _errorMessage;
@@ -75,6 +74,18 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 14),
               AuthErrorText(message: _errorMessage!),
             ],
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => const ForgotPasswordPage(),
+                  ),
+                ),
+                child: const Text('Forgot password?'),
+              ),
+            ),
             const SizedBox(height: 40),
             AuthPrimaryButton(
               label: 'Sign In',

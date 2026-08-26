@@ -14,10 +14,14 @@ class MobileCardsScreen extends StatefulWidget {
     super.key,
     required this.session,
     required this.onRequestCard,
+    this.refreshRevision = 0,
+    this.cardService,
   });
 
   final AuthSession session;
   final Future<void> Function() onRequestCard;
+  final int refreshRevision;
+  final CardService? cardService;
 
   @override
   State<MobileCardsScreen> createState() => _MobileCardsScreenState();
@@ -30,8 +34,14 @@ class _MobileCardsScreenState extends State<MobileCardsScreen> {
   @override
   void initState() {
     super.initState();
-    _cardService = CardService(ApiClient());
+    _cardService = widget.cardService ?? CardService(ApiClient());
     _cardsFuture = _loadCards();
+  }
+
+  @override
+  void didUpdateWidget(covariant MobileCardsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.refreshRevision != oldWidget.refreshRevision) _refreshCards();
   }
 
   Future<_CardsScreenData> _loadCards() async {
@@ -49,7 +59,9 @@ class _MobileCardsScreenState extends State<MobileCardsScreen> {
     if (!mounted) {
       return;
     }
-    setState(() => _cardsFuture = _loadCards());
+    setState(() {
+      _cardsFuture = _loadCards();
+    });
   }
 
   Future<void> _openRequestCard() async {
@@ -111,7 +123,7 @@ class _MobileCardsScreenState extends State<MobileCardsScreen> {
             return RefreshIndicator(
               onRefresh: () async => _refreshCards(),
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(0, 0, 0, 176),
+                padding: const EdgeInsets.fromLTRB(0, 0, 0, 24),
                 children: [
                   if (data.cards.isEmpty)
                     const _EmptyCardsState()
@@ -134,20 +146,16 @@ class _MobileCardsScreenState extends State<MobileCardsScreen> {
                       onDocumentUploaded: _handleDocumentUploaded,
                     ),
                   ],
+                  const SizedBox(height: 24),
+                  ElevatedButton.icon(
+                    onPressed: _openRequestCard,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add Card'),
+                  ),
                 ],
               ),
             );
           },
-        ),
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 84,
-          child: ElevatedButton.icon(
-            onPressed: _openRequestCard,
-            icon: const Icon(Icons.add),
-            label: const Text('Add Card'),
-          ),
         ),
       ],
     );

@@ -5,6 +5,7 @@ using BankingApp.Application.AuditLogs;
 using BankingApp.Domain.Entities;
 using BankingApp.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using BankingApp.Application.Auth;
 
 namespace BankingApp.Infrastructure.Services;
 
@@ -12,7 +13,8 @@ public class AdminSettingsService(
     BankingAppDbContext dbContext,
     ICurrentUserService currentUser,
     IPasswordHasher passwordHasher,
-    IAuditLogService? auditLogService = null) : IAdminSettingsService
+    IAuditLogService? auditLogService = null,
+    IFileValidationService? fileValidationService = null) : IAdminSettingsService
 {
     public const int MaximumProfilePhotoSizeBytes = 2 * 1024 * 1024;
     public async Task<AdminSettingsResponse> GetAsync(CancellationToken cancellationToken = default)
@@ -87,16 +89,11 @@ public class AdminSettingsService(
         AdminProfilePhotoUploadRequest request,
         CancellationToken cancellationToken = default)
     {
-        if (request.Content.Length == 0)
-            throw new BusinessException("Profile photo cannot be empty.");
-        if (request.Content.Length > MaximumProfilePhotoSizeBytes)
-            throw new BusinessException("Profile photo cannot be larger than 2 MB.");
-        if (!HasValidImageSignature(request.Content, request.ContentType))
-            throw new BusinessException("The selected file is not a valid JPG or PNG image.");
+        var contentType = (fileValidationService ?? new FileValidationService()).ValidateProfileImage(request.ContentType, request.Content, MaximumProfilePhotoSizeBytes);
 
         var user = await GetUserAsync(cancellationToken);
         user.ProfilePhoto = request.Content;
-        user.ProfilePhotoContentType = request.ContentType;
+        user.ProfilePhotoContentType = contentType;
         user.ProfilePhotoUpdatedAtUtc = DateTime.UtcNow;
         await AuditAsync(AuditLogActions.AdminProfileUpdated, AuditEntityTypes.AdminProfile,
             user.Id.ToString(), "Administrator profile photo updated.", cancellationToken);
@@ -131,6 +128,8 @@ public class AdminSettingsService(
         var user = await GetUserAsync(cancellationToken);
         if (!passwordHasher.Verify(request.CurrentPassword, user.PasswordHash))
             throw new BusinessException("Trenutna lozinka nije ispravna.");
+        if (request.NewPassword.Length < PasswordPolicy.MinimumLength)
+            throw new BusinessException("Nova lozinka ne ispunjava sigurnosna pravila.");
         user.PasswordHash = passwordHasher.Hash(request.NewPassword);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
@@ -166,17 +165,13 @@ public class AdminSettingsService(
     private Task AuditAsync(string action, string entityType, string entityId, string description, CancellationToken token) =>
         auditLogService?.RecordAsync(new AuditLogRecordRequest
         {
-            Action = action, EntityType = entityType, EntityId = entityId, Description = description
+            Action = action,
+            EntityType = entityType,
+            EntityId = entityId,
+            Description = description
         }, token) ?? Task.CompletedTask;
     private static SystemSettingsResponse ToSystemResponse(SystemSettings x) => new(x.SystemName, x.SystemShortName, x.CompanyName, x.CompanyEmail, x.CompanyPhone, x.Timezone, x.SessionTimeoutMinutes, x.AutoLogoutWarningMinutes, x.EnableDataCaching, x.UpdatedAtUtc);
     private static AdminPreferencesResponse ToPreferencesResponse(AdminUserPreferences x) => new(x.ThemeMode, x.SidebarStyle, x.DateFormat, x.TimeFormat, x.FirstDayOfWeek, x.NumberFormat, x.DefaultItemsPerPage, x.Timezone);
-    private static bool HasValidImageSignature(byte[] content, string contentType) =>
-        contentType switch
-        {
-            "image/jpeg" => content.Length >= 3 && content[0] == 0xFF && content[1] == 0xD8 && content[2] == 0xFF,
-            "image/png" => content.Length >= 8 && content.AsSpan(0, 8).SequenceEqual(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }),
-            _ => false
-        };
     private static AdminProfileResponse ToProfileResponse(User x) => new(
         x.FirstName, x.LastName, x.Email, x.PhoneNumber,
         x.ProfilePhoto is { Length: > 0 }, x.ProfilePhotoUpdatedAtUtc);

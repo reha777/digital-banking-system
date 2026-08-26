@@ -22,6 +22,8 @@ namespace BankingApp.Infrastructure.Persistence
         public DbSet<CardRequestDocument> CardRequestDocuments => Set<CardRequestDocument>();
 
         public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+        public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
+        public DbSet<Notification> Notifications => Set<Notification>();
 
         public DbSet<AccessTokenRevocation> AccessTokenRevocations => Set<AccessTokenRevocation>();
         public DbSet<SystemSettings> SystemSettings => Set<SystemSettings>();
@@ -32,6 +34,8 @@ namespace BankingApp.Infrastructure.Persistence
         public DbSet<LoanInstallment> LoanInstallments => Set<LoanInstallment>();
         public DbSet<LoanPayment> LoanPayments => Set<LoanPayment>();
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+        public DbSet<ReferenceDataItem> ReferenceDataItems => Set<ReferenceDataItem>();
+        public DbSet<ReportJob> ReportJobs => Set<ReportJob>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -45,10 +49,14 @@ namespace BankingApp.Infrastructure.Persistence
             ConfigureCardRequests(modelBuilder);
             ConfigureCardRequestDocuments(modelBuilder);
             ConfigureRefreshTokens(modelBuilder);
+            ConfigurePasswordResetTokens(modelBuilder);
+            ConfigureNotifications(modelBuilder);
             ConfigureAccessTokenRevocations(modelBuilder);
             ConfigureSettings(modelBuilder);
             ConfigureLoans(modelBuilder);
             ConfigureAuditLogs(modelBuilder);
+            ConfigureReferenceData(modelBuilder);
+            ConfigureReportJobs(modelBuilder);
             SeedData(modelBuilder);
         }
 
@@ -72,6 +80,34 @@ namespace BankingApp.Infrastructure.Persistence
                 entity.HasIndex(x => x.ActorUserId);
                 entity.HasIndex(x => new { x.Action, x.EntityType });
                 entity.HasIndex(x => new { x.EntityType, x.EntityId });
+            });
+        }
+
+        private static void ConfigureReferenceData(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<ReferenceDataItem>(entity =>
+            {
+                entity.ToTable("ReferenceDataItems");
+                entity.HasKey(value => value.Id);
+                entity.Property(value => value.Type).HasMaxLength(40).IsRequired();
+                entity.Property(value => value.Code).HasMaxLength(40).IsRequired();
+                entity.Property(value => value.Name).HasMaxLength(120).IsRequired();
+                entity.Property(value => value.Description).HasMaxLength(500);
+                entity.HasIndex(value => new { value.Type, value.Code }).IsUnique();
+                entity.HasIndex(value => new { value.Type, value.IsActive, value.SortOrder });
+            });
+        }
+        private static void ConfigureReportJobs(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<ReportJob>(entity =>
+            {
+                entity.ToTable("ReportJobs"); entity.HasKey(x => x.Id);
+                entity.Property(x => x.Type).HasConversion<string>().HasMaxLength(40).IsRequired();
+                entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+                entity.Property(x => x.FileName).HasMaxLength(180); entity.Property(x => x.StoragePath).HasMaxLength(500);
+                entity.Property(x => x.ErrorMessage).HasMaxLength(500); entity.Property(x => x.FilterJson).IsRequired();
+                entity.Property(x => x.CorrelationId).HasMaxLength(100); entity.HasIndex(x => x.RequestedAtUtc);
+                entity.HasIndex(x => x.Status); entity.HasOne(x => x.RequestedByUser).WithMany().HasForeignKey(x => x.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
             });
         }
 
@@ -270,6 +306,9 @@ namespace BankingApp.Infrastructure.Persistence
 
                 entity.HasIndex(transaction => transaction.ReferenceNumber)
                     .IsUnique(false);
+                entity.HasOne(transaction => transaction.TransactionCategory).WithMany()
+                    .HasForeignKey(transaction => transaction.TransactionCategoryId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
         }
 
@@ -299,6 +338,9 @@ namespace BankingApp.Infrastructure.Persistence
                     .WithMany(transaction => transaction.Documents)
                     .HasForeignKey(document => document.TransactionId)
                     .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(document => document.DocumentType).WithMany()
+                    .HasForeignKey(document => document.DocumentTypeId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
         }
 
@@ -434,6 +476,38 @@ namespace BankingApp.Infrastructure.Persistence
                     .WithMany(request => request.Documents)
                     .HasForeignKey(document => document.CardRequestId)
                     .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(document => document.DocumentType).WithMany()
+                    .HasForeignKey(document => document.DocumentTypeId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+        }
+
+        private static void ConfigureNotifications(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<Notification>(entity =>
+            {
+                entity.ToTable("Notifications"); entity.HasKey(value => value.Id);
+                entity.Property(value => value.Type).HasConversion<string>().HasMaxLength(60).IsRequired();
+                entity.Property(value => value.Title).HasMaxLength(140).IsRequired();
+                entity.Property(value => value.Message).HasMaxLength(500).IsRequired();
+                entity.Property(value => value.EntityType).HasMaxLength(60);
+                entity.HasIndex(value => new { value.UserId, value.CreatedAtUtc });
+                entity.HasIndex(value => new { value.UserId, value.IsRead });
+                entity.HasIndex(value => new { value.UserId, value.Type, value.EntityType, value.EntityId }).IsUnique().HasFilter("[EntityType] IS NOT NULL AND [EntityId] IS NOT NULL");
+                entity.HasOne(value => value.User).WithMany(value => value.Notifications).HasForeignKey(value => value.UserId).OnDelete(DeleteBehavior.Restrict);
+            });
+        }
+
+        private static void ConfigurePasswordResetTokens(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<PasswordResetToken>(entity =>
+            {
+                entity.ToTable("PasswordResetTokens"); entity.HasKey(value => value.Id);
+                entity.Property(value => value.TokenHash).HasMaxLength(64).IsRequired();
+                entity.Property(value => value.RowVersion).IsRowVersion();
+                entity.HasIndex(value => value.TokenHash).IsUnique();
+                entity.HasIndex(value => new { value.UserId, value.ExpiresAtUtc });
+                entity.HasOne(value => value.User).WithMany(value => value.PasswordResetTokens).HasForeignKey(value => value.UserId).OnDelete(DeleteBehavior.Cascade);
             });
         }
 
@@ -522,6 +596,8 @@ namespace BankingApp.Infrastructure.Persistence
                     .HasForeignKey(value => value.LoanProductId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(value => value.DestinationAccount).WithMany(value => value.LoanApplications)
                     .HasForeignKey(value => value.DestinationAccountId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(value => value.LoanPurpose).WithMany()
+                    .HasForeignKey(value => value.LoanPurposeId).OnDelete(DeleteBehavior.Restrict);
             });
 
             modelBuilder.Entity<Loan>(entity =>
@@ -593,6 +669,17 @@ namespace BankingApp.Infrastructure.Persistence
 
         private static void SeedData(ModelBuilder modelBuilder)
         {
+            var referenceCreatedAt = new DateTime(2026, 8, 24, 0, 0, 0, DateTimeKind.Utc);
+            modelBuilder.Entity<ReferenceDataItem>().HasData(
+                Reference("10000000-0000-0000-0000-000000000001", "loan-purposes", "GENERAL", "General purpose", 10, referenceCreatedAt),
+                Reference("10000000-0000-0000-0000-000000000002", "loan-purposes", "HOME", "Home improvement", 20, referenceCreatedAt),
+                Reference("10000000-0000-0000-0000-000000000003", "loan-purposes", "EDUCATION", "Education", 30, referenceCreatedAt),
+                Reference("20000000-0000-0000-0000-000000000001", "document-types", "IDENTITY", "Identity document", 10, referenceCreatedAt),
+                Reference("20000000-0000-0000-0000-000000000002", "document-types", "PROOF_OF_INCOME", "Proof of income", 20, referenceCreatedAt),
+                Reference("20000000-0000-0000-0000-000000000003", "document-types", "BANK_STATEMENT", "Bank statement", 30, referenceCreatedAt),
+                Reference("30000000-0000-0000-0000-000000000001", "transaction-categories", "GENERAL", "General", 10, referenceCreatedAt),
+                Reference("30000000-0000-0000-0000-000000000002", "transaction-categories", "TRANSFER", "Transfer", 20, referenceCreatedAt),
+                Reference("30000000-0000-0000-0000-000000000003", "transaction-categories", "LOAN", "Loan", 30, referenceCreatedAt));
             var userId = Guid.Parse("9a99a021-b892-4f5a-bd98-36a5afbf0c79");
             var adminUserId = Guid.Parse("dd72f286-0cf8-44ad-81ea-d85c5964d29d");
             var recipientUserId = Guid.Parse("f5573a40-f822-45c4-a841-b6ab5d5a0c49");
@@ -604,6 +691,9 @@ namespace BankingApp.Infrastructure.Persistence
             var savingsCardId = Guid.Parse("741fc77c-fec7-4b53-92df-d664d14935e8");
             var initialDepositId = Guid.Parse("b8e0dbf7-536f-4301-99c7-5b3a1e03f450");
             var savingsDepositId = Guid.Parse("fd261404-8751-4faa-bffa-cdf7ea592903");
+            var recentTransferDebitId = Guid.Parse("4a6e449e-6397-45f6-a446-5936e882c401");
+            var recentTransferCreditId = Guid.Parse("4a6e449e-6397-45f6-a446-5936e882c402");
+            var transferCategoryId = Guid.Parse("30000000-0000-0000-0000-000000000002");
             var bamLoanProductId = Guid.Parse("8f8dc061-237f-4bb4-89c1-32d41dc6f001");
             var eurLoanProductId = Guid.Parse("8f8dc061-237f-4bb4-89c1-32d41dc6f002");
             var usdLoanProductId = Guid.Parse("8f8dc061-237f-4bb4-89c1-32d41dc6f003");
@@ -659,7 +749,7 @@ namespace BankingApp.Infrastructure.Persistence
                     UserId = userId,
                     AccountNumber = "BA-000001-CHECKING",
                     AccountType = AccountType.Checking,
-                    Balance = 1250.00m,
+                    Balance = 20000.00m,
                     Currency = "USD",
                     CreatedAtUtc = createdAtUtc
                 },
@@ -679,7 +769,7 @@ namespace BankingApp.Infrastructure.Persistence
                     UserId = recipientUserId,
                     AccountNumber = "BA-000002-CHECKING",
                     AccountType = AccountType.Checking,
-                    Balance = 300.00m,
+                    Balance = 350.00m,
                     Currency = "USD",
                     CreatedAtUtc = createdAtUtc
                 });
@@ -728,7 +818,7 @@ namespace BankingApp.Infrastructure.Persistence
                     Id = initialDepositId,
                     AccountId = checkingAccountId,
                     ReferenceNumber = "TXN-20260101-0001",
-                    Amount = 1250.00m,
+                    Amount = 20050.00m,
                     Type = TransactionType.Transfer,
                     Description = "Initial checking deposit",
                     Status = TransactionStatus.Completed,
@@ -744,6 +834,42 @@ namespace BankingApp.Infrastructure.Persistence
                     Description = "Initial savings deposit",
                     Status = TransactionStatus.Completed,
                     CreatedAtUtc = createdAtUtc
+                },
+                new Transaction
+                {
+                    Id = recentTransferDebitId,
+                    AccountId = checkingAccountId,
+                    SourceAccountId = checkingAccountId,
+                    DestinationAccountId = recipientAccountId,
+                    TransactionCategoryId = transferCategoryId,
+                    ReferenceNumber = "TXN-20260825-DEMO-RECENT",
+                    Amount = -50.00m,
+                    Type = TransactionType.Transfer,
+                    TransferAmount = 50.00m,
+                    TransferCurrency = "USD",
+                    DestinationAmount = 50.00m,
+                    Description = "Demo transfer to Yamilet Recipient",
+                    Status = TransactionStatus.Completed,
+                    IsHighRiskReview = false,
+                    CreatedAtUtc = new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc)
+                },
+                new Transaction
+                {
+                    Id = recentTransferCreditId,
+                    AccountId = recipientAccountId,
+                    SourceAccountId = checkingAccountId,
+                    DestinationAccountId = recipientAccountId,
+                    TransactionCategoryId = transferCategoryId,
+                    ReferenceNumber = "TXN-20260825-DEMO-RECENT",
+                    Amount = 50.00m,
+                    Type = TransactionType.Transfer,
+                    TransferAmount = 50.00m,
+                    TransferCurrency = "USD",
+                    DestinationAmount = 50.00m,
+                    Description = "Transfer from BA-000001-CHECKING",
+                    Status = TransactionStatus.Completed,
+                    IsHighRiskReview = false,
+                    CreatedAtUtc = new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc)
                 });
 
             modelBuilder.Entity<LoanProduct>().HasData(
@@ -796,5 +922,18 @@ namespace BankingApp.Infrastructure.Persistence
                     UpdatedAtUtc = createdAtUtc
                 });
         }
+
+        private static ReferenceDataItem Reference(
+            string id, string type, string code, string name, int sortOrder, DateTime timestamp) => new()
+            {
+                Id = Guid.Parse(id),
+                Type = type,
+                Code = code,
+                Name = name,
+                IsActive = true,
+                SortOrder = sortOrder,
+                CreatedAtUtc = timestamp,
+                UpdatedAtUtc = timestamp
+            };
     }
 }

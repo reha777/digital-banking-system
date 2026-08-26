@@ -36,10 +36,24 @@ class ApiClient {
   }
 
   static String get baseUrl {
-    if (_configuredBaseUrl.isNotEmpty) {
-      return _configuredBaseUrl;
-    }
-    return kIsWeb ? 'http://localhost:5026' : 'http://10.0.2.2:5026';
+    return resolveBaseUrl(
+      configuredBaseUrl: _configuredBaseUrl,
+      isWeb: kIsWeb,
+      platform: defaultTargetPlatform,
+    );
+  }
+
+  @visibleForTesting
+  static String resolveBaseUrl({
+    required String configuredBaseUrl,
+    required bool isWeb,
+    required TargetPlatform platform,
+  }) {
+    if (configuredBaseUrl.isNotEmpty) return configuredBaseUrl;
+    if (isWeb) return 'http://localhost:5026';
+    return platform == TargetPlatform.android
+        ? 'http://10.0.2.2:5026'
+        : 'http://localhost:5026';
   }
 
   final http.Client _httpClient;

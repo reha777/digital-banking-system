@@ -24,11 +24,13 @@ class CardRequestsPage extends StatefulWidget {
     required this.token,
     required this.defaultPageSize,
     required this.dateFormatter,
+    this.refreshRevision = 0,
     this.showHeader = true,
   });
   final String token;
   final int defaultPageSize;
   final String Function(DateTime) dateFormatter;
+  final int refreshRevision;
   final bool showHeader;
   @override
   State<CardRequestsPage> createState() => _CardRequestsPageState();
@@ -51,6 +53,12 @@ class _CardRequestsPageState extends State<CardRequestsPage> {
     _pageSize = widget.defaultPageSize;
     _service = AdminCardRequestService(ApiClient());
     _future = _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant CardRequestsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.refreshRevision != oldWidget.refreshRevision) _refresh();
   }
 
   @override
@@ -220,13 +228,17 @@ class _CardRequestsPageState extends State<CardRequestsPage> {
         documentId: document.id,
       ),
     );
-    final opened = await openDocumentBytes(
+    final result = await openDocumentBytes(
       bytes: bytes,
       fileName: document.fileName,
       contentType: cardDocumentContentType(document),
     );
-    if (!opened && mounted) {
-      _message('Document loaded below. Browser opening is available on web.');
+    if (!result.opened && mounted) {
+      _message(
+        result.savedPath == null
+            ? 'Document could not be opened.'
+            : 'Document was saved to ${result.savedPath}, but could not be opened.',
+      );
     }
     return bytes;
   }

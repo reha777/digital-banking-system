@@ -9,6 +9,8 @@ public class LoanApplicationResponse
     public string ProductName { get; set; } = string.Empty;
     public Guid DestinationAccountId { get; set; }
     public string DestinationAccountNumber { get; set; } = string.Empty;
+    public Guid? LoanPurposeId { get; set; }
+    public string? LoanPurposeName { get; set; }
     public decimal Principal { get; set; }
     public string Currency { get; set; } = string.Empty;
     public decimal AnnualInterestRate { get; set; }

@@ -3,7 +3,9 @@ using BankingApp.Application.Common.Pagination;
 using BankingApp.Application.Interfaces;
 using BankingApp.Application.Transactions;
 using BankingApp.Application.AuditLogs;
+using BankingApp.Application.Notifications;
 using BankingApp.Domain.Entities;
+using BankingApp.Domain.Constants;
 using BankingApp.Domain.Enums;
 using BankingApp.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -14,7 +16,9 @@ namespace BankingApp.Infrastructure.Services
         BankingAppDbContext dbContext,
         ICurrentUserService currentUserService,
         ICurrencyConversionService currencyConversionService,
-        IAuditLogService? auditLogService = null) : ITransactionService
+        IAuditLogService? auditLogService = null,
+        IFileValidationService? fileValidationService = null,
+        INotificationWriter? notificationWriter = null) : ITransactionService
     {
         private const decimal HighRiskReviewThreshold = 10000m;
 
@@ -73,6 +77,7 @@ namespace BankingApp.Infrastructure.Services
                 ReferenceNumber = CreateReferenceNumber(),
                 Amount = request.Amount,
                 Type = TransactionType.Transfer,
+                TransactionCategoryId = ReferenceDataIds.TransferTransactionCategory,
                 Description = request.Description.Trim(),
                 Status = TransactionStatus.Pending,
                 CreatedAtUtc = DateTime.UtcNow
@@ -176,6 +181,7 @@ namespace BankingApp.Infrastructure.Services
                 ReferenceNumber = referenceNumber,
                 Amount = -quote.DebitAmount,
                 Type = TransactionType.Transfer,
+                TransactionCategoryId = ReferenceDataIds.TransferTransactionCategory,
                 TransferAmount = quote.Amount,
                 TransferCurrency = quote.TransferCurrency,
                 DestinationAmount = quote.DestinationAmount,
@@ -203,6 +209,7 @@ namespace BankingApp.Infrastructure.Services
                     ReferenceNumber = referenceNumber,
                     Amount = quote.DestinationAmount,
                     Type = TransactionType.Transfer,
+                    TransactionCategoryId = ReferenceDataIds.TransferTransactionCategory,
                     TransferAmount = quote.Amount,
                     TransferCurrency = quote.TransferCurrency,
                     DestinationAmount = quote.DestinationAmount,
@@ -217,6 +224,8 @@ namespace BankingApp.Infrastructure.Services
             {
                 dbContext.Transactions.Add(creditTransaction);
             }
+            if (requiresReview && notificationWriter is not null)
+                await notificationWriter.AddForAdminsAsync(new NotificationCreate(Guid.Empty, NotificationType.NewHighRiskTransaction, "Transaction requires review", "A high-value transaction is waiting for review.", NotificationEntityTypes.Transaction, debitTransaction.Id), cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
 
             debitTransaction.Account = sourceAccount;
@@ -385,6 +394,7 @@ namespace BankingApp.Infrastructure.Services
                         ReferenceNumber = referenceNumber,
                         Amount = -quote.DebitAmount,
                         Type = TransactionType.InternalTransfer,
+                        TransactionCategoryId = ReferenceDataIds.TransferTransactionCategory,
                         TransferAmount = quote.Amount,
                         TransferCurrency = quote.TransferCurrency,
                         DestinationAmount = quote.DestinationAmount,
@@ -402,6 +412,7 @@ namespace BankingApp.Infrastructure.Services
                         ReferenceNumber = referenceNumber,
                         Amount = quote.DestinationAmount,
                         Type = TransactionType.InternalTransfer,
+                        TransactionCategoryId = ReferenceDataIds.TransferTransactionCategory,
                         TransferAmount = quote.Amount,
                         TransferCurrency = quote.TransferCurrency,
                         DestinationAmount = quote.DestinationAmount,
@@ -477,13 +488,14 @@ namespace BankingApp.Infrastructure.Services
             };
         }
 
-        public async Task<IReadOnlyCollection<RecentRecipientResponse>> GetRecentRecipientsAsync(
+        public async Task<PagedResult<RecentRecipientResponse>> GetRecentRecipientsAsync(
+            PagedRequest request,
             CancellationToken cancellationToken = default)
         {
             if (currentUserService.IsAdmin)
                 throw new BusinessException("Admin korisnik nema recent primaoce.");
 
-            var outgoing = await dbContext.Transactions
+            var recent = dbContext.Transactions
                 .AsNoTracking()
                 .Where(transaction =>
                     transaction.Account.UserId == currentUserService.UserId &&
@@ -491,36 +503,38 @@ namespace BankingApp.Infrastructure.Services
                     (transaction.Status == TransactionStatus.Completed ||
                         transaction.Status == TransactionStatus.Pending) &&
                     transaction.DestinationAccountId != null)
-                .OrderByDescending(transaction => transaction.CreatedAtUtc)
-                .Select(transaction => new
+                .GroupBy(transaction => transaction.DestinationAccountId!.Value)
+                .Select(group => new
                 {
-                    DestinationAccountId = transaction.DestinationAccountId!.Value,
-                    transaction.CreatedAtUtc
-                })
-                .Take(100)
+                    DestinationAccountId = group.Key,
+                    LastUsedAtUtc = group.Max(transaction => transaction.CreatedAtUtc)
+                });
+            var eligible = from item in recent
+                join account in dbContext.Accounts.AsNoTracking()
+                    on item.DestinationAccountId equals account.Id
+                where !account.User.IsDeleted &&
+                    account.User.Status == CustomerStatus.Active
+                orderby item.LastUsedAtUtc descending, account.Id
+                select new { Account = account, item.LastUsedAtUtc };
+            var bounded = eligible.Take(8);
+            var total = await bounded.CountAsync(cancellationToken);
+            var items = await bounded
+                .Skip((request.Page - 1) * request.PageSize)
+                .Take(request.PageSize)
+                .Select(item => new RecentRecipientResponse(
+                    item.Account.Id,
+                    item.Account.User.FirstName,
+                    item.Account.User.LastName,
+                    item.Account.AccountNumber,
+                    item.LastUsedAtUtc))
                 .ToListAsync(cancellationToken);
-
-            var latestByAccount = outgoing
-                .GroupBy(item => item.DestinationAccountId)
-                .Select(group => group.First())
-                .Take(8)
-                .ToList();
-            if (latestByAccount.Count == 0) return [];
-
-            var ids = latestByAccount.Select(item => item.DestinationAccountId).ToList();
-            var accounts = await dbContext.Accounts
-                .AsNoTracking()
-                .Include(account => account.User)
-                .Where(account =>
-                    ids.Contains(account.Id) &&
-                    !account.User.IsDeleted &&
-                    account.User.Status == CustomerStatus.Active)
-                .ToDictionaryAsync(account => account.Id, cancellationToken);
-
-            return latestByAccount
-                .Where(item => accounts.ContainsKey(item.DestinationAccountId))
-                .Select(item => ToRecipient(accounts[item.DestinationAccountId], item.CreatedAtUtc))
-                .ToList();
+            return new PagedResult<RecentRecipientResponse>
+            {
+                Items = items,
+                Page = request.Page,
+                PageSize = request.PageSize,
+                TotalCount = total
+            };
         }
 
         public async Task<RecentRecipientResponse> LookupRecipientAsync(
@@ -610,6 +624,7 @@ namespace BankingApp.Infrastructure.Services
                 ReferenceNumber = transaction.ReferenceNumber,
                 Amount = destinationAmount,
                 Type = TransactionType.Transfer,
+                TransactionCategoryId = ReferenceDataIds.TransferTransactionCategory,
                 TransferAmount = transaction.TransferAmount,
                 TransferCurrency = transaction.TransferCurrency,
                 DestinationAmount = destinationAmount,
@@ -619,11 +634,16 @@ namespace BankingApp.Infrastructure.Services
             };
 
             dbContext.Transactions.Add(creditTransaction);
+            if (notificationWriter is not null)
+                await notificationWriter.AddAsync(new NotificationCreate(sourceAccount.UserId, NotificationType.TransactionApproved, "Transaction approved", "Your transaction review was approved.", NotificationEntityTypes.Transaction, transaction.Id), cancellationToken);
             if (auditLogService is not null)
                 await auditLogService.RecordAsync(new AuditLogRecordRequest
                 {
-                    Action = AuditLogActions.TransactionApproved, EntityType = AuditEntityTypes.Transaction,
-                    EntityId = id.ToString(), Description = "Transaction review approved.", Reason = transaction.AdminNote
+                    Action = AuditLogActions.TransactionApproved,
+                    EntityType = AuditEntityTypes.Transaction,
+                    EntityId = id.ToString(),
+                    Description = "Transaction review approved.",
+                    Reason = transaction.AdminNote
                 }, cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -651,12 +671,17 @@ namespace BankingApp.Infrastructure.Services
             transaction.AdminNote = request.AdminNote?.Trim();
             transaction.ReviewedAtUtc = DateTime.UtcNow;
             transaction.ReviewedByUserId = currentUserService.UserId;
+            if (notificationWriter is not null)
+                await notificationWriter.AddAsync(new NotificationCreate(transaction.Account.UserId, NotificationType.TransactionRejected, "Transaction rejected", "Your transaction review was rejected. Open it for details.", NotificationEntityTypes.Transaction, transaction.Id), cancellationToken);
 
             if (auditLogService is not null)
                 await auditLogService.RecordAsync(new AuditLogRecordRequest
                 {
-                    Action = AuditLogActions.TransactionRejected, EntityType = AuditEntityTypes.Transaction,
-                    EntityId = id.ToString(), Description = "Transaction review rejected.", Reason = transaction.AdminNote
+                    Action = AuditLogActions.TransactionRejected,
+                    EntityType = AuditEntityTypes.Transaction,
+                    EntityId = id.ToString(),
+                    Description = "Transaction review rejected.",
+                    Reason = transaction.AdminNote
                 }, cancellationToken);
 
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -681,12 +706,17 @@ namespace BankingApp.Infrastructure.Services
             transaction.Status = TransactionStatus.DocumentsRequested;
             transaction.DocumentsRequestNote = request.AdminNote?.Trim();
             transaction.DocumentsRequestedAtUtc = DateTime.UtcNow;
+            if (notificationWriter is not null)
+                await notificationWriter.AddAsync(new NotificationCreate(transaction.Account.UserId, NotificationType.TransactionDocumentsRequested, "Transaction documents requested", "Additional documents are required for your transaction.", NotificationEntityTypes.Transaction, transaction.Id), cancellationToken);
 
             if (auditLogService is not null)
                 await auditLogService.RecordAsync(new AuditLogRecordRequest
                 {
-                    Action = AuditLogActions.TransactionDocumentsRequested, EntityType = AuditEntityTypes.Transaction,
-                    EntityId = id.ToString(), Description = "Transaction documents requested.", Reason = transaction.DocumentsRequestNote
+                    Action = AuditLogActions.TransactionDocumentsRequested,
+                    EntityType = AuditEntityTypes.Transaction,
+                    EntityId = id.ToString(),
+                    Description = "Transaction documents requested.",
+                    Reason = transaction.DocumentsRequestNote
                 }, cancellationToken);
 
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -701,15 +731,12 @@ namespace BankingApp.Infrastructure.Services
             TransactionDocumentUploadRequest request,
             CancellationToken cancellationToken = default)
         {
-            if (request.Content.Length == 0)
-            {
-                throw new BusinessException("Dokument ne moze biti prazan.");
-            }
+            var validatedFile = (fileValidationService ?? new FileValidationService()).ValidateDocument(request.FileName, request.ContentType, request.Content);
 
-            if (request.Content.Length > 5 * 1024 * 1024)
-            {
-                throw new BusinessException("Dokument moze biti maksimalno 5 MB.");
-            }
+            if (request.DocumentTypeId.HasValue && !await dbContext.ReferenceDataItems.AsNoTracking().AnyAsync(
+                value => value.Id == request.DocumentTypeId && value.Type == "document-types" && value.IsActive,
+                cancellationToken))
+                throw new BusinessException("Odabrani tip dokumenta nije dostupan.");
 
             var transaction = await dbContext.Transactions
                 .Include(item => item.Account)
@@ -735,14 +762,17 @@ namespace BankingApp.Infrastructure.Services
             {
                 Id = Guid.NewGuid(),
                 TransactionId = transaction.Id,
-                FileName = request.FileName.Trim(),
-                ContentType = request.ContentType.Trim(),
+                DocumentTypeId = request.DocumentTypeId,
+                FileName = validatedFile.FileName,
+                ContentType = validatedFile.ContentType,
                 SizeBytes = request.Content.LongLength,
                 Content = request.Content,
                 UploadedAtUtc = DateTime.UtcNow
             };
 
             dbContext.TransactionDocuments.Add(document);
+            if (notificationWriter is not null)
+                await notificationWriter.AddForAdminsAsync(new NotificationCreate(Guid.Empty, NotificationType.TransactionDocumentsUploaded, "Transaction documents uploaded", "A customer uploaded documents for a transaction review.", NotificationEntityTypes.Transaction, transaction.Id), cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
 
             transaction.Documents.Add(document);

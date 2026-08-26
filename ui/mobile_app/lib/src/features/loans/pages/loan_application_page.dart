@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/formatting/money_formatters.dart';
+import '../../../core/app_theme.dart';
 import '../../accounts/account_models.dart';
 import '../loan_service.dart';
 import '../models/loan_models.dart';
@@ -33,6 +34,10 @@ class _LoanApplicationPageState extends State<LoanApplicationPage> {
   LoanQuoteModel? _quote;
   LoanApplicationModel? _submitted;
   Account? _account;
+  List<LoanPurposeModel> _purposes = const [];
+  LoanPurposeModel? _purpose;
+  bool _purposesLoading = true;
+  String? _purposesError;
   late int _term;
   int _quoteVersion = 0;
   bool _quoteLoading = false, _submitting = false;
@@ -56,6 +61,7 @@ class _LoanApplicationPageState extends State<LoanApplicationPage> {
   bool get _canContinue =>
       _amountValid &&
       _account != null &&
+      _purpose != null &&
       _quote != null &&
       !_quoteLoading &&
       !_submitting;
@@ -64,6 +70,102 @@ class _LoanApplicationPageState extends State<LoanApplicationPage> {
     super.initState();
     _term = widget.product.minTermMonths;
     if (_accounts.isNotEmpty) _account = _accounts.first;
+    _loadPurposes();
+  }
+
+  Future<void> _loadPurposes() async {
+    try {
+      final values = await widget.repository.getLoanPurposes(widget.token);
+      if (!mounted) return;
+      setState(() {
+        _purposes = values;
+        _purpose = values.isEmpty ? null : values.first;
+        _purposesLoading = false;
+        _purposesError = values.isEmpty
+            ? 'No loan purposes are currently available.'
+            : null;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _purposesLoading = false;
+          _purposesError = 'Could not load loan purposes.';
+        });
+      }
+    }
+  }
+
+  Future<void> _pickPurpose() async {
+    final selected = await showModalBottomSheet<LoanPurposeModel>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Choose loan purpose',
+                style: Theme.of(sheetContext).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Select what you plan to use this loan for.',
+                style: Theme.of(sheetContext).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 18),
+              for (final purpose in _purposes)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Material(
+                    color: purpose.id == _purpose?.id
+                        ? AppTheme.primary.withValues(alpha: .12)
+                        : Theme.of(
+                            sheetContext,
+                          ).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(16),
+                    clipBehavior: Clip.antiAlias,
+                    child: ListTile(
+                      key: ValueKey('loan-purpose-${purpose.id}'),
+                      onTap: () => Navigator.pop(sheetContext, purpose),
+                      minTileHeight: 58,
+                      leading: CircleAvatar(
+                        backgroundColor: purpose.id == _purpose?.id
+                            ? AppTheme.primary.withValues(alpha: .16)
+                            : Theme.of(sheetContext).colorScheme.surface,
+                        child: Icon(
+                          LucideIcons.fileText,
+                          size: 19,
+                          color: purpose.id == _purpose?.id
+                              ? AppTheme.primary
+                              : Theme.of(
+                                  sheetContext,
+                                ).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      title: Text(
+                        purpose.name,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      trailing: purpose.id == _purpose?.id
+                          ? const Icon(
+                              LucideIcons.circleCheck,
+                              color: AppTheme.primary,
+                            )
+                          : const Icon(LucideIcons.chevronRight, size: 19),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (selected != null && mounted) {
+      setState(() => _purpose = selected);
+    }
   }
 
   @override
@@ -145,6 +247,7 @@ class _LoanApplicationPageState extends State<LoanApplicationPage> {
                 '${formatMoney(quote.principal)} ${quote.currency}',
               ),
               _reviewLine('Destination', _masked(_account!.accountNumber)),
+              _reviewLine('Purpose', _purpose!.name),
               _reviewLine('Term', '${quote.termMonths} months'),
               _reviewLine(
                 'Interest rate',
@@ -219,6 +322,7 @@ class _LoanApplicationPageState extends State<LoanApplicationPage> {
         principal: _principal!,
         termMonths: _term,
         clientRequestId: _clientRequestId!,
+        loanPurposeId: _purpose!.id,
       );
       if (mounted) {
         setState(() {
@@ -273,6 +377,43 @@ class _LoanApplicationPageState extends State<LoanApplicationPage> {
                   : null,
             ),
           ),
+          const SizedBox(height: 20),
+          Text('Purpose', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          if (_purposesLoading)
+            const LinearProgressIndicator()
+          else if (_purposesError != null)
+            ListTile(
+              title: Text(_purposesError!),
+              trailing: IconButton(
+                onPressed: () {
+                  setState(() => _purposesLoading = true);
+                  _loadPurposes();
+                },
+                icon: const Icon(LucideIcons.refreshCw),
+              ),
+            )
+          else
+            Semantics(
+              button: true,
+              label: 'Choose loan purpose',
+              child: InkWell(
+                key: const ValueKey('loan-purpose-picker'),
+                onTap: _pickPurpose,
+                borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Loan purpose',
+                    prefixIcon: Icon(LucideIcons.fileText),
+                    suffixIcon: Icon(LucideIcons.chevronDown),
+                  ),
+                  child: Text(
+                    _purpose?.name ?? 'Choose purpose',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+            ),
           const SizedBox(height: 20),
           Text(
             'Repayment Term',

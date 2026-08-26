@@ -11,5 +11,8 @@ namespace BankingApp.Application.Interfaces
         Task<AuthResponse> RefreshAsync(RefreshTokenRequest request, CancellationToken cancellationToken = default);
 
         Task LogoutAsync(LogoutRequest request, CancellationToken cancellationToken = default);
+        Task<ForgotPasswordResponse> ForgotPasswordAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default);
+        Task<ForgotPasswordResponse> DemoForgotPasswordAsync(DemoForgotPasswordRequest request, CancellationToken cancellationToken = default);
+        Task ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default);
     }
 }

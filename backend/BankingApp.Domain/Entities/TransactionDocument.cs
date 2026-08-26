@@ -5,6 +5,7 @@ namespace BankingApp.Domain.Entities
         public Guid Id { get; set; }
 
         public Guid TransactionId { get; set; }
+        public Guid? DocumentTypeId { get; set; }
 
         public string FileName { get; set; } = string.Empty;
 
@@ -17,5 +18,6 @@ namespace BankingApp.Domain.Entities
         public DateTime UploadedAtUtc { get; set; }
 
         public Transaction Transaction { get; set; } = null!;
+        public ReferenceDataItem? DocumentType { get; set; }
     }
 }

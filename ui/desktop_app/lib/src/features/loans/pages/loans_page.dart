@@ -20,11 +20,15 @@ class LoansPage extends StatefulWidget {
     required this.defaultPageSize,
     required this.dateFormatter,
     this.repository,
+    this.refreshRevision = 0,
+    this.showHeader = true,
   });
   final String token;
   final int defaultPageSize;
   final String Function(DateTime) dateFormatter;
   final AdminLoanRepository? repository;
+  final int refreshRevision;
+  final bool showHeader;
   @override
   State<LoansPage> createState() => _LoansPageState();
 }
@@ -55,6 +59,17 @@ class _LoansPageState extends State<LoansPage> {
     _pageSize = widget.defaultPageSize;
     _repository = widget.repository ?? AdminLoanService(ApiClient());
     _future = _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant LoansPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.refreshRevision == oldWidget.refreshRevision) return;
+    if (_tab == _LoanTab.applications) {
+      _refresh();
+    } else {
+      _refreshLoans();
+    }
   }
 
   @override
@@ -267,13 +282,15 @@ class _LoansPageState extends State<LoansPage> {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      const AppPageHeader(
-        icon: LucideIcons.coins,
-        title: 'Loans',
-        subtitle:
-            'Review customer loan applications and prepare lending decisions.',
-      ),
-      const SizedBox(height: 16),
+      if (widget.showHeader) ...[
+        const AppPageHeader(
+          icon: LucideIcons.coins,
+          title: 'Loans',
+          subtitle:
+              'Review customer loan applications and prepare lending decisions.',
+        ),
+        const SizedBox(height: 16),
+      ],
       AppStatusTabs<_LoanTab>(
         value: _tab,
         tabs: const [

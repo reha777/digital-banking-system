@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using BankingApp.Application.Auth;
 
 namespace BankingApp.Application.Settings;
 
@@ -65,5 +66,5 @@ public class UpdateAdminProfileRequest
 public class ChangeAdminPasswordRequest
 {
     [Required] public string CurrentPassword { get; set; } = "";
-    [Required, MinLength(8), MaxLength(100)] public string NewPassword { get; set; } = "";
+    [Required, MinLength(PasswordPolicy.MinimumLength), MaxLength(100)] public string NewPassword { get; set; } = "";
 }

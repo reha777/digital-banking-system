@@ -216,7 +216,7 @@ class _SendMoneyScreenState extends State<SendMoneyScreen> {
 
     String? rawValue;
     if (source == QrScanSource.camera) {
-      rawValue = await Navigator.of(context).push<String>(
+      rawValue = await Navigator.of(context, rootNavigator: true).push<String>(
         MaterialPageRoute<String>(builder: (_) => const ScanReceiveQrPage()),
       );
     } else {
@@ -346,10 +346,8 @@ class _SendMoneyScreenState extends State<SendMoneyScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => MobileShell(
-    currentIndex: 0,
-    onSelected: (_) {},
-    child: SafeArea(
+  Widget build(BuildContext context) => Scaffold(
+    body: SafeArea(
       child: _result != null && _selectedRecipient != null
           ? TransferResultView(
               result: _result!,

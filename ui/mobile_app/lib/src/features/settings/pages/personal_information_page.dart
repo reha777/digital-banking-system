@@ -100,11 +100,13 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
                   label: 'First Name',
                   controller: _firstName,
                 ),
+                const SizedBox(height: 14),
                 _ProfileField(
                   key: const ValueKey('profile-last-name'),
                   label: 'Last Name',
                   controller: _lastName,
                 ),
+                const SizedBox(height: 14),
                 TextFormField(
                   initialValue: widget.profile.email,
                   readOnly: true,
@@ -113,6 +115,7 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
                     helperText: 'Email changes require a verification flow.',
                   ),
                 ),
+                const SizedBox(height: 14),
                 _ProfileField(
                   key: const ValueKey('profile-phone'),
                   label: 'Phone Number',

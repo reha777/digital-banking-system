@@ -9,5 +9,9 @@ namespace BankingApp.Application.Common.Pagination
         public int PageSize { get; set; }
 
         public int TotalCount { get; set; }
+
+        public int TotalPages => PageSize <= 0
+            ? 0
+            : (int)Math.Ceiling(TotalCount / (double)PageSize);
     }
 }

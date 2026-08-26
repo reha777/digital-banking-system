@@ -1,24 +1,126 @@
 services:
   sqlserver:
-    image: mcr.microsoft.com/mssql/server:2022-latest
+    image: mcr.microsoft.com/mssql/server:2022-CU20-ubuntu-22.04
     container_name: banking-sqlserver
     environment:
-      ACCEPT_EULA: ${ACCEPT_EULA}
+      ACCEPT_EULA: ${ACCEPT_EULA:-Y}
       MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
     ports:
-      - "1433:1433"
+      - "127.0.0.1:${SQLSERVER_PORT:-1433}:1433"
     volumes:
       - sqlserver_data:/var/opt/mssql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$${MSSQL_SA_PASSWORD}" -C -Q "SELECT 1" -b -o /dev/null
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
 
   rabbitmq:
-    image: rabbitmq:4-management
+    image: rabbitmq:4.1-management
     container_name: banking-rabbitmq
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: -rabbit loopback_users []
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "127.0.0.1:${RABBITMQ_PORT:-5672}:5672"
+      - "127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/BankingApp.Api/Dockerfile
+    container_name: banking-api
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:8080
+      Email__Provider: ${EMAIL__PROVIDER:-Development}
+      Email__SmtpHost: ${EMAIL__SMTPHOST:-}
+      Email__SmtpPort: ${EMAIL__SMTPPORT:-587}
+      Email__SmtpUsername: ${EMAIL__SMTPUSERNAME:-}
+      Email__SmtpPassword: ${EMAIL__SMTPPASSWORD:-}
+      Email__FromAddress: ${EMAIL__FROMADDRESS:-}
+      Email__FromName: ${EMAIL__FROMNAME:-Digital Banking}
+      Email__UseSsl: ${EMAIL__USESSL:-false}
+      DemoAuth__Enabled: ${DEMOAUTH__ENABLED:-true}
+      DemoAuth__CustomerAccountEmail: ${DEMOAUTH__CUSTOMERACCOUNTEMAIL:-mobile@bankingapp.local}
+      DemoAuth__AdminAccountEmail: ${DEMOAUTH__ADMINACCOUNTEMAIL:-admin@bankingapp.local}
+      ConnectionStrings__DefaultConnection: Server=sqlserver,1433;Database=${DB_NAME:-220055};User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;
+      Database__ApplyMigrations: "true"
+      Jwt__Issuer: ${JWT__ISSUER}
+      Jwt__Audience: ${JWT__AUDIENCE}
+      Jwt__Key: ${JWT__KEY}
+      Jwt__ExpirationMinutes: ${JWT__EXPIRATIONMINUTES:-60}
+      Jwt__RefreshTokenExpirationDays: ${JWT__REFRESHTOKENEXPIRATIONDAYS:-14}
+      Cors__AllowedOrigins__0: ${CORS__ALLOWEDORIGINS__0:-http://localhost:60400}
+      Cors__AllowedOrigins__1: ${CORS__ALLOWEDORIGINS__1:-http://localhost:59866}
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: 5672
+      RabbitMq__UserName: ${RABBITMQ_DEFAULT_USER}
+      RabbitMq__Password: ${RABBITMQ_DEFAULT_PASS}
+      RabbitMq__AuditArchiveQueue: ${RABBITMQ__AUDITARCHIVEQUEUE:-banking.audit-archive.v1}
+      RabbitMq__ReportGenerationQueue: ${RABBITMQ__REPORTGENERATIONQUEUE:-banking.report-generation.v1}
+      Reports__OutputDirectory: /app/reports
+    volumes:
+      - report_files:/app/reports
+    ports:
+      - "127.0.0.1:${API_PORT:-5026}:8080"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: worker/BankingApp.Worker/Dockerfile
+    container_name: banking-worker
+    environment:
+      DOTNET_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: 5672
+      RabbitMq__UserName: ${RABBITMQ_DEFAULT_USER}
+      RabbitMq__Password: ${RABBITMQ_DEFAULT_PASS}
+      RabbitMq__AuditArchiveQueue: ${RABBITMQ__AUDITARCHIVEQUEUE:-banking.audit-archive.v1}
+      RabbitMq__ReportGenerationQueue: ${RABBITMQ__REPORTGENERATIONQUEUE:-banking.report-generation.v1}
+      AuditArchive__OutputDirectory: /app/audit-archives
+      Reports__OutputDirectory: /app/reports
+      Reports__MaxRows: ${REPORTS__MAXROWS:-5000}
+      Notifications__OverdueCheckIntervalSeconds: ${NOTIFICATIONS__OVERDUE_CHECK_INTERVAL_SECONDS:-300}
+      ConnectionStrings__DefaultConnection: Server=sqlserver,1433;Database=${DB_NAME:-220055};User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;
+    volumes:
+      - audit_archives:/app/audit-archives
+      - report_files:/app/reports
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   sqlserver_data:
+  rabbitmq_data:
+  audit_archives:
+  report_files:

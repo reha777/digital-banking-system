@@ -4,6 +4,7 @@ import '../../../core/formatting/date_formatters.dart';
 import '../../../core/formatting/money_formatters.dart';
 import '../../accounts/account_models.dart';
 import '../../cards/card_models.dart';
+import '../../auth/auth_session.dart';
 import '../../cards/widgets/card_carousel.dart';
 import 'home_profile_header.dart';
 import 'home_quick_actions.dart';
@@ -23,6 +24,9 @@ class HomeBalanceCard extends StatefulWidget {
     required this.accessToken,
     required this.onProfileTap,
     required this.onCardTap,
+    required this.onActiveCardChanged,
+    this.session,
+    this.onNotificationsTap,
     this.profilePhotoUpdatedAtUtc,
   });
 
@@ -35,10 +39,13 @@ class HomeBalanceCard extends StatefulWidget {
   final VoidCallback? onTransfer;
   final VoidCallback? onLoan;
   final ValueChanged<BankCardModel> onCardTap;
+  final ValueChanged<BankCardModel> onActiveCardChanged;
   final bool hasProfilePhoto;
   final String? accessToken;
   final DateTime? profilePhotoUpdatedAtUtc;
   final VoidCallback onProfileTap;
+  final AuthSession? session;
+  final Future<void> Function()? onNotificationsTap;
 
   @override
   State<HomeBalanceCard> createState() => _HomeBalanceCardState();
@@ -64,6 +71,8 @@ class _HomeBalanceCardState extends State<HomeBalanceCard> {
           accessToken: widget.accessToken,
           profilePhotoUpdatedAtUtc: widget.profilePhotoUpdatedAtUtc,
           onProfileTap: widget.onProfileTap,
+          session: widget.session,
+          onNotificationsTap: widget.onNotificationsTap,
         ),
         const SizedBox(height: 20),
         Stack(
@@ -90,8 +99,10 @@ class _HomeBalanceCardState extends State<HomeBalanceCard> {
                     children: [
                       CardCarousel(
                         cards: widget.cards,
-                        onCardChanged: (value) =>
-                            setState(() => _selected = value),
+                        onCardChanged: (value) {
+                          setState(() => _selected = value);
+                          widget.onActiveCardChanged(widget.cards[value]);
+                        },
                         onCardTap: widget.onCardTap,
                       ),
                       const SizedBox(height: 10),

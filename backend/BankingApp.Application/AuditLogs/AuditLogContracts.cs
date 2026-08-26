@@ -17,6 +17,7 @@ public static class AuditLogActions
     public const string LoanRejected = nameof(LoanRejected);
     public const string AdminSettingsUpdated = nameof(AdminSettingsUpdated);
     public const string AdminProfileUpdated = nameof(AdminProfileUpdated);
+    public const string ReportRequested = nameof(ReportRequested);
 }
 
 public static class AuditEntityTypes
@@ -27,6 +28,7 @@ public static class AuditEntityTypes
     public const string LoanApplication = nameof(LoanApplication);
     public const string AdminSettings = nameof(AdminSettings);
     public const string AdminProfile = nameof(AdminProfile);
+    public const string ReportJob = nameof(ReportJob);
 }
 
 public sealed class AuditLogRecordRequest

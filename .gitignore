@@ -8,6 +8,7 @@ obj/
 .flutter-plugins-dependencies
 .packages
 build/
+audit-archives/
 
 # VS Code
 .vscode/
@@ -23,3 +24,4 @@ build/
 # Mac/Windows
 .DS_Store
 Thumbs.db
+development-email-outbox/

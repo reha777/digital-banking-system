@@ -16,9 +16,15 @@ import '../settings/admin_settings_controller.dart';
 import '../settings/pages/settings_page.dart';
 import '../settings/admin_settings_models.dart';
 import '../settings/widgets/settings_navigation.dart';
+import '../reference_data/reference_data_page.dart';
+import '../reports/reports_page.dart';
+import '../notifications/notifications_page.dart';
+import '../notifications/notification_bell.dart';
+import '../notifications/notification_service.dart';
 import 'admin_section.dart';
 import 'widgets/admin_sidebar.dart';
 import 'widgets/admin_account_menu.dart';
+import '../../widgets/app_page_header.dart';
 
 class AdminShellScreen extends StatefulWidget {
   const AdminShellScreen({
@@ -44,6 +50,11 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
   DateTime? _lastPassiveActivityAt;
   SettingsSection _settingsSection = SettingsSection.general;
   final List<AdminSection> _cachedSections = [];
+  int _bellGeneration = 0;
+  int _accountGeneration = 0;
+  int _cardRequestsRefreshRevision = 0;
+  int _transactionReviewsRefreshRevision = 0;
+  int _loansRefreshRevision = 0;
 
   static const _cacheableSections = <AdminSection>{
     AdminSection.transactions,
@@ -52,6 +63,9 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
     AdminSection.cardRequests,
     AdminSection.loans,
     AdminSection.auditLogs,
+    AdminSection.referenceData,
+    AdminSection.reports,
+    AdminSection.notifications,
   };
 
   @override
@@ -136,6 +150,28 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
       _cachedSections.add(section);
     }
   });
+
+  void _openNotificationTarget(AdminNotification notification) {
+    final type = notification.entityType;
+    setState(() {
+      if (type == 'LoanApplication' || type == 'LoanInstallment') {
+        _loansRefreshRevision++;
+        _selectedSection = AdminSection.loans;
+      } else if (type == 'CardRequest') {
+        _cardRequestsRefreshRevision++;
+        _selectedSection = AdminSection.cardRequests;
+      } else if (type == 'Transaction') {
+        _transactionReviewsRefreshRevision++;
+        _selectedSection = AdminSection.transactionReviews;
+      } else {
+        return;
+      }
+      if (!_cachedSections.contains(_selectedSection)) {
+        _cachedSections.add(_selectedSection);
+      }
+    });
+  }
+
   void _openSettings(SettingsSection section) => setState(() {
     _settingsSection = section;
     _selectedSection = AdminSection.settings;
@@ -195,54 +231,62 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
     ),
     AdminSection.transactions => TransactionsPage(
       token: token,
+      showHeader: false,
       defaultPageSize:
           widget.settingsController.preferences.defaultItemsPerPage,
       dateFormatter: widget.settingsController.formatDateTime,
     ),
     AdminSection.transactionReviews => TransactionReviewPage(
       token: token,
+      showHeader: false,
       defaultPageSize:
           widget.settingsController.preferences.defaultItemsPerPage,
       dateFormatter: widget.settingsController.formatDateTime,
+      refreshRevision: _transactionReviewsRefreshRevision,
     ),
     AdminSection.customers => CustomersPage(
       token: token,
+      showHeader: false,
       defaultPageSize:
           widget.settingsController.preferences.defaultItemsPerPage,
       dateFormatter: widget.settingsController.formatDateTime,
     ),
     AdminSection.cardRequests => CardRequestsPage(
       token: token,
+      showHeader: false,
       defaultPageSize:
           widget.settingsController.preferences.defaultItemsPerPage,
       dateFormatter: widget.settingsController.formatDateTime,
+      refreshRevision: _cardRequestsRefreshRevision,
     ),
     AdminSection.loans => LoansPage(
       token: token,
+      showHeader: false,
+      defaultPageSize:
+          widget.settingsController.preferences.defaultItemsPerPage,
+      dateFormatter: widget.settingsController.formatDateTime,
+      refreshRevision: _loansRefreshRevision,
+    ),
+    AdminSection.auditLogs => AuditLogsPage(
+      token: token,
+      showHeader: false,
       defaultPageSize:
           widget.settingsController.preferences.defaultItemsPerPage,
       dateFormatter: widget.settingsController.formatDateTime,
     ),
-    AdminSection.auditLogs => AuditLogsPage(
+    AdminSection.referenceData => ReferenceDataPage(token: token),
+    AdminSection.reports => ReportsPage(token: token),
+    AdminSection.notifications => NotificationsPage(
       token: token,
-      defaultPageSize:
-          widget.settingsController.preferences.defaultItemsPerPage,
-      dateFormatter: widget.settingsController.formatDateTime,
+      onTarget: _openNotificationTarget,
     ),
     AdminSection.settings => SettingsPage(
       token: token,
       controller: widget.settingsController,
       onProfileUpdated: _profileUpdated,
       initialSection: _settingsSection,
-      headerAction: AdminAccountMenu(
-        user: widget.session.user,
-        token: token,
-        showDetails: true,
-        onProfile: () => _openSettings(SettingsSection.profile),
-        onPreferences: () => _openSettings(SettingsSection.general),
-        onSecurity: () => _openSettings(SettingsSection.security),
-        onLogout: _logout,
-      ),
+      headerAction: const SizedBox.shrink(),
+      showHeader: false,
     ),
   };
 
@@ -283,6 +327,20 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
       ],
     );
   }
+
+  String get _sectionTitle => switch (_selectedSection) {
+    AdminSection.dashboard => 'Dashboard',
+    AdminSection.transactions => 'Transactions',
+    AdminSection.transactionReviews => 'Transaction Review',
+    AdminSection.customers => 'Customers',
+    AdminSection.cardRequests => 'Card Requests',
+    AdminSection.loans => 'Loans',
+    AdminSection.auditLogs => 'Audit Logs',
+    AdminSection.referenceData => 'Reference Data',
+    AdminSection.reports => 'Reports',
+    AdminSection.notifications => 'Notifications',
+    AdminSection.settings => 'Settings',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -330,9 +388,71 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
                         'DBS',
                   ),
                   Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.fromLTRB(padding, 24, padding, 24),
-                      child: _pageHost(widget.session.token ?? ''),
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            padding,
+                            14,
+                            padding,
+                            12,
+                          ),
+                          child: Row(
+                            key: const ValueKey('global-admin-header'),
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  _sectionTitle,
+                                  style: Theme.of(context).textTheme.titleLarge
+                                      ?.copyWith(fontWeight: FontWeight.w800),
+                                ),
+                              ),
+                              DesktopNotificationBell(
+                                key: ValueKey(
+                                  'notification-bell-$_bellGeneration',
+                                ),
+                                token: widget.session.token ?? '',
+                                onOpening: () =>
+                                    setState(() => _accountGeneration++),
+                                onViewAll: () =>
+                                    _selectSection(AdminSection.notifications),
+                                onTarget: _openNotificationTarget,
+                              ),
+                              const SizedBox(width: 10),
+                              AdminAccountMenu(
+                                key: ValueKey(
+                                  'account-menu-$_accountGeneration',
+                                ),
+                                user: widget.session.user,
+                                token: widget.session.token,
+                                showDetails: true,
+                                onProfile: () =>
+                                    _openSettings(SettingsSection.profile),
+                                onPreferences: () =>
+                                    _openSettings(SettingsSection.general),
+                                onSecurity: () =>
+                                    _openSettings(SettingsSection.security),
+                                onLogout: _logout,
+                                onOpening: () =>
+                                    setState(() => _bellGeneration++),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              padding,
+                              18,
+                              padding,
+                              24,
+                            ),
+                            child: AdminPageHeaderScope(
+                              child: _pageHost(widget.session.token ?? ''),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],

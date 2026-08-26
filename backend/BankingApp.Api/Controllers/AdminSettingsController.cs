@@ -42,7 +42,8 @@ public class AdminSettingsController(IAdminSettingsService service) : Controller
         await stream.CopyToAsync(memory, cancellationToken);
         return Ok(await service.UploadProfilePhotoAsync(new AdminProfilePhotoUploadRequest
         {
-            Content = memory.ToArray(), ContentType = contentType
+            Content = memory.ToArray(),
+            ContentType = contentType
         }, cancellationToken));
     }
     [HttpGet("profile/photo")]

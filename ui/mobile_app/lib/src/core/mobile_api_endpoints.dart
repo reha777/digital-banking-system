@@ -15,6 +15,8 @@ class MobileApiEndpoints {
   static const recentRecipients = '/api/transactions/recent-recipients';
   static const recipientLookup = '/api/transactions/recipients/lookup';
   static const loanProducts = '/api/loans/products';
+  static const loanRecommendations = '/api/loans/recommendations';
+  static const loanPurposes = '/api/reference-data/loan-purposes';
   static const loanQuote = '/api/loans/quote';
   static const loanApplications = '/api/loans/applications';
   static const currentLoanApplication = '/api/loans/applications/current';

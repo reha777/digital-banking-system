@@ -6,7 +6,7 @@ import '../../auth/auth_models.dart';
 import '../../auth/auth_session.dart';
 import '../settings_service.dart';
 import 'change_password_page.dart';
-import 'language_page.dart';
+import 'privacy_policy_page.dart';
 import 'profile_page.dart';
 import '../widgets/settings_widgets.dart';
 
@@ -50,11 +50,6 @@ class SettingsPage extends StatelessWidget {
             title: 'General',
             children: [
               SettingsNavigationTile(
-                label: 'Language',
-                value: 'English',
-                onTap: () => _push(context, const LanguagePage()),
-              ),
-              SettingsNavigationTile(
                 label: 'My Profile',
                 onTap: user == null
                     ? null
@@ -66,12 +61,9 @@ class SettingsPage extends StatelessWidget {
                           onOpenCards: onOpenCards,
                           onProfileUpdated: onProfileUpdated,
                           accessToken: session?.token,
+                          session: session,
                         ),
                       ),
-              ),
-              const SettingsNavigationTile(
-                label: 'Contact Us',
-                value: 'Contact details required',
               ),
             ],
           ),
@@ -86,9 +78,9 @@ class SettingsPage extends StatelessWidget {
                   ChangePasswordPage(onSubmit: service?.changePassword),
                 ),
               ),
-              const SettingsNavigationTile(
+              SettingsNavigationTile(
                 label: 'Privacy Policy',
-                value: 'Content required',
+                onTap: () => _push(context, const PrivacyPolicyPage()),
               ),
             ],
           ),

@@ -155,8 +155,10 @@ namespace BankingApp.Infrastructure.Services
             if (auditLogService is not null)
                 await auditLogService.RecordAsync(new AuditLogRecordRequest
                 {
-                    Action = AuditLogActions.CustomerUpdated, EntityType = AuditEntityTypes.Customer,
-                    EntityId = id.ToString(), Description = "Customer basic data updated."
+                    Action = AuditLogActions.CustomerUpdated,
+                    EntityType = AuditEntityTypes.Customer,
+                    EntityId = id.ToString(),
+                    Description = "Customer basic data updated."
                 }, cancellationToken);
 
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -186,9 +188,12 @@ namespace BankingApp.Infrastructure.Services
             if (auditLogService is not null)
                 await auditLogService.RecordAsync(new AuditLogRecordRequest
                 {
-                    Action = AuditLogActions.CustomerStatusChanged, EntityType = AuditEntityTypes.Customer,
-                    EntityId = id.ToString(), Description = $"Customer status changed from {oldStatus} to {request.Status}.",
-                    OldValue = oldStatus.ToString(), NewValue = request.Status.ToString()
+                    Action = AuditLogActions.CustomerStatusChanged,
+                    EntityType = AuditEntityTypes.Customer,
+                    EntityId = id.ToString(),
+                    Description = $"Customer status changed from {oldStatus} to {request.Status}.",
+                    OldValue = oldStatus.ToString(),
+                    NewValue = request.Status.ToString()
                 }, cancellationToken);
 
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -208,8 +213,10 @@ namespace BankingApp.Infrastructure.Services
             if (auditLogService is not null)
                 await auditLogService.RecordAsync(new AuditLogRecordRequest
                 {
-                    Action = AuditLogActions.CustomerDeleted, EntityType = AuditEntityTypes.Customer,
-                    EntityId = id.ToString(), Description = "Customer was soft-deleted."
+                    Action = AuditLogActions.CustomerDeleted,
+                    EntityType = AuditEntityTypes.Customer,
+                    EntityId = id.ToString(),
+                    Description = "Customer was soft-deleted."
                 }, cancellationToken);
 
             await dbContext.SaveChangesAsync(cancellationToken);

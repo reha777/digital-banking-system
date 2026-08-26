@@ -77,6 +77,27 @@ public class LoanApplicationTests
     }
 
     [Fact]
+    public async Task Active_loan_purpose_is_stored_and_inactive_purpose_is_rejected()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var active = new ReferenceDataItem { Id = Guid.NewGuid(), Type = "loan-purposes", Code = "HOME", Name = "Home", IsActive = true, SortOrder = 1, CreatedAtUtc = DateTime.UtcNow, UpdatedAtUtc = DateTime.UtcNow };
+        var inactive = new ReferenceDataItem { Id = Guid.NewGuid(), Type = "loan-purposes", Code = "OLD", Name = "Old", IsActive = false, SortOrder = 2, CreatedAtUtc = DateTime.UtcNow, UpdatedAtUtc = DateTime.UtcNow };
+        fixture.Db.ReferenceDataItems.AddRange(active, inactive);
+        await fixture.Db.SaveChangesAsync();
+        var valid = fixture.Request(fixture.Usd, fixture.UsdAccount, 1000);
+        valid.LoanPurposeId = active.Id;
+        var result = await fixture.Service.SubmitApplicationAsync(valid);
+        Assert.Equal(active.Id, result.LoanPurposeId);
+        Assert.Equal("Home", result.LoanPurposeName);
+
+        fixture.Db.LoanApplications.RemoveRange(fixture.Db.LoanApplications);
+        await fixture.Db.SaveChangesAsync();
+        var invalid = fixture.Request(fixture.Usd, fixture.UsdAccount, 1000);
+        invalid.LoanPurposeId = inactive.Id;
+        await Assert.ThrowsAsync<BusinessException>(() => fixture.Service.SubmitApplicationAsync(invalid));
+    }
+
+    [Fact]
     public async Task Same_idempotency_key_returns_existing_but_conflicting_payload_is_rejected()
     {
         await using var fixture = await Fixture.CreateAsync();

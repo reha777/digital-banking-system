@@ -1,5 +1,14 @@
 import 'package:flutter/material.dart';
 
+class AdminPageHeaderScope extends InheritedWidget {
+  const AdminPageHeaderScope({super.key, required super.child});
+  static bool isEmbedded(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<AdminPageHeaderScope>() !=
+      null;
+  @override
+  bool updateShouldNotify(AdminPageHeaderScope oldWidget) => false;
+}
+
 class AppPageHeader extends StatelessWidget {
   const AppPageHeader({
     super.key,

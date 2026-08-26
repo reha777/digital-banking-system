@@ -35,6 +35,8 @@ public class AdminLoanApplicationDetailsResponse
     public DateTime SubmittedAtUtc { get; set; }
     public DateTime? ReviewedAtUtc { get; set; }
     public string? AdminNote { get; set; }
+    public Guid? LoanPurposeId { get; set; }
+    public string? LoanPurposeName { get; set; }
     public AdminLoanCustomerResponse Customer { get; set; } = new();
     public AdminLoanProductResponse Product { get; set; } = new();
     public AdminLoanDestinationAccountResponse DestinationAccount { get; set; } = new();

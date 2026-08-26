@@ -8,6 +8,7 @@ public class LoanApplication
     public Guid UserId { get; set; }
     public Guid LoanProductId { get; set; }
     public Guid DestinationAccountId { get; set; }
+    public Guid? LoanPurposeId { get; set; }
     public decimal Principal { get; set; }
     public string Currency { get; set; } = string.Empty;
     public decimal AnnualInterestRateSnapshot { get; set; }
@@ -25,5 +26,6 @@ public class LoanApplication
     public User User { get; set; } = null!;
     public LoanProduct LoanProduct { get; set; } = null!;
     public Account DestinationAccount { get; set; } = null!;
+    public ReferenceDataItem? LoanPurpose { get; set; }
     public Loan? Loan { get; set; }
 }

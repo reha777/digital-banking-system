@@ -104,11 +104,15 @@ class TransactionService {
   }
 
   Future<List<RecentRecipient>> getRecentRecipients(String token) async {
-    final json = await _apiClient.getJsonList(
-      MobileApiEndpoints.recentRecipients,
+    final json = await _apiClient.getJson(
+      '${MobileApiEndpoints.recentRecipients}?page=1&pageSize=8',
       token: token,
     );
-    return json.map(RecentRecipient.fromJson).toList();
+    final items = json['items'];
+    if (items is! List) return [];
+    return items
+        .map((item) => RecentRecipient.fromJson(item as Map<String, dynamic>))
+        .toList();
   }
 
   Future<RecentRecipient> lookupRecipient({

@@ -27,12 +27,14 @@ class TransactionReviewPage extends StatefulWidget {
     required this.defaultPageSize,
     required this.dateFormatter,
     this.service,
+    this.refreshRevision = 0,
     this.showHeader = true,
   });
   final String token;
   final int defaultPageSize;
   final String Function(DateTime) dateFormatter;
   final AdminTransactionService? service;
+  final int refreshRevision;
   final bool showHeader;
   @override
   State<TransactionReviewPage> createState() => _TransactionReviewPageState();
@@ -55,6 +57,12 @@ class _TransactionReviewPageState extends State<TransactionReviewPage> {
     _pageSize = widget.defaultPageSize;
     _service = widget.service ?? AdminTransactionService(ApiClient());
     _future = _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant TransactionReviewPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.refreshRevision != oldWidget.refreshRevision) _refresh();
   }
 
   @override
