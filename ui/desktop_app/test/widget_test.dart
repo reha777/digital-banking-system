@@ -50,12 +50,12 @@ void main() {
 
     await PasswordResetService(
       ApiClient(httpClient: client),
-    ).forgot('professor@example.com', demoClientType: 'Admin');
+    ).forgot('professor@example.com', demoAccount: 'admin');
 
     expect(requestUri.path, '/api/auth/demo/forgot-password');
     expect(requestBody, {
       'email': 'professor@example.com',
-      'clientType': 'Admin',
+      'demoAccount': 'admin',
     });
     expect(requestBody.containsKey('userId'), isFalse);
   });

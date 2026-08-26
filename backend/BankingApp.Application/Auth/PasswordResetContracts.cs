@@ -8,8 +8,8 @@ public sealed class ForgotPasswordResponse { public string Message { get; init; 
 public sealed class DemoForgotPasswordRequest
 {
     [Required, EmailAddress, MaxLength(256)] public string Email { get; set; } = string.Empty;
-    [Required, RegularExpression("^(Customer|Admin)$", ErrorMessage = "Client type must be Customer or Admin.")]
-    public string ClientType { get; set; } = string.Empty;
+    [Required, RegularExpression("^(customer-primary|customer-secondary|admin)$", ErrorMessage = "Demo account is invalid.")]
+    public string DemoAccount { get; set; } = string.Empty;
 }
 public sealed class ResetPasswordRequest
 {

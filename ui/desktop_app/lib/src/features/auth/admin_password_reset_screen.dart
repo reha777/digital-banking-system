@@ -203,7 +203,7 @@ class _AdminPasswordResetScreenState extends State<AdminPasswordResetScreen> {
       } else {
         final value = await service.forgot(
           email.text.trim(),
-          demoClientType: _demoEnabled ? 'Admin' : null,
+          demoAccount: _demoEnabled ? 'admin' : null,
         );
         if (mounted) setState(() => message = value);
       }
@@ -229,7 +229,7 @@ class _AdminPasswordResetScreenState extends State<AdminPasswordResetScreen> {
     try {
       final value = await (widget.service ?? PasswordResetService()).forgot(
         email.text.trim(),
-        demoClientType: _demoEnabled ? 'Admin' : null,
+        demoAccount: _demoEnabled ? 'admin' : null,
       );
       if (mounted) setState(() => message = value);
     } catch (_) {

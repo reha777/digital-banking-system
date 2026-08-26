@@ -686,20 +686,27 @@ namespace BankingApp.Infrastructure.Persistence
             var checkingAccountId = Guid.Parse("dbdd0766-a83e-4a7d-944c-af7d0373ff50");
             var savingsAccountId = Guid.Parse("6e4ac9f4-28d0-4f6a-b8c4-c7937f9a5ae3");
             var recipientAccountId = Guid.Parse("deed75d2-e898-4c2d-a7e3-2fa1152d7222");
+            var recipientSavingsAccountId = Guid.Parse("deed75d2-e898-4c2d-a7e3-2fa1152d7233");
             var demoCardId = Guid.Parse("a8f0f3aa-e7d3-460c-86ff-6cfe0f5105dd");
             var recipientCardId = Guid.Parse("62f3cd21-d263-40ca-ae58-07d13f7c5897");
+            var recipientSavingsCardId = Guid.Parse("62f3cd21-d263-40ca-ae58-07d13f7c5898");
             var savingsCardId = Guid.Parse("741fc77c-fec7-4b53-92df-d664d14935e8");
             var initialDepositId = Guid.Parse("b8e0dbf7-536f-4301-99c7-5b3a1e03f450");
             var savingsDepositId = Guid.Parse("fd261404-8751-4faa-bffa-cdf7ea592903");
             var recentTransferDebitId = Guid.Parse("4a6e449e-6397-45f6-a446-5936e882c401");
             var recentTransferCreditId = Guid.Parse("4a6e449e-6397-45f6-a446-5936e882c402");
+            var recipientCheckingDepositId = Guid.Parse("4a6e449e-6397-45f6-a446-5936e882c403");
+            var recipientSavingsDepositId = Guid.Parse("4a6e449e-6397-45f6-a446-5936e882c404");
+            var reverseTransferDebitId = Guid.Parse("4a6e449e-6397-45f6-a446-5936e882c405");
+            var reverseTransferCreditId = Guid.Parse("4a6e449e-6397-45f6-a446-5936e882c406");
             var transferCategoryId = Guid.Parse("30000000-0000-0000-0000-000000000002");
             var bamLoanProductId = Guid.Parse("8f8dc061-237f-4bb4-89c1-32d41dc6f001");
             var eurLoanProductId = Guid.Parse("8f8dc061-237f-4bb4-89c1-32d41dc6f002");
             var usdLoanProductId = Guid.Parse("8f8dc061-237f-4bb4-89c1-32d41dc6f003");
             var createdAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-            const string testPasswordHash = "PBKDF2-SHA256.100000.AQIDBAUGBwgJCgsMDQ4PEA==.1n/kUWC8lKsVwbzvVqx46PhnAJHTK4Pvs6t0RwMyEOQ=";
-            const string adminPasswordHash = "PBKDF2-SHA256.100000.ERITFBUWFxgZGhscHR4fIA==.3+i0Vv41HWR1ofVLRyJthACrUOkA/W2oSnAkMKm57ak=";
+            const string primaryPasswordHash = "PBKDF2-SHA256.100000.AQIDBAUGBwgJCgsMDQ4PEA==.IEPsjW7/seW/Hod2eRay9Q5CVGlxWhtZKNtQA8plknc=";
+            const string adminPasswordHash = "PBKDF2-SHA256.100000.ERITFBUWFxgZGhscHR4fIA==.223VFhbyCUiSO0B8hcUwQp3262ssfZK3V4DOMgE+K6M=";
+            const string secondaryPasswordHash = "PBKDF2-SHA256.100000.ISIjJCUmJygpKissLS4vMA==.bmERb4hBB62LAbgdGANDKTOu9vy2bauv5BkdQ9/H5RU=";
 
             modelBuilder.Entity<User>().HasData(
                 new User
@@ -709,7 +716,7 @@ namespace BankingApp.Infrastructure.Persistence
                     LastName = "Customer",
                     Email = "mobile@bankingapp.local",
                     PhoneNumber = "+38761111222",
-                    PasswordHash = testPasswordHash,
+                    PasswordHash = primaryPasswordHash,
                     Role = AppRoles.Customer,
                     Status = CustomerStatus.Active,
                     IsDeleted = false,
@@ -735,7 +742,7 @@ namespace BankingApp.Infrastructure.Persistence
                     LastName = "Recipient",
                     Email = "recipient@bankingapp.local",
                     PhoneNumber = "+38763333444",
-                    PasswordHash = testPasswordHash,
+                    PasswordHash = secondaryPasswordHash,
                     Role = AppRoles.Customer,
                     Status = CustomerStatus.Active,
                     IsDeleted = false,
@@ -769,7 +776,17 @@ namespace BankingApp.Infrastructure.Persistence
                     UserId = recipientUserId,
                     AccountNumber = "BA-000002-CHECKING",
                     AccountType = AccountType.Checking,
-                    Balance = 350.00m,
+                    Balance = 20000.00m,
+                    Currency = "USD",
+                    CreatedAtUtc = createdAtUtc
+                },
+                new Account
+                {
+                    Id = recipientSavingsAccountId,
+                    UserId = recipientUserId,
+                    AccountNumber = "BA-000002-SAVINGS",
+                    AccountType = AccountType.Savings,
+                    Balance = 5000.00m,
                     Currency = "USD",
                     CreatedAtUtc = createdAtUtc
                 });
@@ -783,6 +800,18 @@ namespace BankingApp.Infrastructure.Persistence
                     CardholderName = "Demo Customer",
                     Cvv = "6986",
                     ExpiryDate = new DateTime(2030, 6, 24, 0, 0, 0, DateTimeKind.Utc),
+                    Brand = CardBrand.Mastercard,
+                    Status = CardStatus.Active,
+                    CreatedAtUtc = createdAtUtc
+                },
+                new BankCard
+                {
+                    Id = recipientSavingsCardId,
+                    AccountId = recipientSavingsAccountId,
+                    CardNumber = "5425233430109911",
+                    CardholderName = "Yamilet Recipient",
+                    Cvv = "519",
+                    ExpiryDate = new DateTime(2030, 11, 24, 0, 0, 0, DateTimeKind.Utc),
                     Brand = CardBrand.Mastercard,
                     Status = CardStatus.Active,
                     CreatedAtUtc = createdAtUtc
@@ -818,7 +847,7 @@ namespace BankingApp.Infrastructure.Persistence
                     Id = initialDepositId,
                     AccountId = checkingAccountId,
                     ReferenceNumber = "TXN-20260101-0001",
-                    Amount = 20050.00m,
+                    Amount = 20000.00m,
                     Type = TransactionType.Transfer,
                     Description = "Initial checking deposit",
                     Status = TransactionStatus.Completed,
@@ -870,6 +899,64 @@ namespace BankingApp.Infrastructure.Persistence
                     Status = TransactionStatus.Completed,
                     IsHighRiskReview = false,
                     CreatedAtUtc = new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc)
+                },
+                new Transaction
+                {
+                    Id = recipientCheckingDepositId,
+                    AccountId = recipientAccountId,
+                    ReferenceNumber = "TXN-20260101-0003",
+                    Amount = 20000.00m,
+                    Type = TransactionType.Transfer,
+                    Description = "Initial recipient checking deposit",
+                    Status = TransactionStatus.Completed,
+                    CreatedAtUtc = createdAtUtc
+                },
+                new Transaction
+                {
+                    Id = recipientSavingsDepositId,
+                    AccountId = recipientSavingsAccountId,
+                    ReferenceNumber = "TXN-20260101-0004",
+                    Amount = 5000.00m,
+                    Type = TransactionType.Transfer,
+                    Description = "Initial recipient savings deposit",
+                    Status = TransactionStatus.Completed,
+                    CreatedAtUtc = createdAtUtc
+                },
+                new Transaction
+                {
+                    Id = reverseTransferDebitId,
+                    AccountId = recipientAccountId,
+                    SourceAccountId = recipientAccountId,
+                    DestinationAccountId = checkingAccountId,
+                    TransactionCategoryId = transferCategoryId,
+                    ReferenceNumber = "TXN-20260825-DEMO-REVERSE",
+                    Amount = -50.00m,
+                    Type = TransactionType.Transfer,
+                    TransferAmount = 50.00m,
+                    TransferCurrency = "USD",
+                    DestinationAmount = 50.00m,
+                    Description = "Demo transfer to Demo Customer",
+                    Status = TransactionStatus.Completed,
+                    IsHighRiskReview = false,
+                    CreatedAtUtc = new DateTime(2026, 8, 25, 12, 5, 0, DateTimeKind.Utc)
+                },
+                new Transaction
+                {
+                    Id = reverseTransferCreditId,
+                    AccountId = checkingAccountId,
+                    SourceAccountId = recipientAccountId,
+                    DestinationAccountId = checkingAccountId,
+                    TransactionCategoryId = transferCategoryId,
+                    ReferenceNumber = "TXN-20260825-DEMO-REVERSE",
+                    Amount = 50.00m,
+                    Type = TransactionType.Transfer,
+                    TransferAmount = 50.00m,
+                    TransferCurrency = "USD",
+                    DestinationAmount = 50.00m,
+                    Description = "Transfer from BA-000002-CHECKING",
+                    Status = TransactionStatus.Completed,
+                    IsHighRiskReview = false,
+                    CreatedAtUtc = new DateTime(2026, 8, 25, 12, 5, 0, DateTimeKind.Utc)
                 });
 
             modelBuilder.Entity<LoanProduct>().HasData(

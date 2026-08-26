@@ -34,14 +34,18 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Forgot password'), findsOneWidget);
     expect(find.text('Send reset instructions'), findsOneWidget);
+    expect(find.text('Mobile Customer 1'), findsOneWidget);
+    await tester.tap(find.text('Mobile Customer 1'));
+    await tester.pumpAndSettle();
+    expect(find.text('Mobile Customer 2'), findsOneWidget);
   });
 
-  test('mobile demo forgot sends delivery email and Customer context', () async {
+  test('mobile demo forgot sends delivery email and selected account', () async {
     late Uri requestUri;
-    late Map<String, dynamic> requestBody;
+    final requestBodies = <Map<String, dynamic>>[];
     final client = MockClient((request) async {
       requestUri = request.url;
-      requestBody = jsonDecode(request.body) as Map<String, dynamic>;
+      requestBodies.add(jsonDecode(request.body) as Map<String, dynamic>);
       return http.Response(
         jsonEncode({
           'message':
@@ -52,15 +56,25 @@ void main() {
       );
     });
 
-    await PasswordResetService(
-      ApiClient(httpClient: client),
-    ).forgot('professor@example.com', demoClientType: 'Customer');
+    final service = PasswordResetService(ApiClient(httpClient: client));
+    await service.forgot(
+      'professor@example.com',
+      demoAccount: 'customer-primary',
+    );
+    await service.forgot(
+      'professor@example.com',
+      demoAccount: 'customer-secondary',
+    );
 
     expect(requestUri.path, '/api/auth/demo/forgot-password');
-    expect(requestBody, {
+    expect(requestBodies[0], {
       'email': 'professor@example.com',
-      'clientType': 'Customer',
+      'demoAccount': 'customer-primary',
     });
-    expect(requestBody.containsKey('userId'), isFalse);
+    expect(requestBodies[1], {
+      'email': 'professor@example.com',
+      'demoAccount': 'customer-secondary',
+    });
+    expect(requestBodies.every((body) => !body.containsKey('userId')), isTrue);
   });
 }

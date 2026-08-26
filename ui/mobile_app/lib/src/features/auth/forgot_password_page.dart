@@ -18,6 +18,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   );
   final form = GlobalKey<FormState>(), email = TextEditingController();
   bool loading = false;
+  String demoAccount = 'customer-primary';
   String? message, error;
   @override
   void dispose() {
@@ -52,6 +53,28 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
             ),
           ],
           const SizedBox(height: 28),
+          if (_demoEnabled) ...[
+            DropdownButtonFormField<String>(
+              initialValue: demoAccount,
+              decoration: const InputDecoration(labelText: 'Demo account'),
+              items: const [
+                DropdownMenuItem(
+                  value: 'customer-primary',
+                  child: Text('Mobile Customer 1'),
+                ),
+                DropdownMenuItem(
+                  value: 'customer-secondary',
+                  child: Text('Mobile Customer 2'),
+                ),
+              ],
+              onChanged: loading
+                  ? null
+                  : (value) {
+                      if (value != null) setState(() => demoAccount = value);
+                    },
+            ),
+            const SizedBox(height: 14),
+          ],
           AuthTextField(
             controller: email,
             label: 'Email Address',
@@ -94,7 +117,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                 MaterialPageRoute<void>(
                   builder: (_) => ResetPasswordPage(
                     email: email.text.trim(),
-                    demoClientType: _demoEnabled ? 'Customer' : null,
+                    demoAccount: _demoEnabled ? demoAccount : null,
                     service: widget.service,
                   ),
                 ),
@@ -114,7 +137,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     try {
       final value = await (widget.service ?? PasswordResetService()).forgot(
         email.text.trim(),
-        demoClientType: _demoEnabled ? 'Customer' : null,
+        demoAccount: _demoEnabled ? demoAccount : null,
       );
       if (mounted) setState(() => message = value);
     } catch (e) {

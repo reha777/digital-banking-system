@@ -29,10 +29,11 @@ public sealed class DemoPasswordResetTests
     }
 
     [Theory]
-    [InlineData("Customer")]
-    [InlineData("Admin")]
+    [InlineData("customer-primary")]
+    [InlineData("customer-secondary")]
+    [InlineData("admin")]
     public async Task Demo_context_selects_configured_account_and_arbitrary_delivery_email(
-        string clientType)
+        string demoAccount)
     {
         await using var fixture = await Fixture.Create();
         const string deliveryEmail = "professor@example.com";
@@ -40,10 +41,15 @@ public sealed class DemoPasswordResetTests
         await fixture.Service.DemoForgotPasswordAsync(new DemoForgotPasswordRequest
         {
             Email = deliveryEmail,
-            ClientType = clientType,
+            DemoAccount = demoAccount,
         });
 
-        var expected = clientType == "Customer" ? fixture.Customer : fixture.Admin;
+        var expected = demoAccount switch
+        {
+            "customer-primary" => fixture.Customer,
+            "customer-secondary" => fixture.SecondaryCustomer,
+            _ => fixture.Admin,
+        };
         var stored = Assert.Single(fixture.Db.PasswordResetTokens);
         Assert.Equal(expected.Id, stored.UserId);
         Assert.Equal(deliveryEmail, fixture.Email.Recipient);
@@ -55,14 +61,14 @@ public sealed class DemoPasswordResetTests
     }
 
     [Fact]
-    public async Task Invalid_client_type_is_rejected()
+    public async Task Invalid_demo_account_is_rejected()
     {
         await using var fixture = await Fixture.Create();
         await Assert.ThrowsAsync<BusinessException>(() =>
             fixture.Service.DemoForgotPasswordAsync(new DemoForgotPasswordRequest
             {
                 Email = "professor@example.com",
-                ClientType = "Manager",
+                DemoAccount = "customer-arbitrary",
             }));
     }
 
@@ -74,7 +80,7 @@ public sealed class DemoPasswordResetTests
             fixture.Service.DemoForgotPasswordAsync(new DemoForgotPasswordRequest
             {
                 Email = "not-an-email",
-                ClientType = "Customer",
+                DemoAccount = "customer-primary",
             }));
     }
 
@@ -88,7 +94,7 @@ public sealed class DemoPasswordResetTests
             new DemoForgotPasswordRequest
             {
                 Email = "professor@example.com",
-                ClientType = "Customer",
+                DemoAccount = "customer-primary",
             });
 
         Assert.Equal(
@@ -113,7 +119,7 @@ public sealed class DemoPasswordResetTests
         await fixture.Service.DemoForgotPasswordAsync(new DemoForgotPasswordRequest
         {
             Email = "professor@example.com",
-            ClientType = "Customer",
+            DemoAccount = "customer-primary",
         });
 
         Assert.Empty(fixture.Db.PasswordResetTokens);
@@ -127,7 +133,7 @@ public sealed class DemoPasswordResetTests
         await fixture.Service.DemoForgotPasswordAsync(new DemoForgotPasswordRequest
         {
             Email = "professor@example.com",
-            ClientType = "Customer",
+            DemoAccount = "customer-primary",
         });
 
         var request = new ResetPasswordRequest
@@ -154,7 +160,8 @@ public sealed class DemoPasswordResetTests
             new DemoAuthOptions
             {
                 Enabled = true,
-                CustomerAccountEmail = "mobile@bankingapp.local",
+                CustomerPrimaryAccountEmail = "mobile@bankingapp.local",
+                CustomerSecondaryAccountEmail = "recipient@bankingapp.local",
                 AdminAccountEmail = "admin@bankingapp.local",
             });
 
@@ -167,6 +174,7 @@ public sealed class DemoPasswordResetTests
         private Fixture(
             BankingAppDbContext db,
             User customer,
+            User secondaryCustomer,
             User admin,
             RefreshToken refreshToken,
             Pbkdf2PasswordHasher hasher,
@@ -175,6 +183,7 @@ public sealed class DemoPasswordResetTests
         {
             Db = db;
             Customer = customer;
+            SecondaryCustomer = secondaryCustomer;
             Admin = admin;
             RefreshToken = refreshToken;
             Hasher = hasher;
@@ -184,6 +193,7 @@ public sealed class DemoPasswordResetTests
 
         public BankingAppDbContext Db { get; }
         public User Customer { get; }
+        public User SecondaryCustomer { get; }
         public User Admin { get; }
         public RefreshToken RefreshToken { get; }
         public Pbkdf2PasswordHasher Hasher { get; }
@@ -223,6 +233,13 @@ public sealed class DemoPasswordResetTests
                 Status = CustomerStatus.Active,
                 CreatedAtUtc = DateTime.UtcNow,
             };
+            var secondaryCustomer = new User
+            {
+                Id = Guid.NewGuid(), FirstName = "Yamilet", LastName = "Recipient",
+                Email = "recipient@bankingapp.local", PhoneNumber = "+38761000002",
+                PasswordHash = hasher.Hash("old-password"), Role = AppRoles.Customer,
+                Status = CustomerStatus.Active, CreatedAtUtc = DateTime.UtcNow,
+            };
             var refresh = new RefreshToken
             {
                 Id = Guid.NewGuid(),
@@ -232,14 +249,15 @@ public sealed class DemoPasswordResetTests
                 CreatedAtUtc = DateTime.UtcNow,
                 ExpiresAtUtc = DateTime.UtcNow.AddDays(1),
             };
-            db.AddRange(customer, admin, refresh);
+            db.AddRange(customer, secondaryCustomer, admin, refresh);
             await db.SaveChangesAsync();
 
             var email = new CapturingEmail();
             var demoOptions = Options.Create(new DemoAuthOptions
             {
                 Enabled = enabled,
-                CustomerAccountEmail = customerAccountEmail,
+                CustomerPrimaryAccountEmail = customerAccountEmail,
+                CustomerSecondaryAccountEmail = secondaryCustomer.Email,
                 AdminAccountEmail = admin.Email,
             });
             var service = new AuthService(
@@ -258,6 +276,7 @@ public sealed class DemoPasswordResetTests
             return new Fixture(
                 db,
                 customer,
+                secondaryCustomer,
                 admin,
                 refresh,
                 hasher,

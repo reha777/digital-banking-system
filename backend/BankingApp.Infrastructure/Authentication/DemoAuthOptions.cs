@@ -6,7 +6,8 @@ public sealed class DemoAuthOptions
 {
     public const string SectionName = "DemoAuth";
     public bool Enabled { get; set; }
-    public string CustomerAccountEmail { get; set; } = string.Empty;
+    public string CustomerPrimaryAccountEmail { get; set; } = string.Empty;
+    public string CustomerSecondaryAccountEmail { get; set; } = string.Empty;
     public string AdminAccountEmail { get; set; } = string.Empty;
 }
 
@@ -23,8 +24,10 @@ public sealed class DemoAuthOptionsValidator(bool isProduction)
         }
 
         var missing = new List<string>();
-        if (string.IsNullOrWhiteSpace(options.CustomerAccountEmail))
-            missing.Add("DemoAuth:CustomerAccountEmail");
+        if (string.IsNullOrWhiteSpace(options.CustomerPrimaryAccountEmail))
+            missing.Add("DemoAuth:CustomerPrimaryAccountEmail");
+        if (string.IsNullOrWhiteSpace(options.CustomerSecondaryAccountEmail))
+            missing.Add("DemoAuth:CustomerSecondaryAccountEmail");
         if (string.IsNullOrWhiteSpace(options.AdminAccountEmail))
             missing.Add("DemoAuth:AdminAccountEmail");
         return missing.Count == 0

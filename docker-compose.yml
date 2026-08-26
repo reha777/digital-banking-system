@@ -56,7 +56,8 @@ services:
       Email__FromName: ${EMAIL__FROMNAME:-Digital Banking}
       Email__UseSsl: ${EMAIL__USESSL:-false}
       DemoAuth__Enabled: ${DEMOAUTH__ENABLED:-true}
-      DemoAuth__CustomerAccountEmail: ${DEMOAUTH__CUSTOMERACCOUNTEMAIL:-mobile@bankingapp.local}
+      DemoAuth__CustomerPrimaryAccountEmail: ${DEMOAUTH__CUSTOMERPRIMARYACCOUNTEMAIL:-mobile@bankingapp.local}
+      DemoAuth__CustomerSecondaryAccountEmail: ${DEMOAUTH__CUSTOMERSECONDARYACCOUNTEMAIL:-recipient@bankingapp.local}
       DemoAuth__AdminAccountEmail: ${DEMOAUTH__ADMINACCOUNTEMAIL:-admin@bankingapp.local}
       ConnectionStrings__DefaultConnection: Server=sqlserver,1433;Database=${DB_NAME:-220055};User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;
       Database__ApplyMigrations: "true"

@@ -35,21 +35,21 @@ Mobile Customer 1:
 
 ```text
 Email: mobile@bankingapp.local
-Password: test
+Password: test123
 ```
 
 Mobile Customer 2:
 
 ```text
 Email: recipient@bankingapp.local
-Password: test
+Password: test123
 ```
 
 Desktop Admin:
 
 ```text
 Email: admin@bankingapp.local
-Password: test
+Password: test123
 ```
 
 These are the initial credentials for a clean/seed database. If Forgot
@@ -68,12 +68,11 @@ sender address, and SSL/TLS mode must come from the chosen SMTP provider.
 
 Mobile flow:
 
-1. Build the Mobile app with `DEMO_AUTH_ENABLED=true` and open **Forgot
-   Password**.
-2. Enter the real email address where the reset code should be delivered.
+1. Build the Mobile app with `DEMO_AUTH_ENABLED=true` and open **Forgot Password**.
+2. Select **Mobile Customer 1** or **Mobile Customer 2**, then enter the real email address where the reset code should be delivered.
 3. Copy the received code into **Reset Password**, then enter and confirm a new
    password.
-4. Log in with `mobile@bankingapp.local` and the new password.
+4. Log in with the selected seed email (`mobile@bankingapp.local` or `recipient@bankingapp.local`) and the new password.
 
 Desktop flow:
 
@@ -84,9 +83,9 @@ Desktop flow:
    password.
 4. Log in with `admin@bankingapp.local` and the new password.
 
-The entered address is used only for delivery. Mobile always resets the
-configured Customer seed account, while Desktop always resets the configured
-Admin seed account.
+The entered address is used only for delivery. The Mobile selection resets the
+corresponding whitelisted Customer seed account, while Desktop resets the
+configured Admin seed account.
 
 Example local `.env` shape (replace every SMTP placeholder with values from
 your provider):
@@ -95,7 +94,8 @@ your provider):
 ASPNETCORE_ENVIRONMENT=Development
 
 DEMOAUTH__ENABLED=true
-DEMOAUTH__CUSTOMERACCOUNTEMAIL=mobile@bankingapp.local
+DEMOAUTH__CUSTOMERPRIMARYACCOUNTEMAIL=mobile@bankingapp.local
+DEMOAUTH__CUSTOMERSECONDARYACCOUNTEMAIL=recipient@bankingapp.local
 DEMOAUTH__ADMINACCOUNTEMAIL=admin@bankingapp.local
 
 EMAIL__PROVIDER=Smtp

@@ -3,13 +3,13 @@ import '../../core/api_client.dart';
 class PasswordResetService {
   PasswordResetService([ApiClient? client]) : _client = client ?? ApiClient();
   final ApiClient _client;
-  Future<String> forgot(String email, {String? demoClientType}) async {
+  Future<String> forgot(String email, {String? demoAccount}) async {
     final body = <String, dynamic>{'email': email};
-    if (demoClientType != null) {
-      body['clientType'] = demoClientType;
+    if (demoAccount != null) {
+      body['demoAccount'] = demoAccount;
     }
     return (await _client.postJson(
-          demoClientType == null
+          demoAccount == null
               ? '/api/auth/forgot-password'
               : '/api/auth/demo/forgot-password',
           body,

@@ -135,23 +135,23 @@ namespace BankingApp.Infrastructure.Services
             if (!new EmailAddressAttribute().IsValid(request.Email))
                 throw new BusinessException("Demo delivery email is invalid.");
 
-            var isCustomer = request.ClientType.Equals("Customer", StringComparison.OrdinalIgnoreCase);
-            var isAdmin = request.ClientType.Equals("Admin", StringComparison.OrdinalIgnoreCase);
-            if (!isCustomer && !isAdmin)
-                throw new BusinessException("Demo password reset client type is invalid.");
-
-            var accountEmail = (isCustomer
-                ? _demoAuthOptions.CustomerAccountEmail
-                : _demoAuthOptions.AdminAccountEmail).Trim().ToLowerInvariant();
-            var expectedRole = isCustomer ? AppRoles.Customer : AppRoles.Admin;
+            var selection = request.DemoAccount.Trim().ToLowerInvariant() switch
+            {
+                "customer-primary" => (_demoAuthOptions.CustomerPrimaryAccountEmail, AppRoles.Customer),
+                "customer-secondary" => (_demoAuthOptions.CustomerSecondaryAccountEmail, AppRoles.Customer),
+                "admin" => (_demoAuthOptions.AdminAccountEmail, AppRoles.Admin),
+                _ => throw new BusinessException("Demo account is invalid.")
+            };
+            var accountEmail = selection.Item1.Trim().ToLowerInvariant();
+            var expectedRole = selection.Item2;
             var user = await dbContext.Users.FirstOrDefaultAsync(
                 value => value.Email == accountEmail && value.Role == expectedRole,
                 cancellationToken);
             if (user is null)
             {
                 logger.LogWarning(
-                    "Configured {DemoClientType} demo account was not found.",
-                    request.ClientType);
+                    "Configured {DemoAccount} demo account was not found.",
+                    request.DemoAccount);
                 return response;
             }
             if (user.IsDeleted ||

@@ -6,11 +6,11 @@ class ResetPasswordPage extends StatefulWidget {
   const ResetPasswordPage({
     super.key,
     required this.email,
-    this.demoClientType,
+    this.demoAccount,
     this.service,
   });
   final String email;
-  final String? demoClientType;
+  final String? demoAccount;
   final PasswordResetService? service;
   @override
   State<ResetPasswordPage> createState() => _ResetPasswordPageState();
@@ -137,7 +137,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
     try {
       final value = await (widget.service ?? PasswordResetService()).forgot(
         widget.email,
-        demoClientType: widget.demoClientType,
+        demoAccount: widget.demoAccount,
       );
       if (mounted) setState(() => resendMessage = value);
     } catch (_) {
