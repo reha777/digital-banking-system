@@ -10,6 +10,8 @@ namespace BankingApp.Application.Accounts
 
         public AccountType AccountType { get; set; }
 
+        public AccountStatus Status { get; set; }
+
         public decimal Balance { get; set; }
 
         public string Currency { get; set; } = string.Empty;

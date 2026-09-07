@@ -11,10 +11,6 @@ namespace BankingApp.Application.Interfaces
 
         Task<AccountResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
-        Task<AccountResponse> CreateAsync(AccountCreateRequest request, CancellationToken cancellationToken = default);
-
-        Task<AccountResponse> UpdateAsync(Guid id, AccountUpdateRequest request, CancellationToken cancellationToken = default);
-
-        Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+        Task<AccountResponse> CloseAsync(Guid id, CancellationToken cancellationToken = default);
     }
 }

@@ -317,6 +317,8 @@ public class AdminLoanService(
                     throw new BusinessException("Loan application customer vise nije aktivan.");
                 if (application.DestinationAccount.UserId != application.UserId)
                     throw new BusinessException("Destination account ne pripada Loan application customeru.");
+                if (application.DestinationAccount.Status != AccountStatus.Active)
+                    throw new BusinessException("Destination account mora biti aktivan.");
                 if (!application.DestinationAccount.Currency.Equals(application.Currency, StringComparison.OrdinalIgnoreCase))
                     throw new BusinessException("Destination account valuta ne odgovara Loan application valuti.");
                 if (await dbContext.Loans.AnyAsync(value => value.LoanApplicationId == application.Id, cancellationToken))

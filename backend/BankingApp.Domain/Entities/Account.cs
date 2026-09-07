@@ -14,6 +14,8 @@ namespace BankingApp.Domain.Entities
 
         public AccountType AccountType { get; set; }
 
+        public AccountStatus Status { get; set; } = AccountStatus.Active;
+
         public decimal Balance { get; set; }
 
         public string Currency { get; set; } = string.Empty;

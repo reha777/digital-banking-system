@@ -6,6 +6,7 @@ using BankingApp.Application.Interfaces;
 using BankingApp.Application.Messaging;
 using BankingApp.Application.Reports;
 using BankingApp.Domain.Entities;
+using BankingApp.Domain.Constants;
 using BankingApp.Domain.Enums;
 using BankingApp.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -14,8 +15,8 @@ namespace BankingApp.Infrastructure.Services;
 
 public sealed class AdminReportService(BankingAppDbContext db, ICurrentUserService user, IReportGenerationPublisher publisher, IAuditLogService audit) : IAdminReportService
 {
-    public Task<ReportJobResponse> RequestTransactionAsync(TransactionReportRequest request, CancellationToken token = default) { ValidateDates(request.DateFrom, request.DateTo); return CreateAsync(ReportType.TransactionReport, request, token); }
-    public Task<ReportJobResponse> RequestLoanAsync(LoanPortfolioReportRequest request, CancellationToken token = default) { ValidateDates(request.DateFrom, request.DateTo); return CreateAsync(ReportType.LoanPortfolioReport, request, token); }
+    public Task<ReportJobResponse> RequestTransactionAsync(TransactionReportRequest request, CancellationToken token = default) { ValidateDates(request.DateFrom, request.DateTo); ValidateCurrency(request.Currency); return CreateAsync(ReportType.TransactionReport, request, token); }
+    public Task<ReportJobResponse> RequestLoanAsync(LoanPortfolioReportRequest request, CancellationToken token = default) { ValidateDates(request.DateFrom, request.DateTo); ValidateCurrency(request.Currency); return CreateAsync(ReportType.LoanPortfolioReport, request, token); }
 
     private async Task<ReportJobResponse> CreateAsync<T>(ReportType type, T filters, CancellationToken token)
     {
@@ -45,5 +46,6 @@ public sealed class AdminReportService(BankingAppDbContext db, ICurrentUserServi
     private IQueryable<ReportJob> Query() => db.ReportJobs.AsNoTracking().Include(x => x.RequestedByUser);
     private void EnsureAdmin() { if (!user.IsAdmin) throw new UnauthorizedAccessException(); }
     private static void ValidateDates(DateTime? from, DateTime? to) { if (from.HasValue && to.HasValue && from > to) throw new BusinessException("Date from must be before date to."); }
+    private static void ValidateCurrency(string? currency) { if (!string.IsNullOrWhiteSpace(currency) && !SupportedCurrencies.IsSupported(currency)) throw new BusinessException("Currency is not supported. Allowed currencies are USD, EUR and BAM."); }
     private static ReportJobResponse Map(ReportJob job) => new() { Id = job.Id, Type = job.Type.ToString(), Status = job.Status.ToString(), RequestedBy = $"{job.RequestedByUser.FirstName} {job.RequestedByUser.LastName}".Trim(), RequestedAtUtc = job.RequestedAtUtc, CompletedAtUtc = job.CompletedAtUtc, FileName = job.FileName, DownloadAvailable = job.Status == ReportJobStatus.Completed, ErrorMessage = job.ErrorMessage };
 }

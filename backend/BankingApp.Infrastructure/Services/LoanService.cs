@@ -109,6 +109,8 @@ public class LoanService(
             ?? throw new NotFoundException("Destination account nije pronadjen.");
         if (destination.UserId != currentUserService.UserId)
             throw new BusinessException("Destination account ne pripada prijavljenom customeru.");
+        if (destination.Status != AccountStatus.Active)
+            throw new BusinessException("Destination account mora biti aktivan.");
         if (!destination.Currency.Equals(product.Currency, StringComparison.OrdinalIgnoreCase))
             throw new BusinessException("Destination account valuta mora odgovarati Loan proizvodu.");
 
@@ -326,6 +328,8 @@ public class LoanService(
                     cancellationToken) ?? throw new NotFoundException("Source account nije pronadjen.");
                 if (sourceAccount.UserId != currentUserService.UserId)
                     throw new NotFoundException("Source account nije pronadjen.");
+                if (sourceAccount.Status != AccountStatus.Active)
+                    throw new BusinessException("Source account mora biti aktivan.");
                 if (!sourceAccount.Currency.Equals(loan.Currency, StringComparison.OrdinalIgnoreCase))
                     throw new BusinessException("Source account valuta mora odgovarati Loan valuti.");
                 if (sourceAccount.Balance < installment.ScheduledAmount)

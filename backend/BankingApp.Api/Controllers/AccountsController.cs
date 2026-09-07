@@ -1,6 +1,7 @@
 using BankingApp.Application.Accounts;
 using BankingApp.Application.Common.Pagination;
 using BankingApp.Application.Interfaces;
+using BankingApp.Domain.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -35,30 +36,13 @@ namespace BankingApp.Api.Controllers
             return Ok(response);
         }
 
-        [HttpPost]
-        public async Task<ActionResult<AccountResponse>> Create(
-            AccountCreateRequest request,
-            CancellationToken cancellationToken)
-        {
-            var response = await accountService.CreateAsync(request, cancellationToken);
-            return CreatedAtAction(nameof(GetById), new { id = response.Id }, response);
-        }
-
-        [HttpPut("{id:guid}")]
-        public async Task<ActionResult<AccountResponse>> Update(
+        [HttpPost("{id:guid}/close")]
+        [Authorize(Roles = AppRoles.Customer)]
+        public async Task<ActionResult<AccountResponse>> Close(
             Guid id,
-            AccountUpdateRequest request,
             CancellationToken cancellationToken)
         {
-            var response = await accountService.UpdateAsync(id, request, cancellationToken);
-            return Ok(response);
-        }
-
-        [HttpDelete("{id:guid}")]
-        public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
-        {
-            await accountService.DeleteAsync(id, cancellationToken);
-            return NoContent();
+            return Ok(await accountService.CloseAsync(id, cancellationToken));
         }
     }
 }

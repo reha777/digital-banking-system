@@ -78,6 +78,11 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                         .HasMaxLength(3)
                         .HasColumnType("nvarchar(3)");
 
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<Guid>("UserId")
                         .HasColumnType("uniqueidentifier");
 
@@ -99,6 +104,7 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                             Balance = 20000.00m,
                             CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Currency = "USD",
+                            Status = "Active",
                             UserId = new Guid("9a99a021-b892-4f5a-bd98-36a5afbf0c79")
                         },
                         new
@@ -109,6 +115,7 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                             Balance = 5000.00m,
                             CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Currency = "USD",
+                            Status = "Active",
                             UserId = new Guid("9a99a021-b892-4f5a-bd98-36a5afbf0c79")
                         },
                         new
@@ -119,6 +126,7 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                             Balance = 20000.00m,
                             CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Currency = "USD",
+                            Status = "Active",
                             UserId = new Guid("f5573a40-f822-45c4-a841-b6ab5d5a0c49")
                         },
                         new
@@ -129,6 +137,7 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                             Balance = 5000.00m,
                             CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Currency = "USD",
+                            Status = "Active",
                             UserId = new Guid("f5573a40-f822-45c4-a841-b6ab5d5a0c49")
                         });
                 });

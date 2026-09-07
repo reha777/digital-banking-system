@@ -6,6 +6,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../core/api_client.dart';
 import '../../core/document_opener.dart';
+import '../../core/supported_currencies.dart';
 import '../../widgets/app_date_range_picker.dart';
 import '../../widgets/app_dropdown_field.dart';
 import '../../widgets/app_status_badge.dart';
@@ -144,12 +145,7 @@ class _ReportsPageState extends State<ReportsPage> {
                       _drop(
                         'Currency',
                         currency,
-                        const {
-                          '': 'All currencies',
-                          'BAM': 'BAM',
-                          'EUR': 'EUR',
-                          'USD': 'USD',
-                        },
+                        {'': 'All currencies', ...supportedCurrencyOptions},
                         (value) => setState(() => currency = value),
                       ),
                     ],

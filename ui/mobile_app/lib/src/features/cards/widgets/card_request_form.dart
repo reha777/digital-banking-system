@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/app_theme.dart';
+import '../../../core/supported_currencies.dart';
 
 class CardRequestForm extends StatelessWidget {
   const CardRequestForm({
@@ -47,7 +48,7 @@ class CardRequestForm extends StatelessWidget {
               labelText: 'Requested currency',
               prefixIcon: Icon(Icons.account_balance_wallet_outlined),
             ),
-            items: const ['USD', 'EUR', 'BAM']
+            items: supportedCurrencies
                 .map(
                   (currency) => DropdownMenuItem<String>(
                     value: currency,

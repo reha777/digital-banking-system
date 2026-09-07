@@ -221,6 +221,11 @@ namespace BankingApp.Infrastructure.Persistence
                     .HasMaxLength(25)
                     .IsRequired();
 
+                entity.Property(account => account.Status)
+                    .HasConversion<string>()
+                    .HasMaxLength(20)
+                    .IsRequired();
+
                 entity.Property(account => account.Balance)
                     .HasPrecision(18, 2)
                     .IsRequired();

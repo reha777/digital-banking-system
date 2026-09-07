@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../../core/supported_currencies.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/api_client.dart';
@@ -23,7 +25,7 @@ class _CardRequestScreenState extends State<CardRequestScreen> {
   final _addressController = TextEditingController();
   final _noteController = TextEditingController();
   late final CardService _cardService;
-  String _selectedCurrency = 'USD';
+  String _selectedCurrency = supportedCurrencies.first;
   bool _isLoading = false;
   String? _errorMessage;
 

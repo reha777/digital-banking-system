@@ -5,6 +5,7 @@ using BankingApp.Application.Common.Pagination;
 using BankingApp.Application.Interfaces;
 using BankingApp.Application.Notifications;
 using BankingApp.Domain.Constants;
+using BankingApp.Domain.Services;
 using BankingApp.Domain.Entities;
 using BankingApp.Domain.Enums;
 using BankingApp.Infrastructure.Persistence;
@@ -75,6 +76,8 @@ namespace BankingApp.Infrastructure.Services
 
             if (card.Status == CardStatus.Expired)
                 throw new BusinessException("Istekla kartica ne moze promijeniti status.");
+            if (!frozen && card.Account.Status != AccountStatus.Active)
+                throw new BusinessException("Kartica zatvorenog racuna ne moze biti aktivirana.");
 
             card.Status = frozen ? CardStatus.Blocked : CardStatus.Active;
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -112,12 +115,14 @@ namespace BankingApp.Infrastructure.Services
                 throw new BusinessException("Vec imate zahtjev za karticu koji ceka odobrenje.");
             }
 
+            if (!SupportedCurrencies.IsSupported(request.Currency))
+                throw new BusinessException("Valuta nije podrzana. Dozvoljene valute su USD, EUR i BAM.");
             var cardRequest = new CardRequest
             {
                 Id = Guid.NewGuid(),
                 UserId = currentUserService.UserId,
                 CardholderName = request.CardholderName.Trim(),
-                Currency = request.Currency.Trim().ToUpperInvariant(),
+                Currency = SupportedCurrencies.Normalize(request.Currency),
                 DocumentNumber = request.DocumentNumber.Trim(),
                 DeliveryAddress = request.DeliveryAddress.Trim(),
                 Note = request.Note?.Trim() ?? string.Empty,
@@ -247,12 +252,14 @@ namespace BankingApp.Infrastructure.Services
                 throw new BusinessException("Samo zahtjev koji ceka odobrenje moze biti odobren.");
             }
 
+            var accountId = Guid.NewGuid();
             var account = new Account
             {
-                Id = Guid.NewGuid(),
+                Id = accountId,
                 UserId = cardRequest.UserId,
-                AccountNumber = await GenerateAccountNumberAsync(cancellationToken),
+                AccountNumber = AccountNumberGenerator.Create(accountId, AccountType.Checking),
                 AccountType = AccountType.Checking,
+                Status = AccountStatus.Active,
                 Balance = 0,
                 Currency = cardRequest.Currency,
                 CreatedAtUtc = DateTime.UtcNow
@@ -525,21 +532,6 @@ namespace BankingApp.Infrastructure.Services
                 .FirstOrDefaultAsync(request => request.Id == id, cancellationToken);
 
             return cardRequest ?? throw new NotFoundException("Zahtjev za karticu nije pronadjen.");
-        }
-
-        private async Task<string> GenerateAccountNumberAsync(CancellationToken cancellationToken)
-        {
-            string accountNumber;
-
-            do
-            {
-                accountNumber = $"BA-{Random.Shared.Next(100000, 999999)}-CHECKING";
-            }
-            while (await dbContext.Accounts.AnyAsync(
-                account => account.AccountNumber == accountNumber,
-                cancellationToken));
-
-            return accountNumber;
         }
 
         private async Task<string> GenerateCardNumberAsync(CancellationToken cancellationToken)

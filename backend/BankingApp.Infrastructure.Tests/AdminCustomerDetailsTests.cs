@@ -8,6 +8,7 @@ using BankingApp.Application.Transactions;
 using BankingApp.Domain.Constants;
 using BankingApp.Domain.Entities;
 using BankingApp.Domain.Enums;
+using BankingApp.Domain.Services;
 using BankingApp.Infrastructure.Persistence;
 using BankingApp.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -145,6 +146,12 @@ public class AdminCustomerDetailsTests
         var request = await fixture.Db.CardRequests.FirstAsync(value => value.UserId == fixture.CustomerA.Id);
         var approved = await service.ApproveAsync(request.Id, new CardRequestReviewRequest { AdminNote = "Approved" });
         Assert.NotNull(approved.ApprovedAccountNumber);
+        var approvedAccount = await fixture.Db.Accounts.SingleAsync(value => value.Id == approved.ApprovedAccountId);
+        Assert.Equal(0, approvedAccount.Balance);
+        Assert.Equal(AccountStatus.Active, approvedAccount.Status);
+        Assert.Equal(
+            AccountNumberGenerator.Create(approvedAccount.Id, approvedAccount.AccountType),
+            approvedAccount.AccountNumber);
         Assert.StartsWith("**** **** **** ", approved.ApprovedMaskedCardNumber);
         Assert.NotNull(approved.ApprovedCardExpiryDate);
         Assert.Equal(CardStatus.Active, approved.ApprovedCardStatus);

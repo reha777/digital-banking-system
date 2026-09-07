@@ -115,6 +115,7 @@ namespace BankingApp.Infrastructure.Services
                         Id = account.Id,
                         AccountNumber = account.AccountNumber,
                         AccountType = account.AccountType,
+                        Status = account.Status,
                         Balance = account.Balance,
                         Currency = account.Currency,
                         CreatedAtUtc = account.CreatedAtUtc,

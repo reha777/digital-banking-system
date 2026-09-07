@@ -70,6 +70,8 @@ namespace BankingApp.Infrastructure.Services
             }
 
             var account = await GetOwnedAccountAsync(request.AccountId, cancellationToken);
+            if (account.Status != AccountStatus.Active)
+                throw new BusinessException("Zatvoren racun ne moze ucestvovati u transakciji.");
             var transaction = new Transaction
             {
                 Id = Guid.NewGuid(),
@@ -143,6 +145,7 @@ namespace BankingApp.Infrastructure.Services
                     account =>
                         account.Id == request.SourceAccountId &&
                         account.UserId == currentUserService.UserId &&
+                        account.Status == AccountStatus.Active &&
                         !account.User.IsDeleted &&
                         account.User.Status == CustomerStatus.Active,
                     cancellationToken)
@@ -153,6 +156,7 @@ namespace BankingApp.Infrastructure.Services
                 .FirstOrDefaultAsync(
                     account =>
                         account.AccountNumber == request.DestinationAccountNumber.Trim() &&
+                        account.Status == AccountStatus.Active &&
                         !account.User.IsDeleted &&
                         account.User.Status == CustomerStatus.Active,
                     cancellationToken)
@@ -269,6 +273,7 @@ namespace BankingApp.Infrastructure.Services
                 .FirstOrDefaultAsync(account =>
                     account.Id == request.SourceAccountId &&
                     account.UserId == currentUserService.UserId &&
+                    account.Status == AccountStatus.Active &&
                     !account.User.IsDeleted &&
                     account.User.Status == CustomerStatus.Active,
                     cancellationToken)
@@ -288,6 +293,7 @@ namespace BankingApp.Infrastructure.Services
                 .Include(account => account.User)
                 .FirstOrDefaultAsync(account =>
                     account.AccountNumber == destinationNumber &&
+                    account.Status == AccountStatus.Active &&
                     !account.User.IsDeleted &&
                     account.User.Status == CustomerStatus.Active,
                     cancellationToken)
@@ -336,6 +342,8 @@ namespace BankingApp.Infrastructure.Services
                 throw new BusinessException("Izvorni racun ne pripada prijavljenom korisniku.");
             if (destination.UserId != currentUserService.UserId)
                 throw new BusinessException("Odredisni racun ne pripada prijavljenom korisniku.");
+            if (source.Status != AccountStatus.Active || destination.Status != AccountStatus.Active)
+                throw new BusinessException("Transfer je dozvoljen samo izmedju aktivnih racuna.");
             return BuildInternalTransferQuote(source, destination, request.Amount);
         }
 
@@ -374,6 +382,8 @@ namespace BankingApp.Infrastructure.Services
                     if (source.UserId != currentUserService.UserId ||
                         destination.UserId != currentUserService.UserId)
                         throw new BusinessException("Oba racuna moraju pripadati prijavljenom korisniku.");
+                    if (source.Status != AccountStatus.Active || destination.Status != AccountStatus.Active)
+                        throw new BusinessException("Transfer je dozvoljen samo izmedju aktivnih racuna.");
 
                     var quote = BuildInternalTransferQuote(source, destination, request.Amount);
                     var referenceNumber = CreateReferenceNumber();
@@ -513,7 +523,8 @@ namespace BankingApp.Infrastructure.Services
                 join account in dbContext.Accounts.AsNoTracking()
                     on item.DestinationAccountId equals account.Id
                 where !account.User.IsDeleted &&
-                    account.User.Status == CustomerStatus.Active
+                    account.User.Status == CustomerStatus.Active &&
+                    account.Status == AccountStatus.Active
                 orderby item.LastUsedAtUtc descending, account.Id
                 select new { Account = account, item.LastUsedAtUtc };
             var bounded = eligible.Take(8);
@@ -552,6 +563,7 @@ namespace BankingApp.Infrastructure.Services
                 .Include(value => value.User)
                 .SingleOrDefaultAsync(value =>
                     value.AccountNumber == normalized &&
+                    value.Status == AccountStatus.Active &&
                     !value.User.IsDeleted &&
                     value.User.Status == CustomerStatus.Active,
                     cancellationToken)
@@ -599,6 +611,10 @@ namespace BankingApp.Infrastructure.Services
             var destinationAccount = await dbContext.Accounts
                 .FirstOrDefaultAsync(account => account.Id == transaction.DestinationAccountId, cancellationToken)
                 ?? throw new NotFoundException("Racun primaoca nije pronadjen.");
+
+            if (sourceAccount.Status != AccountStatus.Active ||
+                destinationAccount.Status != AccountStatus.Active)
+                throw new BusinessException("Zatvoren racun ne moze ucestvovati u transakciji.");
 
             var amount = Math.Abs(transaction.Amount);
             var destinationAmount = transaction.DestinationAmount ?? amount;

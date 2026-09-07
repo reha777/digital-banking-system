@@ -1,5 +1,6 @@
 using BankingApp.Application.Common.Exceptions;
 using BankingApp.Application.Common.Pagination;
+using BankingApp.Application.Cards;
 using BankingApp.Application.Interfaces;
 using BankingApp.Application.Transactions;
 using BankingApp.Domain.Constants;
@@ -89,6 +90,43 @@ public class CardSecurityTests
         Assert.Equal(TransactionStatus.Completed, result.Status);
     }
 
+    [Theory]
+    [InlineData("USD")]
+    [InlineData("EUR")]
+    [InlineData("BAM")]
+    public async Task Card_request_accepts_supported_currency(string currency)
+    {
+        await using var fixture = await Fixture.CreateAsync();
+
+        var result = await new CardService(fixture.Db, new CurrentUser(fixture.Owner.Id))
+            .CreateRequestAsync(CardRequest(currency));
+
+        Assert.Equal(currency, result.Currency);
+    }
+
+    [Fact]
+    public async Task Card_request_rejects_unsupported_currency()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+
+        await Assert.ThrowsAsync<BusinessException>(() =>
+            new CardService(fixture.Db, new CurrentUser(fixture.Owner.Id))
+                .CreateRequestAsync(CardRequest("GBP")));
+    }
+
+    [Fact]
+    public async Task Card_on_closed_account_cannot_be_unfrozen()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        fixture.Source.Status = AccountStatus.Closed;
+        fixture.Card.Status = CardStatus.Blocked;
+        await fixture.Db.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<BusinessException>(() =>
+            new CardService(fixture.Db, new CurrentUser(fixture.Owner.Id))
+                .SetFrozenAsync(fixture.Card.Id, false));
+    }
+
     [Fact]
     public async Task Insufficient_balance_is_rejected()
     {
@@ -163,6 +201,14 @@ public class CardSecurityTests
         DestinationAccountNumber = fixture.Destination.AccountNumber,
         Amount = amount,
         Currency = "USD"
+    };
+
+    private static CardRequestCreateRequest CardRequest(string currency) => new()
+    {
+        CardholderName = "Owner Customer",
+        Currency = currency,
+        DocumentNumber = "DOC-1",
+        DeliveryAddress = "Test address"
     };
 
     private static TransactionService Service(Fixture fixture) =>

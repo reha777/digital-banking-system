@@ -265,6 +265,19 @@ public class InternalTransferTests
         public ValueTask DisposeAsync() => Db.DisposeAsync();
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Closed_account_cannot_be_used_in_internal_transfer(bool closeSource)
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        (closeSource ? fixture.Source : fixture.Destination).Status = AccountStatus.Closed;
+        await fixture.Db.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<BusinessException>(() =>
+            fixture.Service.InternalTransferAsync(fixture.Request(10)));
+    }
+
     private sealed class CurrentUser(Guid id) : ICurrentUserService
     {
         public Guid UserId => id;

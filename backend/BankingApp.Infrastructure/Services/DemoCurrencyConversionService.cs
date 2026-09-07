@@ -1,5 +1,6 @@
 using BankingApp.Application.Common.Exceptions;
 using BankingApp.Application.Interfaces;
+using BankingApp.Domain.Constants;
 
 namespace BankingApp.Infrastructure.Services
 {
@@ -9,13 +10,13 @@ namespace BankingApp.Infrastructure.Services
         private static readonly IReadOnlyDictionary<string, decimal> BamRates =
             new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
             {
-                ["BAM"] = 1m,
-                ["EUR"] = 1.95583m,
-                ["USD"] = 1.80m
+                [SupportedCurrencies.Bam] = 1m,
+                [SupportedCurrencies.Eur] = 1.95583m,
+                [SupportedCurrencies.Usd] = 1.80m
             };
 
         public bool IsSupported(string currency) =>
-            !string.IsNullOrWhiteSpace(currency) && BamRates.ContainsKey(currency.Trim());
+            SupportedCurrencies.IsSupported(currency);
 
         public decimal Convert(decimal amount, string fromCurrency, string toCurrency) =>
             decimal.Round(amount * GetRate(fromCurrency, toCurrency), 2, MidpointRounding.AwayFromZero);

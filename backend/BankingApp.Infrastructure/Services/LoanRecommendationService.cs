@@ -33,7 +33,8 @@ public sealed class LoanRecommendationService(
             return Blocked("A new recommendation is unavailable while your application is pending.");
 
         var accounts = await dbContext.Accounts.AsNoTracking()
-            .Where(account => account.UserId == userId)
+            .Where(account => account.UserId == userId &&
+                account.Status == AccountStatus.Active)
             .GroupBy(account => account.Currency)
             .Select(group => new AccountSignal(
                 group.Key.ToUpper(),

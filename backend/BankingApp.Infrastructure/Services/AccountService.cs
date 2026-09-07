@@ -3,6 +3,8 @@ using BankingApp.Application.Common.Exceptions;
 using BankingApp.Application.Common.Pagination;
 using BankingApp.Application.Interfaces;
 using BankingApp.Domain.Entities;
+using BankingApp.Domain.Constants;
+using BankingApp.Domain.Enums;
 using BankingApp.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -32,7 +34,9 @@ namespace BankingApp.Infrastructure.Services
 
             if (!string.IsNullOrWhiteSpace(request.Currency))
             {
-                var currency = request.Currency.Trim().ToUpperInvariant();
+                if (!SupportedCurrencies.IsSupported(request.Currency))
+                    throw new BusinessException("Valuta nije podrzana. Dozvoljene valute su USD, EUR i BAM.");
+                var currency = SupportedCurrencies.Normalize(request.Currency);
                 query = query.Where(account => account.Currency == currency);
             }
 
@@ -57,6 +61,7 @@ namespace BankingApp.Infrastructure.Services
             CancellationToken cancellationToken = default)
         {
             var accounts = await ApplyOwnershipFilter(dbContext.Accounts.AsNoTracking())
+                .Where(account => account.Status == AccountStatus.Active)
                 .OrderBy(account => account.AccountNumber)
                 .ToListAsync(cancellationToken);
 
@@ -81,77 +86,31 @@ namespace BankingApp.Infrastructure.Services
             return ToResponse(account);
         }
 
-        public async Task<AccountResponse> CreateAsync(
-            AccountCreateRequest request,
-            CancellationToken cancellationToken = default)
-        {
-            var accountNumber = request.AccountNumber.Trim();
-            var accountNumberExists = await dbContext.Accounts
-                .AnyAsync(account => account.AccountNumber == accountNumber, cancellationToken);
-
-            if (accountNumberExists)
-            {
-                throw new BusinessException("Racun sa ovim brojem vec postoji.");
-            }
-
-            var account = new Account
-            {
-                Id = Guid.NewGuid(),
-                UserId = currentUserService.UserId,
-                AccountNumber = accountNumber,
-                AccountType = request.AccountType,
-                Balance = request.OpeningBalance,
-                Currency = request.Currency.Trim().ToUpperInvariant(),
-                CreatedAtUtc = DateTime.UtcNow
-            };
-
-            dbContext.Accounts.Add(account);
-            await dbContext.SaveChangesAsync(cancellationToken);
-
-            return ToResponse(account);
-        }
-
-        public async Task<AccountResponse> UpdateAsync(
+        public async Task<AccountResponse> CloseAsync(
             Guid id,
-            AccountUpdateRequest request,
             CancellationToken cancellationToken = default)
         {
             var account = await GetOwnedAccountAsync(id, cancellationToken);
-            var accountNumber = request.AccountNumber.Trim();
-
-            var accountNumberExists = await dbContext.Accounts
-                .AnyAsync(existingAccount =>
-                    existingAccount.Id != id &&
-                    existingAccount.AccountNumber == accountNumber,
-                    cancellationToken);
-
-            if (accountNumberExists)
-            {
-                throw new BusinessException("Racun sa ovim brojem vec postoji.");
-            }
-
-            account.AccountNumber = accountNumber;
-            account.AccountType = request.AccountType;
-            account.Currency = request.Currency.Trim().ToUpperInvariant();
-
+            if (account.Status == AccountStatus.Closed) return ToResponse(account);
+            if (account.Balance != 0)
+                throw new BusinessException("Samo racun sa stanjem 0.00 moze biti zatvoren.");
+            var hasActiveLoan = await dbContext.Loans.AnyAsync(
+                loan => loan.DestinationAccountId == id && loan.Status == LoanStatus.Active,
+                cancellationToken);
+            var hasPendingApplication = await dbContext.LoanApplications.AnyAsync(
+                application => application.DestinationAccountId == id &&
+                    application.Status == LoanApplicationStatus.Pending,
+                cancellationToken);
+            if (hasActiveLoan || hasPendingApplication)
+                throw new BusinessException("Racun sa aktivnim kreditom ili zahtjevom za kredit ne moze biti zatvoren.");
+            var card = await dbContext.BankCards.SingleOrDefaultAsync(
+                value => value.AccountId == id,
+                cancellationToken);
+            if (card is not null && card.Status == CardStatus.Active)
+                card.Status = CardStatus.Blocked;
+            account.Status = AccountStatus.Closed;
             await dbContext.SaveChangesAsync(cancellationToken);
-
             return ToResponse(account);
-        }
-
-        public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
-        {
-            var account = await GetOwnedAccountAsync(id, cancellationToken);
-            var hasTransactions = await dbContext.Transactions
-                .AnyAsync(transaction => transaction.AccountId == id, cancellationToken);
-
-            if (hasTransactions)
-            {
-                throw new BusinessException("Racun nije moguce obrisati jer ima povezane transakcije.");
-            }
-
-            dbContext.Accounts.Remove(account);
-            await dbContext.SaveChangesAsync(cancellationToken);
         }
 
         private IQueryable<Account> ApplyOwnershipFilter(IQueryable<Account> query)
@@ -176,6 +135,7 @@ namespace BankingApp.Infrastructure.Services
                 Id = account.Id,
                 AccountNumber = account.AccountNumber,
                 AccountType = account.AccountType,
+                Status = account.Status,
                 Balance = account.Balance,
                 Currency = account.Currency,
                 CreatedAtUtc = account.CreatedAtUtc

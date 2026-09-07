@@ -8,6 +8,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
+import '../../core/supported_currencies.dart';
 import '../../widgets/mobile_shell.dart';
 import '../accounts/account_models.dart';
 import '../auth/auth_session.dart';
@@ -166,7 +167,7 @@ class _SendMoneyScreenState extends State<SendMoneyScreen> {
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 14),
-              ...const ['USD', 'EUR', 'BAM'].map(
+              ...supportedCurrencies.map(
                 (currency) => ListTile(
                   key: ValueKey('currency-$currency'),
                   leading: const Icon(LucideIcons.coins),
