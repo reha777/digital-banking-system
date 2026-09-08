@@ -1,14 +1,17 @@
 using BankingApp.Application.Common.Exceptions;
 using BankingApp.Application.Common.Pagination;
 using BankingApp.Application.Cards;
+using BankingApp.Api.Controllers;
 using BankingApp.Application.Interfaces;
 using BankingApp.Application.Transactions;
+using BankingApp.Application.Transactions.Risk;
 using BankingApp.Domain.Constants;
 using BankingApp.Domain.Entities;
 using BankingApp.Domain.Enums;
 using BankingApp.Infrastructure.Persistence;
 using BankingApp.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Mvc;
 using Xunit;
 
 namespace BankingApp.Infrastructure.Tests;
@@ -88,6 +91,11 @@ public class CardSecurityTests
         var service = Service(fixture);
         var result = await service.SendMoneyAsync(Request(fixture, 10));
         Assert.Equal(TransactionStatus.Completed, result.Status);
+        Assert.NotNull(result.DebitTransaction.RiskProbability);
+        Assert.Equal(TransactionRiskOptions.CurrentModelVersion, result.DebitTransaction.RiskModelVersion);
+        var persisted = await service.GetByIdAsync(result.DebitTransaction.Id);
+        Assert.Equal(result.DebitTransaction.RiskProbability, persisted.RiskProbability);
+        Assert.Equal(result.DebitTransaction.RiskModelVersion, persisted.RiskModelVersion);
     }
 
     [Theory]
@@ -143,8 +151,71 @@ public class CardSecurityTests
         var service = Service(fixture);
         var result = await service.SendMoneyAsync(Request(fixture, 10001));
         Assert.Equal(TransactionStatus.Pending, result.Status);
+        Assert.True(result.DebitTransaction.RiskProbability >= 0.60m);
+        Assert.Equal(TransactionRiskOptions.CurrentModelVersion, result.DebitTransaction.RiskModelVersion);
+        Assert.DoesNotContain("Transfer value exceeds", result.DebitTransaction.ReviewReason);
+        var apiResult = await new TransactionsController(service).GetById(
+            result.DebitTransaction.Id,
+            CancellationToken.None);
+        var response = Assert.IsType<TransactionResponse>(
+            Assert.IsType<OkObjectResult>(apiResult.Result).Value);
+        Assert.Equal(result.DebitTransaction.RiskProbability, response.RiskProbability);
+        Assert.Equal(TransactionRiskOptions.CurrentModelVersion, response.RiskModelVersion);
         Assert.Equal(20000, fixture.Source.Balance);
         Assert.Equal(0, fixture.Destination.Balance);
+    }
+
+    [Fact]
+    public async Task Admin_approval_books_pending_transfer_and_completes_it()
+    {
+        await using var fixture = await Fixture.CreateAsync(sourceBalance: 20000);
+        var pending = await Service(fixture).SendMoneyAsync(Request(fixture, 10001));
+
+        var approved = await AdminService(fixture).ApproveReviewAsync(
+            pending.DebitTransaction.Id,
+            new TransactionReviewRequest());
+
+        Assert.Equal(TransactionStatus.Completed, approved.Status);
+        Assert.Equal(9999, fixture.Source.Balance);
+        Assert.Equal(10001, fixture.Destination.Balance);
+        Assert.Equal(2, await fixture.Db.Transactions.CountAsync());
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task Admin_rejection_requires_a_reason(string? reason)
+    {
+        await using var fixture = await Fixture.CreateAsync(sourceBalance: 20000);
+        var pending = await Service(fixture).SendMoneyAsync(Request(fixture, 10001));
+
+        await Assert.ThrowsAsync<BusinessException>(() =>
+            AdminService(fixture).RejectReviewAsync(
+                pending.DebitTransaction.Id,
+                new TransactionReviewRequest { AdminNote = reason }));
+
+        Assert.Equal(TransactionStatus.Pending, pending.DebitTransaction.Status);
+        Assert.Equal(20000, fixture.Source.Balance);
+        Assert.Equal(0, fixture.Destination.Balance);
+        Assert.Single(await fixture.Db.Transactions.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Admin_rejection_preserves_ledger_and_trimmed_reason_without_booking()
+    {
+        await using var fixture = await Fixture.CreateAsync(sourceBalance: 20000);
+        var pending = await Service(fixture).SendMoneyAsync(Request(fixture, 10001));
+
+        var rejected = await AdminService(fixture).RejectReviewAsync(
+            pending.DebitTransaction.Id,
+            new TransactionReviewRequest { AdminNote = "  Unsupported payment purpose  " });
+
+        Assert.Equal(TransactionStatus.Failed, rejected.Status);
+        Assert.Equal("Unsupported payment purpose", rejected.AdminNote);
+        Assert.Equal(20000, fixture.Source.Balance);
+        Assert.Equal(0, fixture.Destination.Balance);
+        Assert.Single(await fixture.Db.Transactions.ToListAsync());
     }
 
     [Theory]
@@ -214,6 +285,9 @@ public class CardSecurityTests
     private static TransactionService Service(Fixture fixture) =>
         new(fixture.Db, new CurrentUser(fixture.Owner.Id), new DemoCurrencyConversionService());
 
+    private static TransactionService AdminService(Fixture fixture) =>
+        new(fixture.Db, new CurrentUser(Guid.NewGuid(), true), new DemoCurrencyConversionService());
+
     private sealed class Fixture : IAsyncDisposable
     {
         private Fixture(BankingAppDbContext db, User owner, User other,
@@ -269,9 +343,9 @@ public class CardSecurityTests
         public ValueTask DisposeAsync() => Db.DisposeAsync();
     }
 
-    private sealed class CurrentUser(Guid id) : ICurrentUserService
+    private sealed class CurrentUser(Guid id, bool isAdmin = false) : ICurrentUserService
     {
         public Guid UserId => id;
-        public bool IsAdmin => false;
+        public bool IsAdmin => isAdmin;
     }
 }

@@ -71,6 +71,8 @@ class AdminTransaction {
     required this.isHighRiskReview,
     required this.createdAtUtc,
     this.reviewReason,
+    this.riskProbability,
+    this.riskModelVersion,
     this.documentsRequestNote,
     this.adminNote,
     this.reviewedAtUtc,
@@ -94,6 +96,8 @@ class AdminTransaction {
       status: _statusLabel(json['status']),
       isHighRiskReview: json['isHighRiskReview'] as bool? ?? false,
       reviewReason: json['reviewReason']?.toString(),
+      riskProbability: (json['riskProbability'] as num?)?.toDouble(),
+      riskModelVersion: json['riskModelVersion']?.toString(),
       documentsRequestNote: json['documentsRequestNote']?.toString(),
       adminNote: json['adminNote']?.toString(),
       reviewedAtUtc: DateTime.tryParse(json['reviewedAtUtc']?.toString() ?? ''),
@@ -125,6 +129,8 @@ class AdminTransaction {
   final bool isHighRiskReview;
   final DateTime createdAtUtc;
   final String? reviewReason;
+  final double? riskProbability;
+  final String? riskModelVersion;
   final String? documentsRequestNote;
   final String? adminNote;
   final DateTime? reviewedAtUtc;

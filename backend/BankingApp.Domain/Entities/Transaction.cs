@@ -33,6 +33,10 @@ namespace BankingApp.Domain.Entities
 
         public bool IsHighRiskReview { get; set; }
 
+        public decimal? RiskProbability { get; set; }
+
+        public string? RiskModelVersion { get; set; }
+
         public string? ReviewReason { get; set; }
 
         public string? DocumentsRequestNote { get; set; }

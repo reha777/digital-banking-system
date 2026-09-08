@@ -1,9 +1,12 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:desktop_app/src/core/api_client.dart';
+import 'package:desktop_app/src/features/transactions/admin_transaction_models.dart';
 import 'package:desktop_app/src/features/transactions/admin_transaction_service.dart';
 import 'package:desktop_app/src/features/transactions/pages/transactions_page.dart';
 import 'package:desktop_app/src/features/transactions/pages/transaction_review_page.dart';
+import 'package:desktop_app/src/features/transactions/widgets/transaction_review_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -117,6 +120,56 @@ void main() {
     expect(requests, hasLength(4));
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('transaction rejection requires a non-whitespace reason', (
+    tester,
+  ) async {
+    var rejectedReason = '';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TransactionReviewDialog(
+            transaction: AdminTransaction.fromJson({
+              ..._transactionJson,
+              'status': 1,
+              'isHighRiskReview': true,
+            }),
+            onRequestDocuments: (_) async => true,
+            onApprove: (_) async => true,
+            onReject: (reason) async {
+              rejectedReason = reason;
+              return true;
+            },
+            onDownloadDocument: (_) async => Uint8List(0),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Risk probability'), findsOneWidget);
+    expect(find.text('78.5%'), findsOneWidget);
+    expect(find.text('transaction-risk-logreg-v1'), findsOneWidget);
+
+    FilledButton rejectButton() => tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Reject').first,
+    );
+
+    expect(rejectButton().onPressed, isNull);
+    await tester.enterText(find.byType(TextField), '   ');
+    await tester.pump();
+    expect(rejectButton().onPressed, isNull);
+
+    await tester.enterText(find.byType(TextField), 'Invalid supporting data');
+    await tester.pump();
+    expect(rejectButton().onPressed, isNotNull);
+    await tester.tap(find.widgetWithText(FilledButton, 'Reject').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Reject').last);
+    await tester.pumpAndSettle();
+
+    expect(rejectedReason, 'Invalid supporting data');
+  });
 }
 
 Future<void> _pumpTransactions(
@@ -191,5 +244,7 @@ const _transactionJson = <String, Object>{
   'destinationAccountNumber': '1000000002',
   'sourceCustomerName': 'Source Customer',
   'destinationCustomerName': 'Destination Customer',
+  'riskProbability': 0.785,
+  'riskModelVersion': 'transaction-risk-logreg-v1',
   'createdAtUtc': '2026-08-21T10:00:00Z',
 };

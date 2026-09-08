@@ -6,6 +6,7 @@ using BankingApp.Api.Middleware;
 using BankingApp.Api.Services;
 using BankingApp.Application.Auth;
 using BankingApp.Application.Interfaces;
+using BankingApp.Application.Transactions.Risk;
 using BankingApp.Domain.Constants;
 using BankingApp.Infrastructure.Authentication;
 using BankingApp.Infrastructure.Persistence;
@@ -163,6 +164,13 @@ builder.Services.AddScoped<IAuditArchiveRequestService, AuditArchiveRequestServi
 builder.Services.AddSingleton<IAuditArchivePublisher, RabbitMqAuditArchivePublisher>();
 builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<ITransactionService, TransactionService>();
+builder.Services.AddOptions<TransactionRiskOptions>()
+    .Bind(builder.Configuration.GetSection(TransactionRiskOptions.SectionName))
+    .Validate(
+        options => options.ReviewThreshold is >= 0m and <= 1m,
+        "Transaction risk review threshold must be between 0 and 1.")
+    .ValidateOnStart();
+builder.Services.AddScoped<ITransactionRiskService, TransactionRiskService>();
 builder.Services.AddSingleton<ICurrencyConversionService, DemoCurrencyConversionService>();
 builder.Services.AddScoped<IAdminCustomerService, AdminCustomerService>();
 builder.Services.AddScoped<IAdminDashboardService, AdminDashboardService>();

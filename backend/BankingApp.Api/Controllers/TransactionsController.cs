@@ -47,15 +47,6 @@ namespace BankingApp.Api.Controllers
             return Ok(response);
         }
 
-        [HttpPost]
-        public async Task<ActionResult<TransactionResponse>> Create(
-            TransactionCreateRequest request,
-            CancellationToken cancellationToken)
-        {
-            var response = await transactionService.CreateAsync(request, cancellationToken);
-            return CreatedAtAction(nameof(GetById), new { id = response.Id }, response);
-        }
-
         [HttpPost("send-money")]
         public async Task<ActionResult<MoneyTransferResponse>> SendMoney(
             MoneyTransferRequest request,
@@ -94,16 +85,6 @@ namespace BankingApp.Api.Controllers
             [FromQuery] string accountNumber,
             CancellationToken cancellationToken) =>
             Ok(await transactionService.LookupRecipientAsync(accountNumber, cancellationToken));
-
-        [HttpPut("{id:guid}")]
-        public async Task<ActionResult<TransactionResponse>> Update(
-            Guid id,
-            TransactionUpdateRequest request,
-            CancellationToken cancellationToken)
-        {
-            var response = await transactionService.UpdateAsync(id, request, cancellationToken);
-            return Ok(response);
-        }
 
         [Authorize(Roles = AppRoles.Admin)]
         [HttpPost("{id:guid}/approve")]
@@ -181,13 +162,6 @@ namespace BankingApp.Api.Controllers
                 cancellationToken);
 
             return File(response.Content, response.ContentType, response.FileName);
-        }
-
-        [HttpDelete("{id:guid}")]
-        public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
-        {
-            await transactionService.DeleteAsync(id, cancellationToken);
-            return NoContent();
         }
 
         private static string ResolveContentType(string fileName, string contentType)

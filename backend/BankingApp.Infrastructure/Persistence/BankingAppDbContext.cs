@@ -300,6 +300,12 @@ namespace BankingApp.Infrastructure.Persistence
                 entity.Property(transaction => transaction.ReviewReason)
                     .HasMaxLength(500);
 
+                entity.Property(transaction => transaction.RiskProbability)
+                    .HasPrecision(9, 8);
+
+                entity.Property(transaction => transaction.RiskModelVersion)
+                    .HasMaxLength(80);
+
                 entity.Property(transaction => transaction.DocumentsRequestNote)
                     .HasMaxLength(500);
 
@@ -311,6 +317,17 @@ namespace BankingApp.Infrastructure.Persistence
 
                 entity.HasIndex(transaction => transaction.ReferenceNumber)
                     .IsUnique(false);
+                entity.HasIndex(transaction => new
+                {
+                    transaction.SourceAccountId,
+                    transaction.CreatedAtUtc
+                });
+                entity.HasIndex(transaction => new
+                {
+                    transaction.SourceAccountId,
+                    transaction.DestinationAccountId,
+                    transaction.Status
+                });
                 entity.HasOne(transaction => transaction.TransactionCategory).WithMany()
                     .HasForeignKey(transaction => transaction.TransactionCategoryId)
                     .OnDelete(DeleteBehavior.Restrict);

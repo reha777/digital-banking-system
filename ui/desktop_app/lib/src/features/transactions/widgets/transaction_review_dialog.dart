@@ -196,7 +196,22 @@ class _TransactionReviewDialogState extends State<TransactionReviewDialog> {
                             ),
                             _Info(
                               'Reason',
-                              transaction.reviewReason ?? 'High value transfer',
+                              transaction.reviewReason ??
+                                  'Risk assessment unavailable',
+                            ),
+                            _Info(
+                              'Risk probability',
+                              transaction.riskProbability == null
+                                  ? 'Not available for legacy transaction'
+                                  : '${(transaction.riskProbability! * 100).toStringAsFixed(1)}%',
+                            ),
+                            _Info(
+                              'Risk level',
+                              transaction.isHighRiskReview ? 'High' : 'Low',
+                            ),
+                            _Info(
+                              'Risk model',
+                              transaction.riskModelVersion ?? 'Legacy decision',
                             ),
                           ],
                         ),
@@ -234,10 +249,13 @@ class _TransactionReviewDialogState extends State<TransactionReviewDialog> {
                             TextField(
                               controller: _noteController,
                               enabled: _activeAction == null,
+                              onChanged: (_) => setState(() {}),
                               maxLines: 3,
                               maxLength: 500,
                               decoration: const InputDecoration(
                                 labelText: 'Admin note',
+                                helperText:
+                                    'A reason is required when rejecting.',
                                 alignLabelWithHint: true,
                               ),
                             ),
@@ -285,7 +303,10 @@ class _TransactionReviewDialogState extends State<TransactionReviewDialog> {
                     style: FilledButton.styleFrom(
                       backgroundColor: AppTheme.error,
                     ),
-                    onPressed: canReview && _activeAction == null
+                    onPressed:
+                        canReview &&
+                            _activeAction == null &&
+                            _noteController.text.trim().isNotEmpty
                         ? () => _submit('reject')
                         : null,
                     icon: _ActionIcon(

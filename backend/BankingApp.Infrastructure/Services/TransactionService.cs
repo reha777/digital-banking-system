@@ -2,6 +2,7 @@ using BankingApp.Application.Common.Exceptions;
 using BankingApp.Application.Common.Pagination;
 using BankingApp.Application.Interfaces;
 using BankingApp.Application.Transactions;
+using BankingApp.Application.Transactions.Risk;
 using BankingApp.Application.AuditLogs;
 using BankingApp.Application.Notifications;
 using BankingApp.Domain.Entities;
@@ -9,6 +10,7 @@ using BankingApp.Domain.Constants;
 using BankingApp.Domain.Enums;
 using BankingApp.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace BankingApp.Infrastructure.Services
 {
@@ -18,10 +20,9 @@ namespace BankingApp.Infrastructure.Services
         ICurrencyConversionService currencyConversionService,
         IAuditLogService? auditLogService = null,
         IFileValidationService? fileValidationService = null,
-        INotificationWriter? notificationWriter = null) : ITransactionService
+        INotificationWriter? notificationWriter = null,
+        ITransactionRiskService? transactionRiskService = null) : ITransactionService
     {
-        private const decimal HighRiskReviewThreshold = 10000m;
-
         public async Task<PagedResult<TransactionResponse>> GetAsync(
             TransactionQueryRequest request,
             CancellationToken cancellationToken = default)
@@ -58,38 +59,6 @@ namespace BankingApp.Infrastructure.Services
             var response = ToResponse(transaction);
             await PopulateTransferDetailsAsync([response], cancellationToken);
             return response;
-        }
-
-        public async Task<TransactionResponse> CreateAsync(
-            TransactionCreateRequest request,
-            CancellationToken cancellationToken = default)
-        {
-            if (request.Amount == 0)
-            {
-                throw new BusinessException("Iznos transakcije mora biti razlicit od nule.");
-            }
-
-            var account = await GetOwnedAccountAsync(request.AccountId, cancellationToken);
-            if (account.Status != AccountStatus.Active)
-                throw new BusinessException("Zatvoren racun ne moze ucestvovati u transakciji.");
-            var transaction = new Transaction
-            {
-                Id = Guid.NewGuid(),
-                AccountId = account.Id,
-                ReferenceNumber = CreateReferenceNumber(),
-                Amount = request.Amount,
-                Type = TransactionType.Transfer,
-                TransactionCategoryId = ReferenceDataIds.TransferTransactionCategory,
-                Description = request.Description.Trim(),
-                Status = TransactionStatus.Pending,
-                CreatedAtUtc = DateTime.UtcNow
-            };
-
-            dbContext.Transactions.Add(transaction);
-            await dbContext.SaveChangesAsync(cancellationToken);
-
-            transaction.Account = account;
-            return ToResponse(transaction);
         }
 
         public async Task<MoneyTransferResponse> SendMoneyAsync(
@@ -174,7 +143,21 @@ namespace BankingApp.Infrastructure.Services
                 : request.Description.Trim();
 
             var riskAmountBam = currencyConversionService.ToBam(request.Amount, quote.TransferCurrency);
-            var requiresReview = riskAmountBam > HighRiskReviewThreshold;
+            var riskService = transactionRiskService ?? new TransactionRiskService(
+                dbContext,
+                currencyConversionService,
+                Options.Create(new TransactionRiskOptions()));
+            var risk = await riskService.EvaluateAsync(new TransactionRiskContext(
+                sourceAccount.UserId,
+                sourceAccount.Id,
+                destinationAccount.Id,
+                request.Amount,
+                quote.TransferCurrency,
+                riskAmountBam,
+                quote.DebitAmount,
+                sourceAccount.Balance,
+                createdAtUtc), cancellationToken);
+            var requiresReview = risk.IsHighRisk;
 
             var debitTransaction = new Transaction
             {
@@ -192,8 +175,10 @@ namespace BankingApp.Infrastructure.Services
                 Description = description,
                 Status = requiresReview ? TransactionStatus.Pending : TransactionStatus.Completed,
                 IsHighRiskReview = requiresReview,
+                RiskProbability = risk.Probability,
+                RiskModelVersion = risk.ModelVersion,
                 ReviewReason = requiresReview
-                    ? $"Transfer value exceeds {HighRiskReviewThreshold:N2} BAM review threshold."
+                    ? $"Transaction risk probability {risk.Probability:P1} requires review."
                     : null,
                 CreatedAtUtc = createdAtUtc
             };
@@ -229,7 +214,7 @@ namespace BankingApp.Infrastructure.Services
                 dbContext.Transactions.Add(creditTransaction);
             }
             if (requiresReview && notificationWriter is not null)
-                await notificationWriter.AddForAdminsAsync(new NotificationCreate(Guid.Empty, NotificationType.NewHighRiskTransaction, "Transaction requires review", "A high-value transaction is waiting for review.", NotificationEntityTypes.Transaction, debitTransaction.Id), cancellationToken);
+                await notificationWriter.AddForAdminsAsync(new NotificationCreate(Guid.Empty, NotificationType.NewHighRiskTransaction, "Transaction requires review", "A high-risk transaction is waiting for review.", NotificationEntityTypes.Transaction, debitTransaction.Id), cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
 
             debitTransaction.Account = sourceAccount;
@@ -577,21 +562,6 @@ namespace BankingApp.Infrastructure.Services
             new(account.Id, account.User.FirstName, account.User.LastName,
                 account.AccountNumber, lastUsedAtUtc);
 
-        public async Task<TransactionResponse> UpdateAsync(
-            Guid id,
-            TransactionUpdateRequest request,
-            CancellationToken cancellationToken = default)
-        {
-            var transaction = await GetOwnedTransactionAsync(id, cancellationToken);
-
-            transaction.Description = request.Description.Trim();
-            transaction.Status = request.Status;
-
-            await dbContext.SaveChangesAsync(cancellationToken);
-
-            return ToResponse(transaction);
-        }
-
         public async Task<TransactionResponse> ApproveReviewAsync(
             Guid id,
             TransactionReviewRequest request,
@@ -676,6 +646,9 @@ namespace BankingApp.Infrastructure.Services
             TransactionReviewRequest request,
             CancellationToken cancellationToken = default)
         {
+            if (string.IsNullOrWhiteSpace(request.AdminNote))
+                throw new BusinessException("Razlog odbijanja transakcije je obavezan.");
+
             var transaction = await GetReviewTransactionAsync(id, cancellationToken);
 
             if (transaction.Status is not (TransactionStatus.Pending or TransactionStatus.DocumentsRequested))
@@ -684,7 +657,7 @@ namespace BankingApp.Infrastructure.Services
             }
 
             transaction.Status = TransactionStatus.Failed;
-            transaction.AdminNote = request.AdminNote?.Trim();
+            transaction.AdminNote = request.AdminNote.Trim();
             transaction.ReviewedAtUtc = DateTime.UtcNow;
             transaction.ReviewedByUserId = currentUserService.UserId;
             if (notificationWriter is not null)
@@ -830,19 +803,6 @@ namespace BankingApp.Infrastructure.Services
             };
         }
 
-        public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
-        {
-            var transaction = await GetOwnedTransactionAsync(id, cancellationToken);
-
-            if (transaction.Status != TransactionStatus.Pending)
-            {
-                throw new BusinessException("Samo transakcije u Pending statusu se mogu obrisati.");
-            }
-
-            dbContext.Transactions.Remove(transaction);
-            await dbContext.SaveChangesAsync(cancellationToken);
-        }
-
         private IQueryable<Transaction> ApplyOwnershipFilter(IQueryable<Transaction> query)
         {
             return currentUserService.IsAdmin
@@ -929,16 +889,6 @@ namespace BankingApp.Infrastructure.Services
             return query;
         }
 
-        private async Task<Account> GetOwnedAccountAsync(Guid id, CancellationToken cancellationToken)
-        {
-            var query = currentUserService.IsAdmin
-                ? dbContext.Accounts
-                : dbContext.Accounts.Where(account => account.UserId == currentUserService.UserId);
-
-            var account = await query.FirstOrDefaultAsync(account => account.Id == id, cancellationToken);
-            return account ?? throw new NotFoundException("Racun nije pronadjen.");
-        }
-
         private async Task<Transaction> GetOwnedTransactionAsync(Guid id, CancellationToken cancellationToken)
         {
             var transaction = await ApplyOwnershipFilter(dbContext.Transactions.Include(item => item.Account))
@@ -992,6 +942,8 @@ namespace BankingApp.Infrastructure.Services
                 Description = transaction.Description,
                 Status = transaction.Status,
                 IsHighRiskReview = transaction.IsHighRiskReview,
+                RiskProbability = transaction.RiskProbability,
+                RiskModelVersion = transaction.RiskModelVersion,
                 ReviewReason = transaction.ReviewReason,
                 DocumentsRequestNote = transaction.DocumentsRequestNote,
                 DocumentsRequestedAtUtc = transaction.DocumentsRequestedAtUtc,

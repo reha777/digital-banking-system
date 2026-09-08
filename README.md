@@ -291,18 +291,18 @@ rate-limitiran i vraca generican odgovor kako ne bi otkrivao postojanje naloga.
 
 ## 9. Demo: High-risk Transaction Review
 
-Transfer se automatski salje na rucnu provjeru kada njegova vrijednost predje
-**10.000,00 BAM**. Konverzija koristi fiksni demo kurs `1 USD = 1,80 BAM`, pa
-je prag u dolarima **5.555,56 USD**. Za demonstraciju koristite **6.000 USD**
-(= 10.800 BAM), sto je pokriveno stanjem od 20.000 USD na checking racunu.
+Transfer se salje na rucnu provjeru kada logistic-regression risk model vrati
+vjerovatnocu najmanje **60%**. Model koristi BAM-normalizovan iznos, odnos prema
+saldu, recent velocity/volume, odstupanje od historijskog prosjeka, novog
+primaoca i prethodnu adverse historiju. Zbog toga isti iznos ne mora uvijek
+imati istu odluku.
 
 Scenario:
 
-1. **Mobile Customer 1** -> **Send Money** -> primalac `BA-000002-CHECKING`
-   (nudi se i kao recent recipient) -> iznos **6000** USD -> potvrda.
+1. **Mobile Customer 1** -> **Send Money** -> odaberite primaoca i iznos koji,
+   u kombinaciji sa trenutnom aktivnosti naloga, prelazi risk threshold.
 2. Transakcija dobija status **Pending** i oznacena je kao high-risk; sredstva
-   **nisu** skinuta sa racuna. Razlog je zabiljezen kao
-   *"Transfer value exceeds 10,000.00 BAM review threshold."*
+   **nisu** skinuta sa racuna. Sacuvani su probability i model version.
 3. **Desktop Admin** dobija notifikaciju *"Transaction requires review"* i
    otvara **Transaction Review**.
 4. Admin bira **Request Documents** i upisuje napomenu. Status prelazi u
