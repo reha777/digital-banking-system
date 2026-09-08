@@ -46,3 +46,22 @@ namespace BankingApp.Api.Controllers
         }
     }
 }
+
+[ApiController]
+[Authorize(Roles = AppRoles.Admin)]
+[Route("api/admin/accounts")]
+public class AdminAccountsController(IAccountService accountService) : ControllerBase
+{
+    [HttpGet]
+    public async Task<ActionResult<PagedResult<AdminAccountResponse>>> Get(
+        [FromQuery] AdminAccountQueryRequest request, CancellationToken cancellationToken) =>
+        Ok(await accountService.GetAdminAsync(request, cancellationToken));
+
+    [HttpGet("{id:guid}")]
+    public async Task<ActionResult<AdminAccountResponse>> GetById(Guid id, CancellationToken cancellationToken) =>
+        Ok(await accountService.GetAdminByIdAsync(id, cancellationToken));
+
+    [HttpPost("{id:guid}/close")]
+    public async Task<ActionResult<AdminAccountResponse>> Close(Guid id, CancellationToken cancellationToken) =>
+        Ok(await accountService.CloseAsAdminAsync(id, cancellationToken));
+}

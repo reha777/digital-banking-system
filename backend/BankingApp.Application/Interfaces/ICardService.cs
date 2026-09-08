@@ -38,6 +38,9 @@ namespace BankingApp.Application.Interfaces
             AdminIssuedCardQueryRequest request,
             CancellationToken cancellationToken = default);
 
+        Task<AdminIssuedCardResponse> GetIssuedCardAsync(Guid id, CancellationToken cancellationToken = default);
+        Task<AdminIssuedCardResponse> SetAdminCardStatusAsync(Guid id, bool blocked, CancellationToken cancellationToken = default);
+
         Task<CardRequestResponse> ApproveAsync(
             Guid id,
             CardRequestReviewRequest request,

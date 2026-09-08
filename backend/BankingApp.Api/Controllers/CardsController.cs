@@ -184,5 +184,17 @@ namespace BankingApp.Api.Controllers
             [FromQuery] AdminIssuedCardQueryRequest request,
             CancellationToken cancellationToken) =>
             Ok(await cardService.GetIssuedCardsAsync(request, cancellationToken));
+
+        [HttpGet("{id:guid}")]
+        public async Task<ActionResult<AdminIssuedCardResponse>> GetById(Guid id, CancellationToken cancellationToken) =>
+            Ok(await cardService.GetIssuedCardAsync(id, cancellationToken));
+
+        [HttpPost("{id:guid}/block")]
+        public async Task<ActionResult<AdminIssuedCardResponse>> Block(Guid id, CancellationToken cancellationToken) =>
+            Ok(await cardService.SetAdminCardStatusAsync(id, true, cancellationToken));
+
+        [HttpPost("{id:guid}/unblock")]
+        public async Task<ActionResult<AdminIssuedCardResponse>> Unblock(Guid id, CancellationToken cancellationToken) =>
+            Ok(await cardService.SetAdminCardStatusAsync(id, false, cancellationToken));
     }
 }

@@ -115,6 +115,55 @@ void main() {
     expect(requests.last.queryParameters['page'], '1');
     expect(requests.last.queryParameters['pageSize'], '50');
   });
+
+  testWidgets('issued card block requires confirmation and refreshes', (
+    tester,
+  ) async {
+    final requests = <http.Request>[];
+    final service = AdminCardRequestService(
+      ApiClient(
+        httpClient: MockClient((request) async {
+          requests.add(request);
+          if (request.method == 'POST') {
+            return http.Response(jsonEncode(_issuedCardJson()), 200);
+          }
+          return http.Response(
+            jsonEncode({
+              'items': [_issuedCardJson()],
+              'page': 1,
+              'pageSize': 20,
+              'totalCount': 1,
+            }),
+            200,
+          );
+        }),
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: IssuedCardsView(
+            token: 'token',
+            pageSize: 20,
+            dateFormatter: (_) => 'date',
+            service: service,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Block card'));
+    await tester.pumpAndSettle();
+    expect(find.text('Block card?'), findsOneWidget);
+    expect(requests.where((request) => request.method == 'POST'), isEmpty);
+    await tester.tap(find.text('Confirm'));
+    await tester.pumpAndSettle();
+    expect(
+      requests.where((request) => request.method == 'POST').single.url.path,
+      '/api/admin/cards/card/block',
+    );
+    expect(requests.where((request) => request.method == 'GET').length, 2);
+  });
 }
 
 Map<String, dynamic> _issuedCardJson() => {

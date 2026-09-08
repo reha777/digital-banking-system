@@ -142,6 +142,18 @@ class AdminCardRequestService {
     );
   }
 
+  Future<void> setIssuedCardBlocked({
+    required String token,
+    required String id,
+    required bool blocked,
+  }) async {
+    await _apiClient.postJson(
+      '/api/admin/cards/$id/${blocked ? 'block' : 'unblock'}',
+      const {},
+      token: token,
+    );
+  }
+
   static String _formatDateOnly(DateTime value) =>
       '${value.year.toString().padLeft(4, '0')}-'
       '${value.month.toString().padLeft(2, '0')}-'

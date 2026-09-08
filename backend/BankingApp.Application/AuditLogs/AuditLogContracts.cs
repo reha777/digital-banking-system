@@ -18,6 +18,9 @@ public static class AuditLogActions
     public const string AdminSettingsUpdated = nameof(AdminSettingsUpdated);
     public const string AdminProfileUpdated = nameof(AdminProfileUpdated);
     public const string ReportRequested = nameof(ReportRequested);
+    public const string AccountClosedByAdmin = nameof(AccountClosedByAdmin);
+    public const string CardBlockedByAdmin = nameof(CardBlockedByAdmin);
+    public const string CardUnblockedByAdmin = nameof(CardUnblockedByAdmin);
 }
 
 public static class AuditEntityTypes
@@ -29,6 +32,8 @@ public static class AuditEntityTypes
     public const string AdminSettings = nameof(AdminSettings);
     public const string AdminProfile = nameof(AdminProfile);
     public const string ReportJob = nameof(ReportJob);
+    public const string Account = nameof(Account);
+    public const string Card = nameof(Card);
 }
 
 public sealed class AuditLogRecordRequest

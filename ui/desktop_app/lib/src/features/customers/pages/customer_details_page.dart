@@ -156,7 +156,13 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
       return _Overview(value: value, dateFormatter: widget.dateFormatter);
     }
     if (_tab == 1) {
-      return _AccountsCards(value: value, dateFormatter: widget.dateFormatter);
+      return _AccountsCards(
+        value: value,
+        dateFormatter: widget.dateFormatter,
+        service: _service,
+        token: widget.token,
+        onChanged: _refreshCore,
+      );
     }
     return _tabCache.putIfAbsent(
       _tab,
@@ -339,22 +345,80 @@ class _Overview extends StatelessWidget {
   );
 }
 
-class _AccountsCards extends StatelessWidget {
-  const _AccountsCards({required this.value, required this.dateFormatter});
+class _AccountsCards extends StatefulWidget {
+  const _AccountsCards({
+    required this.value,
+    required this.dateFormatter,
+    required this.service,
+    required this.token,
+    required this.onChanged,
+  });
   final AdminCustomerDetails value;
   final String Function(DateTime) dateFormatter;
+  final CustomerDetailsService service;
+  final String token;
+  final VoidCallback onChanged;
   @override
-  Widget build(BuildContext context) => value.accounts.isEmpty
+  State<_AccountsCards> createState() => _AccountsCardsState();
+}
+
+class _AccountsCardsState extends State<_AccountsCards> {
+  String? _busyId;
+
+  Future<void> _run(
+    String id,
+    String prompt,
+    Future<void> Function() action,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm status change'),
+        content: Text(prompt),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _busyId = id);
+    try {
+      await action();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Status updated successfully.')),
+      );
+      widget.onChanged();
+    } on ApiException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(AppErrorMessage.from(error))));
+      }
+    } finally {
+      if (mounted) setState(() => _busyId = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.value.accounts.isEmpty
       ? const AppEmptyState(
           icon: LucideIcons.landmark,
           title: 'No accounts found',
           message: 'This customer has no banking accounts.',
         )
       : ListView.separated(
-          itemCount: value.accounts.length,
+          itemCount: widget.value.accounts.length,
           separatorBuilder: (_, _) => const SizedBox(height: 12),
           itemBuilder: (_, i) {
-            final account = value.accounts[i];
+            final account = widget.value.accounts[i];
             return _Section(
               title: '${account.accountType} · ${account.accountNumber}',
               child: Column(
@@ -364,7 +428,36 @@ class _AccountsCards extends StatelessWidget {
                     '${account.currency} ${AdminFormatters.number(account.balance)}',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  Text('Opened ${dateFormatter(account.createdAtUtc)}'),
+                  Text('Opened ${widget.dateFormatter(account.createdAtUtc)}'),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      AppStatusBadge(status: account.status),
+                      const Spacer(),
+                      if (account.status == 'Active')
+                        OutlinedButton.icon(
+                          onPressed: _busyId == account.id
+                              ? null
+                              : () => _run(
+                                  account.id,
+                                  'Close ${account.accountNumber}? The balance must be zero and its linked card will be blocked.',
+                                  () => widget.service.closeAccount(
+                                    token: widget.token,
+                                    id: account.id,
+                                  ),
+                                ),
+                          icon: _busyId == account.id
+                              ? const SizedBox.square(
+                                  dimension: 14,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(LucideIcons.circleOff, size: 16),
+                          label: const Text('Close account'),
+                        ),
+                    ],
+                  ),
                   const Divider(height: 24),
                   if (account.card case final card?)
                     Wrap(
@@ -380,6 +473,39 @@ class _AccountsCards extends StatelessWidget {
                           '${card.expiryDate.month.toString().padLeft(2, '0')}/${card.expiryDate.year}',
                         ),
                         _Info('Associated currency', account.currency),
+                        if (card.status == 'Active')
+                          OutlinedButton.icon(
+                            onPressed: _busyId == card.id
+                                ? null
+                                : () => _run(
+                                    card.id,
+                                    'Block ${card.maskedCardNumber}?',
+                                    () => widget.service.setCardBlocked(
+                                      token: widget.token,
+                                      id: card.id,
+                                      blocked: true,
+                                    ),
+                                  ),
+                            icon: const Icon(LucideIcons.lock, size: 16),
+                            label: const Text('Block'),
+                          ),
+                        if (card.status == 'Blocked' &&
+                            account.status == 'Active')
+                          OutlinedButton.icon(
+                            onPressed: _busyId == card.id
+                                ? null
+                                : () => _run(
+                                    card.id,
+                                    'Unblock ${card.maskedCardNumber}?',
+                                    () => widget.service.setCardBlocked(
+                                      token: widget.token,
+                                      id: card.id,
+                                      blocked: false,
+                                    ),
+                                  ),
+                            icon: const Icon(LucideIcons.unlock, size: 16),
+                            label: const Text('Unblock'),
+                          ),
                       ],
                     )
                   else

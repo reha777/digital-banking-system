@@ -58,6 +58,7 @@ class AdminCustomerAccount {
     required this.id,
     required this.accountNumber,
     required this.accountType,
+    required this.status,
     required this.balance,
     required this.currency,
     required this.createdAtUtc,
@@ -72,6 +73,11 @@ class AdminCustomerAccount {
           '2' || 'savings' => 'Savings',
           _ => 'Account',
         },
+        status: switch (json['status']?.toString().toLowerCase()) {
+          '1' || 'active' => 'Active',
+          '2' || 'closed' => 'Closed',
+          _ => 'Unknown',
+        },
         balance: (json['balance'] as num? ?? 0).toDouble(),
         currency: json['currency']?.toString() ?? '',
         createdAtUtc:
@@ -81,7 +87,7 @@ class AdminCustomerAccount {
             ? AdminCustomerCard.fromJson(json['card'] as Map<String, dynamic>)
             : null,
       );
-  final String id, accountNumber, accountType, currency;
+  final String id, accountNumber, accountType, status, currency;
   final double balance;
   final DateTime createdAtUtc;
   final AdminCustomerCard? card;

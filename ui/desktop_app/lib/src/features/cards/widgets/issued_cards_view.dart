@@ -37,6 +37,47 @@ class _IssuedCardsViewState extends State<IssuedCardsView> {
   int _page = 1;
   late int _pageSize;
   int? _status;
+  String? _busyId;
+
+  Future<void> _changeStatus(AdminIssuedCard card, bool blocked) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(blocked ? 'Block card?' : 'Unblock card?'),
+        content: Text(
+          '${blocked ? 'Block' : 'Unblock'} ${card.maskedCardNumber} for ${card.customerName}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _busyId = card.id);
+    try {
+      await _service.setIssuedCardBlocked(
+        token: widget.token,
+        id: card.id,
+        blocked: blocked,
+      );
+      if (mounted) _refresh();
+    } on ApiException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } finally {
+      if (mounted) setState(() => _busyId = null);
+    }
+  }
 
   @override
   void initState() {
@@ -159,7 +200,32 @@ class _IssuedCardsViewState extends State<IssuedCardsView> {
                             '${card.brand} · ${card.accountNumber} · ${card.currency}\nExpires ${widget.dateFormatter(card.expiryDate)} · Issued ${widget.dateFormatter(card.createdAtUtc)}',
                           ),
                           isThreeLine: true,
-                          trailing: AppStatusBadge(status: card.status),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              AppStatusBadge(status: card.status),
+                              const SizedBox(width: 8),
+                              if (_busyId == card.id)
+                                const SizedBox.square(
+                                  dimension: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              else if (card.status == 'Active')
+                                IconButton(
+                                  tooltip: 'Block card',
+                                  onPressed: () => _changeStatus(card, true),
+                                  icon: const Icon(LucideIcons.lock),
+                                )
+                              else if (card.status == 'Blocked')
+                                IconButton(
+                                  tooltip: 'Unblock card',
+                                  onPressed: () => _changeStatus(card, false),
+                                  icon: const Icon(LucideIcons.unlock),
+                                ),
+                            ],
+                          ),
                         ),
                       );
                     },

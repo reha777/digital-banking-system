@@ -2,6 +2,7 @@ using BankingApp.Application.Accounts;
 using BankingApp.Application.Common.Exceptions;
 using BankingApp.Application.Common.Pagination;
 using BankingApp.Application.Interfaces;
+using BankingApp.Application.AuditLogs;
 using BankingApp.Domain.Entities;
 using BankingApp.Domain.Constants;
 using BankingApp.Domain.Enums;
@@ -12,7 +13,8 @@ namespace BankingApp.Infrastructure.Services
 {
     public class AccountService(
         BankingAppDbContext dbContext,
-        ICurrentUserService currentUserService) : IAccountService
+        ICurrentUserService currentUserService,
+        IAuditLogService? auditLogService = null) : IAccountService
     {
         public async Task<PagedResult<AccountResponse>> GetAsync(
             AccountQueryRequest request,
@@ -91,27 +93,93 @@ namespace BankingApp.Infrastructure.Services
             CancellationToken cancellationToken = default)
         {
             var account = await GetOwnedAccountAsync(id, cancellationToken);
-            if (account.Status == AccountStatus.Closed) return ToResponse(account);
+            await CloseCoreAsync(account, false, cancellationToken);
+            return ToResponse(account);
+        }
+
+        public async Task<PagedResult<AdminAccountResponse>> GetAdminAsync(
+            AdminAccountQueryRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var query = AdminQuery();
+            if (request.Status.HasValue) query = query.Where(value => value.Status == request.Status);
+            if (!string.IsNullOrWhiteSpace(request.Search))
+            {
+                var search = request.Search.Trim();
+                query = query.Where(value => value.AccountNumber.Contains(search) ||
+                    value.User.FirstName.Contains(search) || value.User.LastName.Contains(search) ||
+                    value.User.Email.Contains(search));
+            }
+            var total = await query.CountAsync(cancellationToken);
+            var entities = await query.OrderByDescending(value => value.CreatedAtUtc)
+                .Skip((request.Page - 1) * request.PageSize).Take(request.PageSize)
+                .ToListAsync(cancellationToken);
+            return new PagedResult<AdminAccountResponse>
+            {
+                Items = entities.Select(ToAdminResponse).ToList(), Page = request.Page,
+                PageSize = request.PageSize, TotalCount = total
+            };
+        }
+
+        public async Task<AdminAccountResponse> GetAdminByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            var account = await AdminQuery().SingleOrDefaultAsync(value => value.Id == id, cancellationToken)
+                ?? throw new NotFoundException("Racun nije pronadjen.");
+            return ToAdminResponse(account);
+        }
+
+        public async Task<AdminAccountResponse> CloseAsAdminAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            var account = await AdminQuery(false).SingleOrDefaultAsync(value => value.Id == id, cancellationToken)
+                ?? throw new NotFoundException("Racun nije pronadjen.");
+            await CloseCoreAsync(account, true, cancellationToken);
+            return ToAdminResponse(account);
+        }
+
+        private async Task CloseCoreAsync(Account account, bool byAdmin, CancellationToken cancellationToken)
+        {
+            if (account.Status == AccountStatus.Closed)
+                throw new BusinessException("Racun je vec zatvoren.");
             if (account.Balance != 0)
                 throw new BusinessException("Samo racun sa stanjem 0.00 moze biti zatvoren.");
             var hasActiveLoan = await dbContext.Loans.AnyAsync(
-                loan => loan.DestinationAccountId == id && loan.Status == LoanStatus.Active,
+                loan => loan.DestinationAccountId == account.Id && loan.Status == LoanStatus.Active,
                 cancellationToken);
             var hasPendingApplication = await dbContext.LoanApplications.AnyAsync(
-                application => application.DestinationAccountId == id &&
+                application => application.DestinationAccountId == account.Id &&
                     application.Status == LoanApplicationStatus.Pending,
                 cancellationToken);
             if (hasActiveLoan || hasPendingApplication)
                 throw new BusinessException("Racun sa aktivnim kreditom ili zahtjevom za kredit ne moze biti zatvoren.");
-            var card = await dbContext.BankCards.SingleOrDefaultAsync(
-                value => value.AccountId == id,
-                cancellationToken);
+            var card = account.Card ?? await dbContext.BankCards.SingleOrDefaultAsync(value => value.AccountId == account.Id, cancellationToken);
             if (card is not null && card.Status == CardStatus.Active)
                 card.Status = CardStatus.Blocked;
             account.Status = AccountStatus.Closed;
+            if (byAdmin && auditLogService is not null)
+                await auditLogService.RecordAsync(new AuditLogRecordRequest
+                {
+                    Action = AuditLogActions.AccountClosedByAdmin, EntityType = AuditEntityTypes.Account,
+                    EntityId = account.Id.ToString(), Description = $"Closed account {account.AccountNumber}.",
+                    OldValue = AccountStatus.Active.ToString(), NewValue = AccountStatus.Closed.ToString()
+                }, cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
-            return ToResponse(account);
         }
+
+        private IQueryable<Account> AdminQuery(bool noTracking = true)
+        {
+            var query = dbContext.Accounts.Include(value => value.User).Include(value => value.Card).AsQueryable();
+            return noTracking ? query.AsNoTracking() : query;
+        }
+
+        private static AdminAccountResponse ToAdminResponse(Account account) => new()
+        {
+            Id = account.Id, CustomerId = account.UserId,
+            CustomerName = $"{account.User.FirstName} {account.User.LastName}".Trim(),
+            CustomerEmail = account.User.Email, AccountNumber = account.AccountNumber,
+            AccountType = account.AccountType, Status = account.Status, Balance = account.Balance,
+            Currency = account.Currency, CreatedAtUtc = account.CreatedAtUtc,
+            CardId = account.Card?.Id, CardStatus = account.Card?.Status
+        };
 
         private IQueryable<Account> ApplyOwnershipFilter(IQueryable<Account> query)
         {

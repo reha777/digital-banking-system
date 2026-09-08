@@ -100,6 +100,26 @@ class CustomerDetailsService {
     await _client.getJson('/api/admin/loans/$id', token: token),
   );
 
+  Future<void> closeAccount({required String token, required String id}) async {
+    await _client.postJson(
+      '/api/admin/accounts/$id/close',
+      const {},
+      token: token,
+    );
+  }
+
+  Future<void> setCardBlocked({
+    required String token,
+    required String id,
+    required bool blocked,
+  }) async {
+    await _client.postJson(
+      '/api/admin/cards/$id/${blocked ? 'block' : 'unblock'}',
+      const {},
+      token: token,
+    );
+  }
+
   Future<AdminLoanApplicationDetails> getLoanApplicationDetails({
     required String token,
     required String id,

@@ -240,6 +240,58 @@ namespace BankingApp.Infrastructure.Services
             };
         }
 
+        public async Task<AdminIssuedCardResponse> GetIssuedCardAsync(
+            Guid id, CancellationToken cancellationToken = default)
+        {
+            var card = await AdminCardQuery().SingleOrDefaultAsync(value => value.Id == id, cancellationToken)
+                ?? throw new NotFoundException("Kartica nije pronadjena.");
+            return ToAdminIssuedCardResponse(card);
+        }
+
+        public async Task<AdminIssuedCardResponse> SetAdminCardStatusAsync(
+            Guid id, bool blocked, CancellationToken cancellationToken = default)
+        {
+            var card = await AdminCardQuery(false).SingleOrDefaultAsync(value => value.Id == id, cancellationToken)
+                ?? throw new NotFoundException("Kartica nije pronadjena.");
+            if (card.Status == CardStatus.Expired)
+                throw new BusinessException("Istekla kartica ne moze promijeniti status.");
+            if (!blocked && card.Account.Status != AccountStatus.Active)
+                throw new BusinessException("Kartica zatvorenog racuna ne moze biti aktivirana.");
+            var target = blocked ? CardStatus.Blocked : CardStatus.Active;
+            if (card.Status == target) return ToAdminIssuedCardResponse(card);
+            var oldStatus = card.Status;
+            card.Status = target;
+            if (auditLogService is not null)
+                await auditLogService.RecordAsync(new AuditLogRecordRequest
+                {
+                    Action = blocked ? AuditLogActions.CardBlockedByAdmin : AuditLogActions.CardUnblockedByAdmin,
+                    EntityType = AuditEntityTypes.Card, EntityId = card.Id.ToString(),
+                    Description = $"{(blocked ? "Blocked" : "Unblocked")} card ending {card.CardNumber[^4..]}.",
+                    OldValue = oldStatus.ToString(), NewValue = target.ToString()
+                }, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return ToAdminIssuedCardResponse(card);
+        }
+
+        private IQueryable<BankCard> AdminCardQuery(bool noTracking = true)
+        {
+            var query = dbContext.BankCards.Include(value => value.Account)
+                .ThenInclude(value => value.User).AsQueryable();
+            return noTracking ? query.AsNoTracking() : query;
+        }
+
+        private static AdminIssuedCardResponse ToAdminIssuedCardResponse(BankCard card) => new()
+        {
+            Id = card.Id, CustomerId = card.Account.UserId,
+            CustomerName = $"{card.Account.User.FirstName} {card.Account.User.LastName}".Trim(),
+            CustomerEmail = card.Account.User.Email,
+            MaskedCardNumber = "**** **** **** " + card.CardNumber[^4..],
+            CardholderName = card.CardholderName, Brand = card.Brand,
+            ExpiryDate = card.ExpiryDate, Status = card.Status, AccountId = card.AccountId,
+            AccountNumber = card.Account.AccountNumber, Currency = card.Account.Currency,
+            CreatedAtUtc = card.CreatedAtUtc
+        };
+
         public async Task<CardRequestResponse> ApproveAsync(
             Guid id,
             CardRequestReviewRequest request,
