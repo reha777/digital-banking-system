@@ -21,6 +21,8 @@ import '../reports/reports_page.dart';
 import '../notifications/notifications_page.dart';
 import '../notifications/notification_bell.dart';
 import '../notifications/notification_service.dart';
+import '../announcements/announcements_page.dart';
+import '../account_types/account_types_page.dart';
 import 'admin_section.dart';
 import 'widgets/admin_sidebar.dart';
 import 'widgets/admin_account_menu.dart';
@@ -64,8 +66,10 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
     AdminSection.loans,
     AdminSection.auditLogs,
     AdminSection.referenceData,
+    AdminSection.accountTypes,
     AdminSection.reports,
     AdminSection.notifications,
+    AdminSection.announcements,
   };
 
   @override
@@ -275,10 +279,15 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
       dateFormatter: widget.settingsController.formatDateTime,
     ),
     AdminSection.referenceData => ReferenceDataPage(token: token),
+    AdminSection.accountTypes => AccountTypesPage(token: token),
     AdminSection.reports => ReportsPage(token: token),
     AdminSection.notifications => NotificationsPage(
       token: token,
       onTarget: _openNotificationTarget,
+    ),
+    AdminSection.announcements => AnnouncementsPage(
+      token: token,
+      dateFormatter: widget.settingsController.formatDateTime,
     ),
     AdminSection.settings => SettingsPage(
       token: token,
@@ -337,8 +346,10 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
     AdminSection.loans => 'Loans',
     AdminSection.auditLogs => 'Audit Logs',
     AdminSection.referenceData => 'Reference Data',
+    AdminSection.accountTypes => 'Account Types',
     AdminSection.reports => 'Reports',
     AdminSection.notifications => 'Notifications',
+    AdminSection.announcements => 'Announcements',
     AdminSection.settings => 'Settings',
   };
 

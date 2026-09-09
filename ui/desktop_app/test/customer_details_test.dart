@@ -269,7 +269,7 @@ http.Response _details() => http.Response(
       {
         'id': 'account-1',
         'accountNumber': '10000001',
-        'accountType': 1,
+        'accountTypeName': 'Checking',
         'balance': 150,
         'currency': 'USD',
         'createdAtUtc': '2026-01-01T00:00:00Z',
@@ -286,7 +286,7 @@ http.Response _details() => http.Response(
       {
         'id': 'account-2',
         'accountNumber': '10000002',
-        'accountType': 2,
+        'accountTypeName': 'Savings',
         'balance': 200,
         'currency': 'EUR',
         'createdAtUtc': '2026-01-01T00:00:00Z',

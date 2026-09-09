@@ -141,7 +141,7 @@ public class AdminDashboardTests
     private static Account Account(User user, string number, string currency) => new()
     {
         Id = Guid.NewGuid(), UserId = user.Id, User = user, AccountNumber = number,
-        Currency = currency, AccountType = AccountType.Checking, CreatedAtUtc = DateTime.UtcNow
+        Currency = currency, AccountTypeId = BankingApp.Domain.Constants.AccountTypeCodes.CheckingId, CreatedAtUtc = DateTime.UtcNow
     };
     private static LoanApplication Application(User user, Account account, LoanProduct product, LoanApplicationStatus status) => new()
     {

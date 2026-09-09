@@ -61,10 +61,8 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                         .HasMaxLength(34)
                         .HasColumnType("nvarchar(34)");
 
-                    b.Property<string>("AccountType")
-                        .IsRequired()
-                        .HasMaxLength(25)
-                        .HasColumnType("nvarchar(25)");
+                    b.Property<Guid>("AccountTypeId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal>("Balance")
                         .HasPrecision(18, 2)
@@ -91,6 +89,8 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                     b.HasIndex("AccountNumber")
                         .IsUnique();
 
+                    b.HasIndex("AccountTypeId");
+
                     b.HasIndex("UserId");
 
                     b.ToTable("Accounts", (string)null);
@@ -100,7 +100,7 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                         {
                             Id = new Guid("dbdd0766-a83e-4a7d-944c-af7d0373ff50"),
                             AccountNumber = "BA-000001-CHECKING",
-                            AccountType = "Checking",
+                            AccountTypeId = new Guid("9e7f4a43-cc89-4a41-847a-100000000001"),
                             Balance = 20000.00m,
                             CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Currency = "USD",
@@ -111,7 +111,7 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                         {
                             Id = new Guid("6e4ac9f4-28d0-4f6a-b8c4-c7937f9a5ae3"),
                             AccountNumber = "BA-000001-SAVINGS",
-                            AccountType = "Savings",
+                            AccountTypeId = new Guid("9e7f4a43-cc89-4a41-847a-100000000002"),
                             Balance = 5000.00m,
                             CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Currency = "USD",
@@ -122,7 +122,7 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                         {
                             Id = new Guid("deed75d2-e898-4c2d-a7e3-2fa1152d7222"),
                             AccountNumber = "BA-000002-CHECKING",
-                            AccountType = "Checking",
+                            AccountTypeId = new Guid("9e7f4a43-cc89-4a41-847a-100000000001"),
                             Balance = 20000.00m,
                             CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Currency = "USD",
@@ -133,12 +133,66 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                         {
                             Id = new Guid("deed75d2-e898-4c2d-a7e3-2fa1152d7233"),
                             AccountNumber = "BA-000002-SAVINGS",
-                            AccountType = "Savings",
+                            AccountTypeId = new Guid("9e7f4a43-cc89-4a41-847a-100000000002"),
                             Balance = 5000.00m,
                             CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Currency = "USD",
                             Status = "Active",
                             UserId = new Guid("f5573a40-f822-45c4-a841-b6ab5d5a0c49")
+                        });
+                });
+
+            modelBuilder.Entity("BankingApp.Domain.Entities.AccountTypeDefinition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .UseCollation("Latin1_General_100_CI_AS");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("AccountTypeDefinitions", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("9e7f4a43-cc89-4a41-847a-100000000001"),
+                            Code = "CHECKING",
+                            CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Name = "Checking"
+                        },
+                        new
+                        {
+                            Id = new Guid("9e7f4a43-cc89-4a41-847a-100000000002"),
+                            Code = "SAVINGS",
+                            CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Name = "Savings"
                         });
                 });
 
@@ -1293,6 +1347,40 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                     b.ToTable("ReportJobs", (string)null);
                 });
 
+            modelBuilder.Entity("BankingApp.Domain.Entities.SystemAnnouncement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("CreatedByAdminId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime>("PublishAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByAdminId");
+
+                    b.HasIndex("PublishAtUtc");
+
+                    b.ToTable("SystemAnnouncements", (string)null);
+                });
+
             modelBuilder.Entity("BankingApp.Domain.Entities.SystemSettings", b =>
                 {
                     b.Property<int>("Id")
@@ -1371,6 +1459,9 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<Guid?>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
@@ -1427,6 +1518,14 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                         .HasMaxLength(25)
                         .HasColumnType("nvarchar(25)");
 
+                    b.Property<string>("TopUpSourceDescription")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("TopUpSourceType")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
                     b.Property<Guid?>("TransactionCategoryId")
                         .HasColumnType("uniqueidentifier");
 
@@ -1447,11 +1546,13 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AccountId");
-
                     b.HasIndex("ReferenceNumber");
 
                     b.HasIndex("TransactionCategoryId");
+
+                    b.HasIndex("AccountId", "ClientRequestId")
+                        .IsUnique()
+                        .HasFilter("[ClientRequestId] IS NOT NULL");
 
                     b.HasIndex("SourceAccountId", "CreatedAtUtc");
 
@@ -1734,11 +1835,19 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("BankingApp.Domain.Entities.Account", b =>
                 {
+                    b.HasOne("BankingApp.Domain.Entities.AccountTypeDefinition", "AccountTypeDefinition")
+                        .WithMany("Accounts")
+                        .HasForeignKey("AccountTypeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("BankingApp.Domain.Entities.User", "User")
                         .WithMany("Accounts")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("AccountTypeDefinition");
 
                     b.Navigation("User");
                 });
@@ -1992,6 +2101,17 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                     b.Navigation("RequestedByUser");
                 });
 
+            modelBuilder.Entity("BankingApp.Domain.Entities.SystemAnnouncement", b =>
+                {
+                    b.HasOne("BankingApp.Domain.Entities.User", "CreatedByAdmin")
+                        .WithMany()
+                        .HasForeignKey("CreatedByAdminId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByAdmin");
+                });
+
             modelBuilder.Entity("BankingApp.Domain.Entities.Transaction", b =>
                 {
                     b.HasOne("BankingApp.Domain.Entities.Account", "Account")
@@ -2039,6 +2159,11 @@ namespace BankingApp.Infrastructure.Persistence.Migrations
                     b.Navigation("Loans");
 
                     b.Navigation("Transactions");
+                });
+
+            modelBuilder.Entity("BankingApp.Domain.Entities.AccountTypeDefinition", b =>
+                {
+                    b.Navigation("Accounts");
                 });
 
             modelBuilder.Entity("BankingApp.Domain.Entities.CardRequest", b =>

@@ -20,6 +20,7 @@ class HomeBalanceCard extends StatefulWidget {
     this.onReceiveMoney,
     this.onTransfer,
     this.onLoan,
+    this.onTopUp,
     required this.hasProfilePhoto,
     required this.accessToken,
     required this.onProfileTap,
@@ -38,6 +39,7 @@ class HomeBalanceCard extends StatefulWidget {
   final VoidCallback? onReceiveMoney;
   final VoidCallback? onTransfer;
   final VoidCallback? onLoan;
+  final VoidCallback? onTopUp;
   final ValueChanged<BankCardModel> onCardTap;
   final ValueChanged<BankCardModel> onActiveCardChanged;
   final bool hasProfilePhoto;
@@ -133,6 +135,7 @@ class _HomeBalanceCardState extends State<HomeBalanceCard> {
                   onReceiveMoney: widget.onReceiveMoney,
                   onTransfer: widget.onTransfer,
                   onLoan: widget.onLoan,
+                  onTopUp: widget.onTopUp,
                   onSendMoney:
                       selectedCard == null ||
                           !selectedCard.canTransfer ||

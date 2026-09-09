@@ -20,7 +20,8 @@ namespace BankingApp.Infrastructure.Services
             AccountQueryRequest request,
             CancellationToken cancellationToken = default)
         {
-            var query = dbContext.Accounts.AsNoTracking();
+            IQueryable<Account> query = dbContext.Accounts.AsNoTracking()
+                .Include(account => account.AccountTypeDefinition);
             query = ApplyOwnershipFilter(query);
 
             if (!string.IsNullOrWhiteSpace(request.Search))
@@ -29,9 +30,12 @@ namespace BankingApp.Infrastructure.Services
                 query = query.Where(account => account.AccountNumber.Contains(search));
             }
 
-            if (request.AccountType.HasValue)
+            if (request.AccountTypeId.HasValue)
+                query = query.Where(account => account.AccountTypeId == request.AccountTypeId.Value);
+            if (!string.IsNullOrWhiteSpace(request.AccountTypeCode))
             {
-                query = query.Where(account => account.AccountType == request.AccountType.Value);
+                var code = request.AccountTypeCode.Trim();
+                query = query.Where(account => account.AccountTypeDefinition.Code == code);
             }
 
             if (!string.IsNullOrWhiteSpace(request.Currency))
@@ -62,7 +66,8 @@ namespace BankingApp.Infrastructure.Services
         public async Task<AccountBalanceSummaryResponse> GetBalanceSummaryAsync(
             CancellationToken cancellationToken = default)
         {
-            var accounts = await ApplyOwnershipFilter(dbContext.Accounts.AsNoTracking())
+            var accounts = await ApplyOwnershipFilter(
+                    dbContext.Accounts.AsNoTracking().Include(account => account.AccountTypeDefinition))
                 .Where(account => account.Status == AccountStatus.Active)
                 .OrderBy(account => account.AccountNumber)
                 .ToListAsync(cancellationToken);
@@ -167,7 +172,8 @@ namespace BankingApp.Infrastructure.Services
 
         private IQueryable<Account> AdminQuery(bool noTracking = true)
         {
-            var query = dbContext.Accounts.Include(value => value.User).Include(value => value.Card).AsQueryable();
+            var query = dbContext.Accounts.Include(value => value.User).Include(value => value.Card)
+                .Include(value => value.AccountTypeDefinition).AsQueryable();
             return noTracking ? query.AsNoTracking() : query;
         }
 
@@ -176,7 +182,8 @@ namespace BankingApp.Infrastructure.Services
             Id = account.Id, CustomerId = account.UserId,
             CustomerName = $"{account.User.FirstName} {account.User.LastName}".Trim(),
             CustomerEmail = account.User.Email, AccountNumber = account.AccountNumber,
-            AccountType = account.AccountType, Status = account.Status, Balance = account.Balance,
+            AccountTypeId = account.AccountTypeId, AccountTypeCode = TypeCode(account),
+            AccountTypeName = TypeName(account), Status = account.Status, Balance = account.Balance,
             Currency = account.Currency, CreatedAtUtc = account.CreatedAtUtc,
             CardId = account.Card?.Id, CardStatus = account.Card?.Status
         };
@@ -190,7 +197,8 @@ namespace BankingApp.Infrastructure.Services
 
         private async Task<Account> GetOwnedAccountAsync(Guid id, CancellationToken cancellationToken)
         {
-            var query = ApplyOwnershipFilter(dbContext.Accounts);
+            var query = ApplyOwnershipFilter(
+                dbContext.Accounts.Include(account => account.AccountTypeDefinition));
             var account = await query.FirstOrDefaultAsync(account => account.Id == id, cancellationToken);
 
             return account ?? throw new NotFoundException("Racun nije pronadjen.");
@@ -202,12 +210,17 @@ namespace BankingApp.Infrastructure.Services
             {
                 Id = account.Id,
                 AccountNumber = account.AccountNumber,
-                AccountType = account.AccountType,
+                AccountTypeId = account.AccountTypeId,
+                AccountTypeCode = TypeCode(account),
+                AccountTypeName = TypeName(account),
                 Status = account.Status,
                 Balance = account.Balance,
                 Currency = account.Currency,
                 CreatedAtUtc = account.CreatedAtUtc
             };
         }
+
+        private static string TypeCode(Account account) => account.AccountTypeDefinition?.Code ?? string.Empty;
+        private static string TypeName(Account account) => account.AccountTypeDefinition?.Name ?? string.Empty;
     }
 }

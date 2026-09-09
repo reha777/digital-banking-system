@@ -207,7 +207,7 @@ public class CustomerLifecycleSecurityTests
         private static Account Account(User user, string number, decimal balance) => new()
         {
             Id = Guid.NewGuid(), UserId = user.Id, User = user,
-            AccountNumber = number, AccountType = AccountType.Checking,
+            AccountNumber = number, AccountTypeId = BankingApp.Domain.Constants.AccountTypeCodes.CheckingId,
             Balance = balance, Currency = "USD", CreatedAtUtc = DateTime.UtcNow
         };
 

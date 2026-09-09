@@ -183,10 +183,11 @@ public class AdminLoanReviewTests
         public static async Task<Fixture> CreateAsync(bool admin = true)
         {
             var db = new BankingAppDbContext(new DbContextOptionsBuilder<BankingAppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+            db.SeedAccountTypes();
             var calculation = new LoanCalculationService();
             var owner = new User { Id = Guid.NewGuid(), FirstName = "Loan", LastName = "Customer", Email = "loan@example.com", PhoneNumber = "+38761000000", PasswordHash = "hash", Role = AppRoles.Customer, Status = CustomerStatus.Active, CreatedAtUtc = DateTime.UtcNow };
             var product = new LoanProduct { Id = Guid.NewGuid(), Name = "BAM Personal Loan", Description = "Test", Currency = "BAM", MinPrincipal = 500, MaxPrincipal = 25000, AnnualInterestRate = SnapshotRate, MinTermMonths = 6, MaxTermMonths = 60, TermStepMonths = 6, IsActive = true, CreatedAtUtc = DateTime.UtcNow, UpdatedAtUtc = DateTime.UtcNow };
-            var account = new Account { Id = Guid.NewGuid(), UserId = owner.Id, AccountNumber = "BA0000001234", AccountType = AccountType.Checking, Balance = 100, Currency = "BAM", CreatedAtUtc = DateTime.UtcNow };
+            var account = new Account { Id = Guid.NewGuid(), UserId = owner.Id, AccountNumber = "BA0000001234", AccountTypeId = BankingApp.Domain.Constants.AccountTypeCodes.CheckingId, Balance = 100, Currency = "BAM", CreatedAtUtc = DateTime.UtcNow };
             var quote = calculation.Calculate(1000, SnapshotRate, 6, DateTime.UtcNow.AddDays(-1));
             var application = new LoanApplication { Id = Guid.NewGuid(), UserId = owner.Id, LoanProductId = product.Id, DestinationAccountId = account.Id, Principal = quote.Principal, Currency = "BAM", AnnualInterestRateSnapshot = SnapshotRate, TermMonths = 6, EstimatedMonthlyPayment = quote.MonthlyPayment, EstimatedTotalInterest = quote.TotalInterest, EstimatedTotalRepayment = quote.TotalRepayment, Status = LoanApplicationStatus.Pending, SubmittedAtUtc = DateTime.UtcNow.AddDays(-1), ClientRequestId = Guid.NewGuid() };
             var adminId = Guid.NewGuid();

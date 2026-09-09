@@ -110,7 +110,7 @@ public class RecentRecipientTests
         {
             Id = Guid.NewGuid(), UserId = user.Id, User = user,
             AccountNumber = number, Currency = "USD", Balance = 1000,
-            AccountType = AccountType.Checking, CreatedAtUtc = DateTime.UtcNow
+            AccountTypeId = BankingApp.Domain.Constants.AccountTypeCodes.CheckingId, CreatedAtUtc = DateTime.UtcNow
         };
 
         private static Transaction Transfer(Account source, Account destination, DateTime at) => new()

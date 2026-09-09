@@ -7,7 +7,9 @@ enum AdminSection {
   loans,
   auditLogs,
   referenceData,
+  accountTypes,
   reports,
   notifications,
+  announcements,
   settings,
 }

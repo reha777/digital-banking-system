@@ -8,29 +8,32 @@ import 'package:mobile_app/src/features/cards/pages/cards_screen.dart';
 import 'package:mobile_app/src/features/notifications/notification_model.dart';
 
 void main() {
-  test('loan lifecycle notification types are preserved by the mobile parser', () {
-    for (final type in const [
-      'LoanDocumentRequested',
-      'LoanDocumentUploaded',
-      'LoanApproved',
-      'LoanRejected',
-    ]) {
-      final notification = AppNotification.fromJson({
-        'id': 'notification-$type',
-        'type': type,
-        'title': 'Loan notification',
-        'message': 'Loan lifecycle changed.',
-        'entityType': 'LoanApplication',
-        'entityId': 'application-id',
-        'isRead': false,
-        'createdAtUtc': '2026-09-08T12:00:00Z',
-      });
+  test(
+    'loan lifecycle notification types are preserved by the mobile parser',
+    () {
+      for (final type in const [
+        'LoanDocumentRequested',
+        'LoanDocumentUploaded',
+        'LoanApproved',
+        'LoanRejected',
+      ]) {
+        final notification = AppNotification.fromJson({
+          'id': 'notification-$type',
+          'type': type,
+          'title': 'Loan notification',
+          'message': 'Loan lifecycle changed.',
+          'entityType': 'LoanApplication',
+          'entityId': 'application-id',
+          'isRead': false,
+          'createdAtUtc': '2026-09-08T12:00:00Z',
+        });
 
-      expect(notification.type, type);
-      expect(notification.entityType, 'LoanApplication');
-      expect(notification.entityId, 'application-id');
-    }
-  });
+        expect(notification.type, type);
+        expect(notification.entityType, 'LoanApplication');
+        expect(notification.entityId, 'application-id');
+      }
+    },
+  );
 
   testWidgets(
     'card request notification refresh does not return a Future from setState',

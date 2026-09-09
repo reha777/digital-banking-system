@@ -1,5 +1,4 @@
 using BankingApp.Application.Common.Pagination;
-using BankingApp.Domain.Enums;
 
 namespace BankingApp.Application.Accounts
 {
@@ -7,7 +6,8 @@ namespace BankingApp.Application.Accounts
     {
         public string? Search { get; set; }
 
-        public AccountType? AccountType { get; set; }
+        public Guid? AccountTypeId { get; set; }
+        public string? AccountTypeCode { get; set; }
 
         public string? Currency { get; set; }
     }

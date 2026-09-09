@@ -258,7 +258,7 @@ public class InternalTransferTests
             AccountNumber = number,
             Currency = currency,
             Balance = balance,
-            AccountType = AccountType.Checking,
+            AccountTypeId = BankingApp.Domain.Constants.AccountTypeCodes.CheckingId,
             CreatedAtUtc = DateTime.UtcNow
         };
 

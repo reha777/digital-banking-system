@@ -42,4 +42,16 @@ class NotificationService {
   Future<void> markAllRead() async {
     await _api.putJson('/api/notifications/read-all', const {}, token: _token);
   }
+
+  Future<List<SystemAnnouncement>> getAnnouncements() async {
+    final json = await _api.getJson(
+      '/api/announcements?page=1&pageSize=100',
+      token: _token,
+    );
+    return (json['items'] as List<dynamic>? ?? const [])
+        .map(
+          (item) => SystemAnnouncement.fromJson(item as Map<String, dynamic>),
+        )
+        .toList();
+  }
 }

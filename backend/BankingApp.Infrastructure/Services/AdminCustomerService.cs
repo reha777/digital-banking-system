@@ -68,8 +68,8 @@ namespace BankingApp.Infrastructure.Services
             var customer = await dbContext.Users
                 .AsNoTracking()
                 .AsSplitQuery()
-                .Include(user => user.Accounts)
-                .ThenInclude(account => account.Card)
+                .Include(user => user.Accounts).ThenInclude(account => account.Card)
+                .Include(user => user.Accounts).ThenInclude(account => account.AccountTypeDefinition)
                 .SingleOrDefaultAsync(user =>
                     user.Id == id && user.Role == AppRoles.Customer && !user.IsDeleted,
                     cancellationToken)
@@ -114,7 +114,9 @@ namespace BankingApp.Infrastructure.Services
                     {
                         Id = account.Id,
                         AccountNumber = account.AccountNumber,
-                        AccountType = account.AccountType,
+                        AccountTypeId = account.AccountTypeId,
+                        AccountTypeCode = account.AccountTypeDefinition?.Code ?? string.Empty,
+                        AccountTypeName = account.AccountTypeDefinition?.Name ?? string.Empty,
                         Status = account.Status,
                         Balance = account.Balance,
                         Currency = account.Currency,

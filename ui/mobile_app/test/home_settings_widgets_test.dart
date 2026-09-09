@@ -83,7 +83,7 @@ void main() {
 
     expect(find.text('Recent transactions'), findsOneWidget);
     expect(find.text('Grocery shopping'), findsOneWidget);
-    expect(find.text(r'- $25.00'), findsOneWidget);
+    expect(find.text('-25.00 USD'), findsOneWidget);
     expect(find.text('See All'), findsOneWidget);
   });
 

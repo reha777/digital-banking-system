@@ -8,6 +8,7 @@ class MobileApiEndpoints {
   static const transactions = '/api/transactions';
   static const statistics = '/api/transactions/statistics';
   static const sendMoney = '/api/transactions/send-money';
+  static const topUp = '/api/transactions/top-up';
   static const transferQuote = '/api/transactions/quote';
   static const internalTransfer = '/api/transactions/internal-transfer';
   static const internalTransferQuote =

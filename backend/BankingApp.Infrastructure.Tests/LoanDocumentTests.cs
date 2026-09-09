@@ -89,6 +89,7 @@ public class LoanDocumentTests
         public static async Task<Fixture> CreateAsync()
         {
             var db = new BankingAppDbContext(new DbContextOptionsBuilder<BankingAppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+            db.SeedAccountTypes();
             User User(string email) => new() { Id = Guid.NewGuid(), FirstName = "Demo", LastName = "User", Email = email,
                 PhoneNumber = "+38761000000", PasswordHash = "hash", Role = AppRoles.Customer, Status = CustomerStatus.Active, CreatedAtUtc = DateTime.UtcNow };
             var owner = User("owner@test.local"); var other = User("other@test.local");
@@ -96,7 +97,7 @@ public class LoanDocumentTests
             var product = new LoanProduct { Id = Guid.NewGuid(), Name = "Test", Description = "Test", Currency = "EUR", IsActive = true,
                 MinPrincipal = 100, MaxPrincipal = 10000, MinTermMonths = 6, MaxTermMonths = 24, TermStepMonths = 6,
                 AnnualInterestRate = 5, CreatedAtUtc = DateTime.UtcNow, UpdatedAtUtc = DateTime.UtcNow };
-            var account = new Account { Id = Guid.NewGuid(), UserId = owner.Id, User = owner, AccountNumber = "BA-LOAN-DOC", AccountType = AccountType.Checking,
+            var account = new Account { Id = Guid.NewGuid(), UserId = owner.Id, User = owner, AccountNumber = "BA-LOAN-DOC", AccountTypeId = BankingApp.Domain.Constants.AccountTypeCodes.CheckingId,
                 Status = AccountStatus.Active, Balance = 0, Currency = "EUR", CreatedAtUtc = DateTime.UtcNow };
             var application = new LoanApplication { Id = Guid.NewGuid(), UserId = owner.Id, User = owner, LoanProductId = product.Id, LoanProduct = product,
                 DestinationAccountId = account.Id, DestinationAccount = account, Principal = 1000, Currency = "EUR", AnnualInterestRateSnapshot = 5,

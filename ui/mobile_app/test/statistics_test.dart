@@ -14,14 +14,14 @@ void main() {
       {
         'id': 'a1',
         'accountNumber': '12345678',
-        'accountType': 1,
+        'accountTypeName': 'Checking',
         'balance': 100,
         'currency': 'USD',
       },
       {
         'id': 'a2',
         'accountNumber': '87654321',
-        'accountType': 2,
+        'accountTypeName': 'Savings',
         'balance': 80,
         'currency': 'EUR',
       },

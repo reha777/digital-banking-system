@@ -105,6 +105,7 @@ public class AdminLoanReadTests
         public static async Task<Fixture> CreateAsync()
         {
             var db = new BankingAppDbContext(new DbContextOptionsBuilder<BankingAppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+            db.SeedAccountTypes();
             var owner = User("Amira", "Hadžić", "amira@example.com");
             var second = User("Marko", "Marić", "marko@example.com");
             var bam = Product("BAM Personal Loan", "BAM");
@@ -136,7 +137,7 @@ public class AdminLoanReadTests
         };
         private static Account Account(User user, string number, string currency) => new()
         {
-            Id = Guid.NewGuid(), UserId = user.Id, AccountNumber = number, AccountType = AccountType.Checking,
+            Id = Guid.NewGuid(), UserId = user.Id, AccountNumber = number, AccountTypeId = BankingApp.Domain.Constants.AccountTypeCodes.CheckingId,
             Balance = 2500, Currency = currency, CreatedAtUtc = DateTime.UtcNow
         };
         private static LoanApplication Application(User user, Account account, LoanProduct product, LoanApplicationStatus status, int daysAgo) => new()

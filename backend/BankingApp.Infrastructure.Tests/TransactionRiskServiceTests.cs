@@ -158,7 +158,7 @@ public class TransactionRiskServiceTests
         private static Account Account(User user, string number) => new()
         {
             Id = Guid.NewGuid(), UserId = user.Id, User = user, AccountNumber = number,
-            AccountType = AccountType.Checking, Status = AccountStatus.Active,
+            AccountTypeId = BankingApp.Domain.Constants.AccountTypeCodes.CheckingId, Status = AccountStatus.Active,
             Balance = 100000, Currency = "BAM", CreatedAtUtc = DateTime.UtcNow
         };
 

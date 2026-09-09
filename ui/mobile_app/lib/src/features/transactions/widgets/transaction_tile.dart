@@ -56,7 +56,7 @@ class TransactionHistoryTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Text(
-            '${isIncoming ? '' : '- '}\$${formatMoney(transaction.amount.abs())}',
+            '${isIncoming ? '+' : '-'}${formatMoney(transaction.amount.abs())} ${transaction.currency}',
             style: TextStyle(
               color: isIncoming
                   ? AppTheme.primary
@@ -79,6 +79,7 @@ String _transactionTitle(BankTransaction transaction) {
   if (transaction.type == BankTransactionType.loanDisbursement) {
     return 'Loan Disbursement';
   }
+  if (transaction.type == BankTransactionType.topUp) return 'Top Up';
   final description = transaction.description.trim();
   if (description.isEmpty || description.toLowerCase().contains('transfer')) {
     return 'Money Transfer';
@@ -102,6 +103,9 @@ IconData _transactionIcon(BankTransaction transaction, bool isIncoming) {
   }
   if (transaction.type == BankTransactionType.loanDisbursement) {
     return Icons.account_balance_outlined;
+  }
+  if (transaction.type == BankTransactionType.topUp) {
+    return Icons.add_card_outlined;
   }
   final text = transaction.description.toLowerCase();
   if (text.contains('grocery')) {

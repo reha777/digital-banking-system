@@ -5,5 +5,6 @@ public enum TransactionType
     Transfer = 1,
     InternalTransfer = 2,
     LoanDisbursement = 3,
-    LoanRepayment = 4
+    LoanRepayment = 4,
+    TopUp = 5
 }

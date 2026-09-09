@@ -164,11 +164,25 @@ class AdminSidebar extends StatelessWidget {
                 onTap: () => onSectionSelected(AdminSection.referenceData),
               ),
               _SidebarItem(
+                icon: LucideIcons.listTree,
+                title: 'Account Types',
+                active: selectedSection == AdminSection.accountTypes,
+                compact: compact,
+                onTap: () => onSectionSelected(AdminSection.accountTypes),
+              ),
+              _SidebarItem(
                 icon: LucideIcons.fileText,
                 title: 'Reports',
                 active: selectedSection == AdminSection.reports,
                 compact: compact,
                 onTap: () => onSectionSelected(AdminSection.reports),
+              ),
+              _SidebarItem(
+                icon: LucideIcons.megaphone,
+                title: 'Announcements',
+                active: selectedSection == AdminSection.announcements,
+                compact: compact,
+                onTap: () => onSectionSelected(AdminSection.announcements),
               ),
               _SidebarItem(
                 icon: LucideIcons.settings,

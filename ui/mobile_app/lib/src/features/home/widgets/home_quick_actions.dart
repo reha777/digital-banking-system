@@ -10,12 +10,14 @@ class HomeQuickActions extends StatelessWidget {
     this.onReceiveMoney,
     this.onTransfer,
     this.onLoan,
+    this.onTopUp,
   });
 
   final VoidCallback? onSendMoney;
   final VoidCallback? onReceiveMoney;
   final VoidCallback? onTransfer;
   final VoidCallback? onLoan;
+  final VoidCallback? onTopUp;
 
   @override
   Widget build(BuildContext context) {
@@ -42,6 +44,14 @@ class HomeQuickActions extends StatelessWidget {
             icon: LucideIcons.landmark,
             label: 'Loan',
             onPressed: onLoan,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _ActionButton(
+            icon: Icons.add_circle_outline,
+            label: 'Top Up',
+            onPressed: onTopUp,
           ),
         ),
         const SizedBox(width: 12),

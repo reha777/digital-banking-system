@@ -26,7 +26,7 @@ public class CardSecurityTests
         {
             Id = Guid.NewGuid(), UserId = fixture.Owner.Id, User = fixture.Owner,
             AccountNumber = "older-source", Currency = "USD", Balance = 50,
-            AccountType = AccountType.Savings,
+            AccountTypeId = BankingApp.Domain.Constants.AccountTypeCodes.SavingsId,
             CreatedAtUtc = fixture.Source.CreatedAtUtc.AddDays(-1)
         };
         var older = new BankCard
@@ -338,7 +338,7 @@ public class CardSecurityTests
         {
             Id = Guid.NewGuid(), UserId = user.Id, User = user,
             AccountNumber = number, Currency = currency, Balance = balance,
-            AccountType = AccountType.Checking, CreatedAtUtc = DateTime.UtcNow
+            AccountTypeId = BankingApp.Domain.Constants.AccountTypeCodes.CheckingId, CreatedAtUtc = DateTime.UtcNow
         };
         public ValueTask DisposeAsync() => Db.DisposeAsync();
     }

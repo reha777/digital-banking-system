@@ -1,3 +1,5 @@
+import '../../core/formatting/api_date_time.dart';
+
 class AppNotification {
   const AppNotification({
     required this.id,
@@ -43,4 +45,22 @@ class NotificationPageResult {
   const NotificationPageResult({required this.items, required this.totalCount});
   final List<AppNotification> items;
   final int totalCount;
+}
+
+class SystemAnnouncement {
+  const SystemAnnouncement({
+    required this.id,
+    required this.title,
+    required this.message,
+    required this.publishAtUtc,
+  });
+  final String id, title, message;
+  final DateTime publishAtUtc;
+  factory SystemAnnouncement.fromJson(Map<String, dynamic> json) =>
+      SystemAnnouncement(
+        id: json['id'] as String,
+        title: json['title'] as String? ?? '',
+        message: json['message'] as String? ?? '',
+        publishAtUtc: parseApiUtc(json['publishAtUtc'] as String),
+      );
 }

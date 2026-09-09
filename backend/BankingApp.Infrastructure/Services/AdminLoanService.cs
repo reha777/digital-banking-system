@@ -133,7 +133,7 @@ public class AdminLoanService(
         EnsureAdmin();
         var loan = await dbContext.Loans.AsNoTracking().AsSplitQuery()
             .Include(value => value.User)
-            .Include(value => value.DestinationAccount)
+            .Include(value => value.DestinationAccount).ThenInclude(value => value.AccountTypeDefinition)
             .Include(value => value.LoanApplication).ThenInclude(value => value.LoanProduct)
             .Include(value => value.Installments)
             .Include(value => value.Payments).ThenInclude(value => value.LoanInstallment)
@@ -180,7 +180,9 @@ public class AdminLoanService(
             {
                 AccountId = loan.DestinationAccountId,
                 MaskedAccountNumber = MaskAccount(loan.DestinationAccount.AccountNumber),
-                AccountType = loan.DestinationAccount.AccountType,
+                AccountTypeId = loan.DestinationAccount.AccountTypeId,
+                AccountTypeCode = loan.DestinationAccount.AccountTypeDefinition?.Code ?? string.Empty,
+                AccountTypeName = loan.DestinationAccount.AccountTypeDefinition?.Name ?? string.Empty,
                 Currency = loan.DestinationAccount.Currency,
                 CurrentBalance = loan.DestinationAccount.Balance
             },
@@ -504,7 +506,9 @@ public class AdminLoanService(
         {
             AccountId = value.DestinationAccountId,
             MaskedAccountNumber = MaskAccount(value.DestinationAccount.AccountNumber),
-            AccountType = value.DestinationAccount.AccountType,
+            AccountTypeId = value.DestinationAccount.AccountTypeId,
+            AccountTypeCode = value.DestinationAccount.AccountTypeDefinition?.Code ?? string.Empty,
+            AccountTypeName = value.DestinationAccount.AccountTypeDefinition?.Name ?? string.Empty,
             Currency = value.DestinationAccount.Currency,
             CurrentBalance = value.DestinationAccount.Balance
         },
@@ -523,14 +527,14 @@ public class AdminLoanService(
         .AsNoTracking()
         .Include(value => value.User)
         .Include(value => value.LoanProduct)
-        .Include(value => value.DestinationAccount)
+        .Include(value => value.DestinationAccount).ThenInclude(value => value.AccountTypeDefinition)
         .Include(value => value.LoanPurpose)
         .Include(value => value.Documents);
 
     private IQueryable<LoanApplication> MutableQuery() => dbContext.LoanApplications
         .Include(value => value.User)
         .Include(value => value.LoanProduct)
-        .Include(value => value.DestinationAccount)
+        .Include(value => value.DestinationAccount).ThenInclude(value => value.AccountTypeDefinition)
         .Include(value => value.LoanPurpose)
         .Include(value => value.Documents);
 

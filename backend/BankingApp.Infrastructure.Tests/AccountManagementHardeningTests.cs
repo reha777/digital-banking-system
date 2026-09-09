@@ -55,12 +55,12 @@ public class AccountManagementHardeningTests
         var firstId = Guid.Parse("11111111-2222-3333-4444-555555555555");
         var secondId = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
 
-        var first = AccountNumberGenerator.Create(firstId, AccountType.Checking);
+        var first = AccountNumberGenerator.Create(firstId, BankingApp.Domain.Constants.AccountTypeCodes.Checking);
 
-        Assert.Equal(first, AccountNumberGenerator.Create(firstId, AccountType.Checking));
+        Assert.Equal(first, AccountNumberGenerator.Create(firstId, BankingApp.Domain.Constants.AccountTypeCodes.Checking));
         Assert.StartsWith("BA-11111111222233334444-", first);
         Assert.EndsWith("-CHECKING", first);
-        Assert.NotEqual(first, AccountNumberGenerator.Create(secondId, AccountType.Checking));
+        Assert.NotEqual(first, AccountNumberGenerator.Create(secondId, BankingApp.Domain.Constants.AccountTypeCodes.Checking));
     }
 
     [Theory]
@@ -126,12 +126,13 @@ public class AccountManagementHardeningTests
         {
             var db = new BankingAppDbContext(new DbContextOptionsBuilder<BankingAppDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+            db.SeedAccountTypes();
             var owner = User("Owner");
             var other = User("Other");
             var account = new Account
             {
                 Id = Guid.NewGuid(), UserId = owner.Id, User = owner,
-                AccountNumber = "BA-TEST-CHECKING", AccountType = AccountType.Checking,
+                AccountNumber = "BA-TEST-CHECKING", AccountTypeId = BankingApp.Domain.Constants.AccountTypeCodes.CheckingId,
                 Status = AccountStatus.Active, Balance = balance, Currency = SupportedCurrencies.Usd,
                 CreatedAtUtc = DateTime.UtcNow
             };

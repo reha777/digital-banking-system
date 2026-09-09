@@ -10,6 +10,7 @@ namespace BankingApp.Infrastructure.Persistence
         public DbSet<User> Users => Set<User>();
 
         public DbSet<Account> Accounts => Set<Account>();
+        public DbSet<AccountTypeDefinition> AccountTypeDefinitions => Set<AccountTypeDefinition>();
 
         public DbSet<Transaction> Transactions => Set<Transaction>();
 
@@ -37,6 +38,7 @@ namespace BankingApp.Infrastructure.Persistence
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
         public DbSet<ReferenceDataItem> ReferenceDataItems => Set<ReferenceDataItem>();
         public DbSet<ReportJob> ReportJobs => Set<ReportJob>();
+        public DbSet<SystemAnnouncement> SystemAnnouncements => Set<SystemAnnouncement>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -44,6 +46,7 @@ namespace BankingApp.Infrastructure.Persistence
 
             ConfigureUsers(modelBuilder);
             ConfigureAccounts(modelBuilder);
+            ConfigureAccountTypes(modelBuilder);
             ConfigureTransactions(modelBuilder);
             ConfigureTransactionDocuments(modelBuilder);
             ConfigureBankCards(modelBuilder);
@@ -59,7 +62,38 @@ namespace BankingApp.Infrastructure.Persistence
             ConfigureAuditLogs(modelBuilder);
             ConfigureReferenceData(modelBuilder);
             ConfigureReportJobs(modelBuilder);
+            ConfigureSystemAnnouncements(modelBuilder);
             SeedData(modelBuilder);
+        }
+
+        private static void ConfigureAccountTypes(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<AccountTypeDefinition>(entity =>
+            {
+                entity.ToTable("AccountTypeDefinitions");
+                entity.HasKey(value => value.Id);
+                entity.Property(value => value.Code).HasMaxLength(40).UseCollation("Latin1_General_100_CI_AS").IsRequired();
+                entity.Property(value => value.Name).HasMaxLength(100).IsRequired();
+                entity.Property(value => value.IsActive).HasDefaultValue(true);
+                entity.HasIndex(value => value.Code).IsUnique();
+                entity.HasData(
+                    new AccountTypeDefinition { Id = AccountTypeCodes.CheckingId, Code = AccountTypeCodes.Checking, Name = "Checking", IsActive = true, CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+                    new AccountTypeDefinition { Id = AccountTypeCodes.SavingsId, Code = AccountTypeCodes.Savings, Name = "Savings", IsActive = true, CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) });
+            });
+        }
+
+        private static void ConfigureSystemAnnouncements(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<SystemAnnouncement>(entity =>
+            {
+                entity.ToTable("SystemAnnouncements");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.Title).HasMaxLength(160).IsRequired();
+                entity.Property(x => x.Message).HasMaxLength(2000).IsRequired();
+                entity.HasIndex(x => x.PublishAtUtc);
+                entity.HasOne(x => x.CreatedByAdmin).WithMany()
+                    .HasForeignKey(x => x.CreatedByAdminId).OnDelete(DeleteBehavior.Restrict);
+            });
         }
 
         private static void ConfigureLoanDocuments(ModelBuilder modelBuilder)
@@ -235,10 +269,10 @@ namespace BankingApp.Infrastructure.Persistence
                     .HasMaxLength(34)
                     .IsRequired();
 
-                entity.Property(account => account.AccountType)
-                    .HasConversion<string>()
-                    .HasMaxLength(25)
-                    .IsRequired();
+                entity.HasOne(account => account.AccountTypeDefinition)
+                    .WithMany(value => value.Accounts)
+                    .HasForeignKey(account => account.AccountTypeId)
+                    .OnDelete(DeleteBehavior.Restrict);
 
                 entity.Property(account => account.Status)
                     .HasConversion<string>()
@@ -306,6 +340,16 @@ namespace BankingApp.Infrastructure.Persistence
 
                 entity.Property(transaction => transaction.DestinationAmount)
                     .HasPrecision(18, 2);
+
+                entity.Property(transaction => transaction.TopUpSourceType)
+                    .HasMaxLength(30);
+
+                entity.Property(transaction => transaction.TopUpSourceDescription)
+                    .HasMaxLength(100);
+
+                entity.HasIndex(transaction => new { transaction.AccountId, transaction.ClientRequestId })
+                    .IsUnique()
+                    .HasFilter("[ClientRequestId] IS NOT NULL");
 
                 entity.Property(transaction => transaction.Description)
                     .HasMaxLength(250)
@@ -798,7 +842,7 @@ namespace BankingApp.Infrastructure.Persistence
                     Id = checkingAccountId,
                     UserId = userId,
                     AccountNumber = "BA-000001-CHECKING",
-                    AccountType = AccountType.Checking,
+                    AccountTypeId = BankingApp.Domain.Constants.AccountTypeCodes.CheckingId,
                     Balance = 20000.00m,
                     Currency = "USD",
                     CreatedAtUtc = createdAtUtc
@@ -808,7 +852,7 @@ namespace BankingApp.Infrastructure.Persistence
                     Id = savingsAccountId,
                     UserId = userId,
                     AccountNumber = "BA-000001-SAVINGS",
-                    AccountType = AccountType.Savings,
+                    AccountTypeId = BankingApp.Domain.Constants.AccountTypeCodes.SavingsId,
                     Balance = 5000.00m,
                     Currency = "USD",
                     CreatedAtUtc = createdAtUtc
@@ -818,7 +862,7 @@ namespace BankingApp.Infrastructure.Persistence
                     Id = recipientAccountId,
                     UserId = recipientUserId,
                     AccountNumber = "BA-000002-CHECKING",
-                    AccountType = AccountType.Checking,
+                    AccountTypeId = BankingApp.Domain.Constants.AccountTypeCodes.CheckingId,
                     Balance = 20000.00m,
                     Currency = "USD",
                     CreatedAtUtc = createdAtUtc
@@ -828,7 +872,7 @@ namespace BankingApp.Infrastructure.Persistence
                     Id = recipientSavingsAccountId,
                     UserId = recipientUserId,
                     AccountNumber = "BA-000002-SAVINGS",
-                    AccountType = AccountType.Savings,
+                    AccountTypeId = BankingApp.Domain.Constants.AccountTypeCodes.SavingsId,
                     Balance = 5000.00m,
                     Currency = "USD",
                     CreatedAtUtc = createdAtUtc

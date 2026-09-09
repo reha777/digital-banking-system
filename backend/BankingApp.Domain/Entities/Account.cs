@@ -12,7 +12,9 @@ namespace BankingApp.Domain.Entities
 
         public string AccountNumber { get; set; } = string.Empty;
 
-        public AccountType AccountType { get; set; }
+        public Guid AccountTypeId { get; set; }
+
+        public AccountTypeDefinition AccountTypeDefinition { get; set; } = null!;
 
         public AccountStatus Status { get; set; } = AccountStatus.Active;
 

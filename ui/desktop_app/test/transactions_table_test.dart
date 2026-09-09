@@ -13,6 +13,19 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test('desktop transaction parser preserves Top Up metadata', () {
+    final value = AdminTransaction.fromJson({
+      ..._transactionJson,
+      'type': 'TopUp',
+      'topUpSourceType': 'ExternalBankCard',
+      'topUpSourceDescription': 'External card ending 1234',
+    });
+
+    expect(value.type, AdminTransactionType.topUp);
+    expect(value.topUpSourceType, 'ExternalBankCard');
+    expect(value.topUpSourceDescription, 'External card ending 1234');
+  });
+
   testWidgets(
     'renders all transaction columns with semantic type and currency',
     (tester) async {

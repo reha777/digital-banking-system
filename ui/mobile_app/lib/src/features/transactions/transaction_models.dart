@@ -36,6 +36,7 @@ enum BankTransactionType {
   internalTransfer,
   loanDisbursement,
   loanRepayment,
+  topUp,
 }
 
 class BankTransaction {
@@ -55,6 +56,9 @@ class BankTransaction {
     this.documents = const [],
     this.sourceAccountNumber,
     this.destinationAccountNumber,
+    this.currency = 'USD',
+    this.topUpSourceType,
+    this.topUpSourceDescription,
   });
 
   factory BankTransaction.fromJson(Map<String, dynamic> json) {
@@ -77,6 +81,9 @@ class BankTransaction {
           .toList(),
       sourceAccountNumber: json['sourceAccountNumber']?.toString(),
       destinationAccountNumber: json['destinationAccountNumber']?.toString(),
+      currency: json['currency']?.toString().toUpperCase() ?? '',
+      topUpSourceType: json['topUpSourceType']?.toString(),
+      topUpSourceDescription: json['topUpSourceDescription']?.toString(),
       createdAtUtc:
           DateTime.tryParse(json['createdAtUtc']?.toString() ?? '') ??
           DateTime.now().toUtc(),
@@ -99,6 +106,9 @@ class BankTransaction {
   final List<TransactionDocument> documents;
   final String? sourceAccountNumber;
   final String? destinationAccountNumber;
+  final String currency;
+  final String? topUpSourceType;
+  final String? topUpSourceDescription;
 
   bool get requiresDocuments => statusValue == 5;
 }
@@ -108,6 +118,7 @@ BankTransactionType _transactionType(Object? value) =>
       '2' || 'internaltransfer' => BankTransactionType.internalTransfer,
       '3' || 'loandisbursement' => BankTransactionType.loanDisbursement,
       '4' || 'loanrepayment' => BankTransactionType.loanRepayment,
+      '5' || 'topup' => BankTransactionType.topUp,
       _ => BankTransactionType.transfer,
     };
 

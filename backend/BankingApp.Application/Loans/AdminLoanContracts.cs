@@ -67,7 +67,10 @@ public class AdminLoanDestinationAccountResponse
 {
     public Guid AccountId { get; set; }
     public string MaskedAccountNumber { get; set; } = string.Empty;
-    public AccountType AccountType { get; set; }
+    public Guid AccountTypeId { get; set; }
+    public string AccountTypeCode { get; set; } = string.Empty;
+    public string AccountTypeName { get; set; } = string.Empty;
+    public string AccountType => AccountTypeName;
     public string Currency { get; set; } = string.Empty;
     public decimal CurrentBalance { get; set; }
 }

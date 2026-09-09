@@ -153,6 +153,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddSingleton<IFileValidationService, FileValidationService>();
 builder.Services.AddScoped<INotificationWriter, NotificationWriter>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IAnnouncementService, AnnouncementService>();
 builder.Services.AddConfiguredEmailDelivery(
     builder.Configuration,
     builder.Environment.ContentRootPath,
@@ -163,6 +164,7 @@ builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IAuditArchiveRequestService, AuditArchiveRequestService>();
 builder.Services.AddSingleton<IAuditArchivePublisher, RabbitMqAuditArchivePublisher>();
 builder.Services.AddScoped<IAccountService, AccountService>();
+builder.Services.AddScoped<IAccountTypeService, AccountTypeService>();
 builder.Services.AddScoped<ITransactionService, TransactionService>();
 builder.Services.AddOptions<TransactionRiskOptions>()
     .Bind(builder.Configuration.GetSection(TransactionRiskOptions.SectionName))

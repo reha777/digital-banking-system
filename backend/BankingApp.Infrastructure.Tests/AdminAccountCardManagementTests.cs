@@ -97,11 +97,12 @@ public class AdminAccountCardManagementTests
         {
             var db = new BankingAppDbContext(new DbContextOptionsBuilder<BankingAppDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+            db.SeedAccountTypes();
             var user = new User { Id = Guid.NewGuid(), FirstName = "Demo", LastName = "Customer",
                 Email = "demo@example.test", PhoneNumber = "+38761000000", PasswordHash = "hash",
                 Role = AppRoles.Customer, Status = CustomerStatus.Active, CreatedAtUtc = DateTime.UtcNow };
             var account = new Account { Id = Guid.NewGuid(), UserId = user.Id, User = user,
-                AccountNumber = "BA-ADMIN-TEST", AccountType = AccountType.Checking,
+                AccountNumber = "BA-ADMIN-TEST", AccountTypeId = BankingApp.Domain.Constants.AccountTypeCodes.CheckingId,
                 Status = AccountStatus.Active, Balance = balance, Currency = "EUR", CreatedAtUtc = DateTime.UtcNow };
             var card = new BankCard { Id = Guid.NewGuid(), AccountId = account.Id, Account = account,
                 CardNumber = "4562111122223333", CardholderName = "Demo Customer", Cvv = "123",

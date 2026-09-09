@@ -91,6 +91,148 @@ namespace BankingApp.Infrastructure.Services
             });
         }
 
+        public async Task<TransactionResponse> TopUpAsync(
+            TopUpRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            if (currentUserService.IsAdmin)
+                throw new BusinessException("Top Up je dostupan samo Customer korisniku.");
+            if (request.AccountId == Guid.Empty)
+                throw new BusinessException("Destination account je obavezan.");
+            if (request.ClientRequestId == Guid.Empty)
+                throw new BusinessException("ClientRequestId je obavezan.");
+            if (request.Amount <= 0 || request.Amount > 10000m)
+                throw new BusinessException("Top Up iznos mora biti veci od 0 i najvise 10,000.00.");
+            if (decimal.Round(request.Amount, 2) != request.Amount)
+                throw new BusinessException("Top Up iznos moze imati najvise dvije decimale.");
+
+            var currency = request.Currency?.Trim().ToUpperInvariant() ?? string.Empty;
+            if (currency.Length != 3 || !currency.All(char.IsLetter))
+                throw new BusinessException("Top Up valuta nije podrzana.");
+            var sourceType = request.SourceType?.Trim() ?? string.Empty;
+            var sourceDescription = NormalizeTopUpSource(sourceType, request.SourceDescription);
+
+            var strategy = dbContext.Database.CreateExecutionStrategy();
+            return await strategy.ExecuteAsync(async () =>
+            {
+                await using var databaseTransaction = dbContext.Database.IsRelational()
+                    ? await dbContext.Database.BeginTransactionAsync(
+                        System.Data.IsolationLevel.Serializable, cancellationToken)
+                    : null;
+                try
+                {
+                    var existing = await dbContext.Transactions
+                        .Include(value => value.Account)
+                        .Include(value => value.Documents)
+                        .SingleOrDefaultAsync(value => value.AccountId == request.AccountId &&
+                            value.ClientRequestId == request.ClientRequestId &&
+                            value.Type == TransactionType.TopUp, cancellationToken);
+                    if (existing is not null)
+                    {
+                        if (existing.Account.UserId != currentUserService.UserId ||
+                            existing.Amount != request.Amount ||
+                            !existing.Account.Currency.Equals(currency, StringComparison.OrdinalIgnoreCase) ||
+                            existing.TopUpSourceType != sourceType ||
+                            existing.TopUpSourceDescription != sourceDescription)
+                            throw new BusinessException("ClientRequestId je vec iskoristen za drugi Top Up zahtjev.");
+                        return ToResponse(existing);
+                    }
+
+                    var account = await dbContext.Accounts.Include(value => value.User)
+                        .SingleOrDefaultAsync(value => value.Id == request.AccountId &&
+                            value.UserId == currentUserService.UserId, cancellationToken)
+                        ?? throw new NotFoundException("Destination account nije pronadjen.");
+                    if (account.Status != AccountStatus.Active || account.User.IsDeleted ||
+                        account.User.Status != CustomerStatus.Active)
+                        throw new BusinessException("Destination account mora biti aktivan.");
+                    if (!account.Currency.Equals(currency, StringComparison.OrdinalIgnoreCase))
+                        throw new BusinessException("Top Up valuta mora odgovarati valuti destination accounta.");
+
+                    var now = DateTime.UtcNow;
+                    var transaction = new Transaction
+                    {
+                        Id = Guid.NewGuid(),
+                        AccountId = account.Id,
+                        Account = account,
+                        DestinationAccountId = account.Id,
+                        ReferenceNumber = $"TOPUP-{now:yyyyMMddHHmmss}-{Guid.NewGuid():N}"[..40],
+                        Amount = decimal.Round(request.Amount, 2),
+                        Type = TransactionType.TopUp,
+                        Description = $"Top up from {sourceDescription}",
+                        Status = TransactionStatus.Completed,
+                        IsHighRiskReview = false,
+                        ClientRequestId = request.ClientRequestId,
+                        TopUpSourceType = sourceType,
+                        TopUpSourceDescription = sourceDescription,
+                        CreatedAtUtc = now
+                    };
+                    account.Balance = decimal.Round(account.Balance + transaction.Amount, 2);
+                    dbContext.Transactions.Add(transaction);
+
+                    if (notificationWriter is not null)
+                        await notificationWriter.AddAsync(new NotificationCreate(account.UserId,
+                            NotificationType.TopUpCompleted, "Top up completed",
+                            $"{transaction.Amount:F2} {account.Currency} was added to your account.",
+                            NotificationEntityTypes.Transaction, transaction.Id), cancellationToken);
+                    if (auditLogService is not null)
+                        await auditLogService.RecordAsync(new AuditLogRecordRequest
+                        {
+                            Action = AuditLogActions.TopUpCompleted,
+                            EntityType = AuditEntityTypes.Transaction,
+                            EntityId = transaction.Id.ToString(),
+                            Description = $"Top Up {transaction.Amount:F2} {account.Currency} to account {account.Id}; source {sourceType}; reference {transaction.ReferenceNumber}."
+                        }, cancellationToken);
+
+                    await dbContext.SaveChangesAsync(cancellationToken);
+                    if (databaseTransaction is not null)
+                        await databaseTransaction.CommitAsync(cancellationToken);
+                    return ToResponse(transaction);
+                }
+                catch (DbUpdateException)
+                {
+                    if (databaseTransaction is not null)
+                        await databaseTransaction.RollbackAsync(cancellationToken);
+                    dbContext.ChangeTracker.Clear();
+                    var duplicate = await dbContext.Transactions.AsNoTracking()
+                        .Include(value => value.Account)
+                        .Include(value => value.Documents)
+                        .SingleOrDefaultAsync(value => value.AccountId == request.AccountId &&
+                            value.ClientRequestId == request.ClientRequestId &&
+                            value.Type == TransactionType.TopUp, cancellationToken);
+                    if (duplicate is not null &&
+                        duplicate.Account.UserId == currentUserService.UserId &&
+                        duplicate.Amount == request.Amount &&
+                        duplicate.Account.Currency.Equals(currency, StringComparison.OrdinalIgnoreCase) &&
+                        duplicate.TopUpSourceType == sourceType &&
+                        duplicate.TopUpSourceDescription == sourceDescription)
+                        return ToResponse(duplicate);
+                    throw new BusinessException("Top Up nije moguce obraditi jer je zahtjev vec promijenjen.");
+                }
+                catch
+                {
+                    if (databaseTransaction is not null)
+                        await databaseTransaction.RollbackAsync(cancellationToken);
+                    dbContext.ChangeTracker.Clear();
+                    throw;
+                }
+            });
+        }
+
+        private static string NormalizeTopUpSource(string sourceType, string? rawDescription)
+        {
+            var description = rawDescription?.Trim() ?? string.Empty;
+            return sourceType switch
+            {
+                "ExternalBankCard" when description.Length == 4 && description.All(char.IsDigit) =>
+                    $"External card ending {description}",
+                "ExternalBankCard" => throw new BusinessException("Unesite tacno posljednje 4 cifre vanjske kartice."),
+                "CashDeposit" or "BankTransfer" when description.Length is >= 2 and <= 100 &&
+                    !description.Contains('\r') && !description.Contains('\n') => description,
+                "CashDeposit" or "BankTransfer" => throw new BusinessException("Source description mora imati od 2 do 100 znakova."),
+                _ => throw new BusinessException("Top Up source type nije podrzan.")
+            };
+        }
+
         private async Task<MoneyTransferResponse> SendMoneyCoreAsync(
             MoneyTransferRequest request,
             CancellationToken cancellationToken)
@@ -944,6 +1086,8 @@ namespace BankingApp.Infrastructure.Services
                 IsHighRiskReview = transaction.IsHighRiskReview,
                 RiskProbability = transaction.RiskProbability,
                 RiskModelVersion = transaction.RiskModelVersion,
+                TopUpSourceType = transaction.TopUpSourceType,
+                TopUpSourceDescription = transaction.TopUpSourceDescription,
                 ReviewReason = transaction.ReviewReason,
                 DocumentsRequestNote = transaction.DocumentsRequestNote,
                 DocumentsRequestedAtUtc = transaction.DocumentsRequestedAtUtc,
@@ -1037,6 +1181,7 @@ namespace BankingApp.Infrastructure.Services
 
             var accounts = await dbContext.Accounts
                 .AsNoTracking()
+                .Include(account => account.AccountTypeDefinition)
                 .Where(account => account.UserId == currentUserService.UserId)
                 .OrderBy(account => account.AccountNumber)
                 .ToListAsync(cancellationToken);
@@ -1090,7 +1235,9 @@ namespace BankingApp.Infrastructure.Services
                 {
                     Id = account.Id,
                     AccountNumber = account.AccountNumber,
-                    AccountType = account.AccountType,
+                    AccountTypeId = account.AccountTypeId,
+                    AccountTypeCode = account.AccountTypeDefinition?.Code ?? string.Empty,
+                    AccountTypeName = account.AccountTypeDefinition?.Name ?? string.Empty,
                     Balance = account.Balance,
                     Currency = account.Currency
                 }).ToList(),

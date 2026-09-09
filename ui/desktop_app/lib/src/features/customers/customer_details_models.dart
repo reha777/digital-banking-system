@@ -68,11 +68,7 @@ class AdminCustomerAccount {
       AdminCustomerAccount(
         id: json['id']?.toString() ?? '',
         accountNumber: json['accountNumber']?.toString() ?? '',
-        accountType: switch (json['accountType']?.toString().toLowerCase()) {
-          '1' || 'checking' => 'Checking',
-          '2' || 'savings' => 'Savings',
-          _ => 'Account',
-        },
+        accountType: _accountTypeName(json),
         status: switch (json['status']?.toString().toLowerCase()) {
           '1' || 'active' => 'Active',
           '2' || 'closed' => 'Closed',
@@ -91,6 +87,15 @@ class AdminCustomerAccount {
   final double balance;
   final DateTime createdAtUtc;
   final AdminCustomerCard? card;
+}
+
+String _accountTypeName(Map<String, dynamic> json) {
+  final name = json['accountTypeName']?.toString().trim();
+  if (name != null && name.isNotEmpty) return name;
+  final compatibility = json['accountType']?.toString().trim();
+  return compatibility != null && compatibility.isNotEmpty
+      ? compatibility
+      : 'Account';
 }
 
 class AdminCustomerCard {

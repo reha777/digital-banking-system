@@ -21,6 +21,7 @@ import '../statistics/pages/statistics_page.dart';
 import '../statistics/models/statistics_models.dart';
 import '../transactions/send_money_screen.dart';
 import '../transactions/transaction_history_screen.dart';
+import '../transactions/top_up_screen.dart';
 import '../notifications/notifications_page.dart';
 
 class MobileDashboardScreen extends StatefulWidget {
@@ -112,6 +113,17 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         builder: (_) => ReceiveMoneyPage(session: widget.session),
       ),
     );
+  }
+
+  Future<void> _openTopUp() async {
+    final completed = await _contentNavigator.push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => TopUpScreen(session: widget.session),
+      ),
+    );
+    if (completed == true && mounted) {
+      _homeKey.currentState?.refresh();
+    }
   }
 
   Future<void> _openAccountTransfer() async {
@@ -240,6 +252,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         onReceiveMoney: _openReceiveMoney,
         onTransfer: _openAccountTransfer,
         onLoan: _openLoans,
+        onTopUp: _openTopUp,
         onTransactionHistory: _openTransactionHistory,
         onLogout: _logout,
         onProfileTap: _openProfile,

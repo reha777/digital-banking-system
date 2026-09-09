@@ -23,6 +23,13 @@ public static class AuditLogActions
     public const string CardUnblockedByAdmin = nameof(CardUnblockedByAdmin);
     public const string LoanDocumentRequested = nameof(LoanDocumentRequested);
     public const string LoanDocumentUploaded = nameof(LoanDocumentUploaded);
+    public const string TopUpCompleted = nameof(TopUpCompleted);
+    public const string AnnouncementCreated = nameof(AnnouncementCreated);
+    public const string AnnouncementUpdated = nameof(AnnouncementUpdated);
+    public const string AccountTypeCreated = nameof(AccountTypeCreated);
+    public const string AccountTypeUpdated = nameof(AccountTypeUpdated);
+    public const string AccountTypeActivated = nameof(AccountTypeActivated);
+    public const string AccountTypeDeactivated = nameof(AccountTypeDeactivated);
 }
 
 public static class AuditEntityTypes
@@ -36,6 +43,8 @@ public static class AuditEntityTypes
     public const string ReportJob = nameof(ReportJob);
     public const string Account = nameof(Account);
     public const string Card = nameof(Card);
+    public const string SystemAnnouncement = nameof(SystemAnnouncement);
+    public const string AccountTypeDefinition = nameof(AccountTypeDefinition);
 }
 
 public sealed class AuditLogRecordRequest

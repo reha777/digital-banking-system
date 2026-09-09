@@ -20,6 +20,8 @@ namespace BankingApp.Application.Interfaces
 
         Task<MoneyTransferResponse> InternalTransferAsync(InternalTransferRequest request, CancellationToken cancellationToken = default);
 
+        Task<TransactionResponse> TopUpAsync(TopUpRequest request, CancellationToken cancellationToken = default);
+
         Task<PagedResult<RecentRecipientResponse>> GetRecentRecipientsAsync(PagedRequest request, CancellationToken cancellationToken = default);
 
         Task<RecentRecipientResponse> LookupRecipientAsync(string accountNumber, CancellationToken cancellationToken = default);

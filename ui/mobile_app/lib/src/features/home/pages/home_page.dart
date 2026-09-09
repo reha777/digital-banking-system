@@ -20,6 +20,7 @@ class HomePage extends StatefulWidget {
     required this.onReceiveMoney,
     required this.onTransfer,
     required this.onLoan,
+    required this.onTopUp,
     required this.onTransactionHistory,
     required this.onLogout,
     required this.onProfileTap,
@@ -32,6 +33,7 @@ class HomePage extends StatefulWidget {
   final VoidCallback onReceiveMoney;
   final VoidCallback onTransfer;
   final VoidCallback onLoan;
+  final VoidCallback onTopUp;
   final ValueChanged<String?> onTransactionHistory;
   final VoidCallback onLogout;
   final VoidCallback onProfileTap;
@@ -226,6 +228,7 @@ class HomePageState extends State<HomePage> {
                 onReceiveMoney: widget.onReceiveMoney,
                 onTransfer: widget.onTransfer,
                 onLoan: widget.onLoan,
+                onTopUp: widget.onTopUp,
                 onCardTap: widget.onCardTap,
                 onActiveCardChanged: _selectCard,
                 hasProfilePhoto: widget.session.user?.hasProfilePhoto ?? false,

@@ -77,7 +77,7 @@ public class CurrencyCorrectnessTests
         private static Account Account(User user, string number, string currency, decimal balance) => new()
         {
             Id = Guid.NewGuid(), UserId = user.Id, User = user, AccountNumber = number,
-            Currency = currency, Balance = balance, AccountType = AccountType.Checking,
+            Currency = currency, Balance = balance, AccountTypeId = BankingApp.Domain.Constants.AccountTypeCodes.CheckingId,
             CreatedAtUtc = DateTime.UtcNow
         };
         private static Transaction Transaction(Account account, decimal amount) => new()

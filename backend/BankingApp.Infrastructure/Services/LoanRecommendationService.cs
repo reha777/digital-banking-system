@@ -57,6 +57,7 @@ public sealed class LoanRecommendationService(
         var activity = await dbContext.Transactions.AsNoTracking()
             .Where(transaction => transaction.Account.UserId == userId &&
                 transaction.Status == TransactionStatus.Completed &&
+                transaction.Type != TransactionType.TopUp &&
                 transaction.CreatedAtUtc >= sinceUtc)
             .GroupBy(transaction => transaction.Account.Currency)
             .Select(group => new ActivitySignal(

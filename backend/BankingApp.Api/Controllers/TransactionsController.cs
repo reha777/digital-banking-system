@@ -74,6 +74,13 @@ namespace BankingApp.Api.Controllers
             CancellationToken cancellationToken) =>
             Ok(await transactionService.InternalTransferAsync(request, cancellationToken));
 
+        [Authorize(Roles = AppRoles.Customer)]
+        [HttpPost("top-up")]
+        public async Task<ActionResult<TransactionResponse>> TopUp(
+            TopUpRequest request,
+            CancellationToken cancellationToken) =>
+            Ok(await transactionService.TopUpAsync(request, cancellationToken));
+
         [HttpGet("recent-recipients")]
         public async Task<ActionResult<PagedResult<RecentRecipientResponse>>> GetRecentRecipients(
             [FromQuery] PagedRequest request,

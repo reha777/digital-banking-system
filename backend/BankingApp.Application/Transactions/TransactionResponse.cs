@@ -40,6 +40,10 @@ namespace BankingApp.Application.Transactions
 
         public string? RiskModelVersion { get; set; }
 
+        public string? TopUpSourceType { get; set; }
+
+        public string? TopUpSourceDescription { get; set; }
+
         public string? ReviewReason { get; set; }
 
         public string? DocumentsRequestNote { get; set; }

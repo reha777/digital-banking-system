@@ -259,7 +259,7 @@ public class LoanApplicationTests
         private static Account Account(User user, string currency) => new()
         {
             Id = Guid.NewGuid(), UserId = user.Id, User = user, AccountNumber = $"BA-{Guid.NewGuid():N}",
-            AccountType = AccountType.Checking, Balance = 100, Currency = currency, CreatedAtUtc = DateTime.UtcNow
+            AccountTypeId = BankingApp.Domain.Constants.AccountTypeCodes.CheckingId, Balance = 100, Currency = currency, CreatedAtUtc = DateTime.UtcNow
         };
 
         private static LoanProduct Product(string currency, decimal min, decimal max, decimal rate, bool active = true) => new()

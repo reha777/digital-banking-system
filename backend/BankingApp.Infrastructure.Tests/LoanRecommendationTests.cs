@@ -175,7 +175,7 @@ public sealed class LoanRecommendationTests
         {
             Id = Guid.NewGuid(), UserId = user.Id, User = user,
             AccountNumber = Guid.NewGuid().ToString("N"), Currency = currency,
-            Balance = 100, AccountType = AccountType.Checking, CreatedAtUtc = DateTime.UtcNow
+            Balance = 100, AccountTypeId = BankingApp.Domain.Constants.AccountTypeCodes.CheckingId, CreatedAtUtc = DateTime.UtcNow
         };
 
         public ValueTask DisposeAsync() => Db.DisposeAsync();

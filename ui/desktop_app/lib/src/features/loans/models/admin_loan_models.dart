@@ -243,12 +243,12 @@ class AdminLoanDestinationAccount {
       AdminLoanDestinationAccount(
         accountId: json['accountId']?.toString() ?? '',
         maskedAccountNumber: json['maskedAccountNumber']?.toString() ?? '',
-        accountType: switch (json['accountType']?.toString()) {
-          '1' => 'Checking',
-          '2' => 'Savings',
-          final value when value != null => value,
-          _ => 'Account',
-        },
+        accountType:
+            (json['accountTypeName']?.toString().trim().isNotEmpty ?? false)
+            ? json['accountTypeName'].toString().trim()
+            : (json['accountType']?.toString().trim().isNotEmpty ?? false)
+            ? json['accountType'].toString().trim()
+            : 'Account',
         currency: json['currency']?.toString() ?? '',
         currentBalance: _number(json['currentBalance']),
       );

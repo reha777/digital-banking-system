@@ -8,7 +8,10 @@ namespace BankingApp.Application.Accounts
 
         public string AccountNumber { get; set; } = string.Empty;
 
-        public AccountType AccountType { get; set; }
+        public Guid AccountTypeId { get; set; }
+        public string AccountTypeCode { get; set; } = string.Empty;
+        public string AccountTypeName { get; set; } = string.Empty;
+        public string AccountType => AccountTypeName;
 
         public AccountStatus Status { get; set; }
 

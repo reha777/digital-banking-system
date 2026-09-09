@@ -109,7 +109,7 @@ public class TransactionAuthorizationTests
             {
                 Id = Guid.NewGuid(), UserId = owner.Id, User = owner,
                 AccountNumber = "owner-account", Currency = "USD", Balance = 100,
-                AccountType = AccountType.Checking, CreatedAtUtc = DateTime.UtcNow
+                AccountTypeId = BankingApp.Domain.Constants.AccountTypeCodes.CheckingId, CreatedAtUtc = DateTime.UtcNow
             };
             var transaction = new Transaction
             {

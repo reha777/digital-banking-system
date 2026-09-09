@@ -3,6 +3,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'dart:async';
 
 import '../../core/api_client.dart';
+import '../../core/formatting/date_formatters.dart';
 import '../auth/auth_session.dart';
 import 'notification_model.dart';
 import 'notification_service.dart';
@@ -23,6 +24,8 @@ class NotificationsPage extends StatefulWidget {
 class _NotificationsPageState extends State<NotificationsPage> {
   late final NotificationService _service;
   List<AppNotification> _items = const [];
+  List<SystemAnnouncement> _announcements = const [];
+  bool _showAnnouncements = false;
   bool _loading = true, _busy = false;
   String? _error;
 
@@ -41,8 +44,16 @@ class _NotificationsPageState extends State<NotificationsPage> {
       });
     }
     try {
-      final value = await _service.getNotifications(pageSize: 100);
-      if (mounted) setState(() => _items = value.items);
+      final values = await Future.wait([
+        _service.getNotifications(pageSize: 100),
+        _service.getAnnouncements(),
+      ]);
+      if (mounted) {
+        setState(() {
+          _items = (values[0] as NotificationPageResult).items;
+          _announcements = values[1] as List<SystemAnnouncement>;
+        });
+      }
     } catch (_) {
       if (mounted) {
         setState(() => _error = 'Notifications could not be loaded.');
@@ -102,94 +113,177 @@ class _NotificationsPageState extends State<NotificationsPage> {
           ),
       ],
     ),
-    body: _loading
-        ? const Center(child: CircularProgressIndicator())
-        : _error != null
-        ? Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(_error!),
-                const SizedBox(height: 12),
-                OutlinedButton(
-                  onPressed: _load,
-                  child: const Text('Try again'),
-                ),
-              ],
-            ),
-          )
-        : _items.isEmpty
-        ? const Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(LucideIcons.bell, size: 42),
-                SizedBox(height: 12),
-                Text('No notifications yet.'),
-              ],
-            ),
-          )
-        : RefreshIndicator(
-            onRefresh: _load,
-            child: ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: _items.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 8),
-              itemBuilder: (_, index) {
-                final item = _items[index];
-                return Material(
-                  color: item.isRead
-                      ? Theme.of(context).colorScheme.surfaceContainerLow
-                      : Theme.of(
-                          context,
-                        ).colorScheme.primaryContainer.withValues(alpha: .35),
-                  borderRadius: BorderRadius.circular(18),
-                  child: ListTile(
-                    onTap: () => _read(item),
-                    contentPadding: const EdgeInsets.all(14),
-                    leading: CircleAvatar(
-                      child: Icon(
-                        item.type.contains('Loan')
-                            ? LucideIcons.landmark
-                            : item.type.contains('Card')
-                            ? LucideIcons.creditCard
-                            : LucideIcons.arrowLeftRight,
+    body: Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: SegmentedButton<bool>(
+            segments: const [
+              ButtonSegment(
+                value: false,
+                icon: Icon(LucideIcons.bell),
+                label: Text('Notifications'),
+              ),
+              ButtonSegment(
+                value: true,
+                icon: Icon(LucideIcons.megaphone),
+                label: Text('Announcements'),
+              ),
+            ],
+            selected: {_showAnnouncements},
+            onSelectionChanged: (value) =>
+                setState(() => _showAnnouncements = value.first),
+          ),
+        ),
+        Expanded(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _error != null
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(_error!),
+                      const SizedBox(height: 12),
+                      OutlinedButton(
+                        onPressed: _load,
+                        child: const Text('Try again'),
                       ),
-                    ),
-                    title: Text(
-                      item.title,
-                      style: TextStyle(
-                        fontWeight: item.isRead
-                            ? FontWeight.w600
-                            : FontWeight.w800,
-                      ),
-                    ),
-                    subtitle: Padding(
-                      padding: const EdgeInsets.only(top: 5),
-                      child: Text(item.message),
-                    ),
-                    trailing: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(_time(item.createdAtUtc)),
-                        if (!item.isRead)
-                          Container(
-                            margin: const EdgeInsets.only(top: 7),
-                            width: 7,
-                            height: 7,
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.primary,
-                              shape: BoxShape.circle,
+                    ],
+                  ),
+                )
+              : _showAnnouncements
+              ? _announcements.isEmpty
+                    ? const Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(LucideIcons.megaphone, size: 42),
+                            SizedBox(height: 12),
+                            Text('No announcements yet.'),
+                          ],
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: _load,
+                        child: ListView.separated(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: _announcements.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 8),
+                          itemBuilder: (_, index) {
+                            final item = _announcements[index];
+                            return Card(
+                              child: ListTile(
+                                contentPadding: const EdgeInsets.all(16),
+                                leading: const CircleAvatar(
+                                  child: Icon(LucideIcons.megaphone),
+                                ),
+                                title: Text(
+                                  item.title,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                subtitle: Padding(
+                                  padding: const EdgeInsets.only(top: 7),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(item.message),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        _announcementDate(item.publishAtUtc),
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodySmall,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      )
+              : _items.isEmpty
+              ? const Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(LucideIcons.bell, size: 42),
+                      SizedBox(height: 12),
+                      Text('No notifications yet.'),
+                    ],
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _items.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    itemBuilder: (_, index) {
+                      final item = _items[index];
+                      return Material(
+                        color: item.isRead
+                            ? Theme.of(context).colorScheme.surfaceContainerLow
+                            : Theme.of(context).colorScheme.primaryContainer
+                                  .withValues(alpha: .35),
+                        borderRadius: BorderRadius.circular(18),
+                        child: ListTile(
+                          onTap: () => _read(item),
+                          contentPadding: const EdgeInsets.all(14),
+                          leading: CircleAvatar(
+                            child: Icon(
+                              item.type.contains('Loan')
+                                  ? LucideIcons.landmark
+                                  : item.type.contains('Card')
+                                  ? LucideIcons.creditCard
+                                  : LucideIcons.arrowLeftRight,
                             ),
                           ),
-                      ],
-                    ),
+                          title: Text(
+                            item.title,
+                            style: TextStyle(
+                              fontWeight: item.isRead
+                                  ? FontWeight.w600
+                                  : FontWeight.w800,
+                            ),
+                          ),
+                          subtitle: Padding(
+                            padding: const EdgeInsets.only(top: 5),
+                            child: Text(item.message),
+                          ),
+                          trailing: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(_time(item.createdAtUtc)),
+                              if (!item.isRead)
+                                Container(
+                                  margin: const EdgeInsets.only(top: 7),
+                                  width: 7,
+                                  height: 7,
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
-          ),
+                ),
+        ),
+      ],
+    ),
   );
+
+  String _announcementDate(DateTime value) => formatLocalDateTime(value);
 }
 
 class NotificationBell extends StatefulWidget {

@@ -305,12 +305,16 @@ namespace BankingApp.Infrastructure.Services
             }
 
             var accountId = Guid.NewGuid();
+            var accountType = await dbContext.AccountTypeDefinitions.SingleOrDefaultAsync(
+                value => value.Code == BankingApp.Domain.Constants.AccountTypeCodes.Checking && value.IsActive,
+                cancellationToken) ?? throw new BusinessException("Active CHECKING account type is not configured.");
             var account = new Account
             {
                 Id = accountId,
                 UserId = cardRequest.UserId,
-                AccountNumber = AccountNumberGenerator.Create(accountId, AccountType.Checking),
-                AccountType = AccountType.Checking,
+                AccountNumber = AccountNumberGenerator.Create(accountId, BankingApp.Domain.Constants.AccountTypeCodes.Checking),
+                AccountTypeId = accountType.Id,
+                AccountTypeDefinition = accountType,
                 Status = AccountStatus.Active,
                 Balance = 0,
                 Currency = cardRequest.Currency,

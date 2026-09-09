@@ -1,14 +1,15 @@
-using BankingApp.Domain.Enums;
-
 namespace BankingApp.Domain.Services;
 
 public static class AccountNumberGenerator
 {
-    public static string Create(Guid accountId, AccountType accountType)
+    public static string Create(Guid accountId, string accountTypeCode)
     {
         if (accountId == Guid.Empty)
             throw new ArgumentException("Account ID must not be empty.", nameof(accountId));
 
-        return $"BA-{accountId:N}"[..23].ToUpperInvariant() + $"-{accountType.ToString().ToUpperInvariant()}";
+        if (string.IsNullOrWhiteSpace(accountTypeCode))
+            throw new ArgumentException("Account type code must not be empty.", nameof(accountTypeCode));
+
+        return $"BA-{accountId:N}"[..23].ToUpperInvariant() + $"-{accountTypeCode.Trim().ToUpperInvariant()}";
     }
 }

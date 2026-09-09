@@ -81,6 +81,8 @@ class AdminTransaction {
     this.destinationAccountNumber,
     this.sourceCustomerName,
     this.destinationCustomerName,
+    this.topUpSourceType,
+    this.topUpSourceDescription,
   });
 
   factory AdminTransaction.fromJson(Map<String, dynamic> json) {
@@ -111,6 +113,8 @@ class AdminTransaction {
       destinationAccountNumber: json['destinationAccountNumber']?.toString(),
       sourceCustomerName: json['sourceCustomerName']?.toString(),
       destinationCustomerName: json['destinationCustomerName']?.toString(),
+      topUpSourceType: json['topUpSourceType']?.toString(),
+      topUpSourceDescription: json['topUpSourceDescription']?.toString(),
       createdAtUtc:
           DateTime.tryParse(json['createdAtUtc']?.toString() ?? '') ??
           DateTime.now().toUtc(),
@@ -139,6 +143,8 @@ class AdminTransaction {
   final String? destinationAccountNumber;
   final String? sourceCustomerName;
   final String? destinationCustomerName;
+  final String? topUpSourceType;
+  final String? topUpSourceDescription;
 }
 
 class AdminTransactionDocument {
@@ -198,7 +204,8 @@ enum AdminTransactionType {
   transfer('Transfer'),
   internalTransfer('Internal Transfer'),
   loanDisbursement('Loan Disbursement'),
-  loanRepayment('Loan Repayment');
+  loanRepayment('Loan Repayment'),
+  topUp('Top Up');
 
   const AdminTransactionType(this.label);
   final String label;
@@ -209,5 +216,6 @@ AdminTransactionType _transactionType(Object? value) =>
       '2' || 'internaltransfer' => AdminTransactionType.internalTransfer,
       '3' || 'loandisbursement' => AdminTransactionType.loanDisbursement,
       '4' || 'loanrepayment' => AdminTransactionType.loanRepayment,
+      '5' || 'topup' => AdminTransactionType.topUp,
       _ => AdminTransactionType.transfer,
     };

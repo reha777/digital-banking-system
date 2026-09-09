@@ -94,6 +94,7 @@ public class TransactionStatisticsTests
         {
             var db = new BankingAppDbContext(new DbContextOptionsBuilder<BankingAppDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+            db.SeedAccountTypes();
             var owner = User("Owner");
             var foreign = User("Foreign");
             var checking = Account(owner, "checking", "USD", 700);
@@ -132,7 +133,7 @@ public class TransactionStatisticsTests
             AccountNumber = number,
             Currency = currency,
             Balance = balance,
-            AccountType = AccountType.Checking,
+            AccountTypeId = BankingApp.Domain.Constants.AccountTypeCodes.CheckingId,
             CreatedAtUtc = DateTime.UtcNow
         };
 

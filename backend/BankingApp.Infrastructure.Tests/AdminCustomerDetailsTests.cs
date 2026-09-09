@@ -150,7 +150,7 @@ public class AdminCustomerDetailsTests
         Assert.Equal(0, approvedAccount.Balance);
         Assert.Equal(AccountStatus.Active, approvedAccount.Status);
         Assert.Equal(
-            AccountNumberGenerator.Create(approvedAccount.Id, approvedAccount.AccountType),
+            AccountNumberGenerator.Create(approvedAccount.Id, BankingApp.Domain.Constants.AccountTypeCodes.Checking),
             approvedAccount.AccountNumber);
         Assert.StartsWith("**** **** **** ", approved.ApprovedMaskedCardNumber);
         Assert.NotNull(approved.ApprovedCardExpiryDate);
@@ -216,13 +216,14 @@ public class AdminCustomerDetailsTests
             var appB = Application(b, other, product);
             var loanA = Loan(a, usd, appA);
             var loanB = Loan(b, other, appB);
+            db.AccountTypeDefinitions.Add(new AccountTypeDefinition { Id = AccountTypeCodes.CheckingId, Code = AccountTypeCodes.Checking, Name = "Checking", IsActive = true, CreatedAtUtc = DateTime.UtcNow });
             db.Users.AddRange(a, b, admin); db.Accounts.AddRange(usd, usd2, eur, bam, other); db.BankCards.Add(card); db.LoanProducts.Add(product); db.LoanApplications.AddRange(appA, appB); db.Loans.AddRange(loanA, loanB);
             db.CardRequests.AddRange(Request(a), Request(b));
             db.Transactions.AddRange(Transaction(usd, "A-1"), Transaction(eur, "A-2"), Transaction(other, "B-1"));
             await db.SaveChangesAsync(); return new Fixture(db, a, admin);
         }
         private static User User(string name, string role) => new() { Id = Guid.NewGuid(), FirstName = name, LastName = "User", Email = $"{Guid.NewGuid()}@test.com", PhoneNumber = "+38761000000", PasswordHash = "hash", Role = role, Status = CustomerStatus.Active, CreatedAtUtc = DateTime.UtcNow };
-        private static Account Account(User user, string number, string currency, decimal balance) => new() { Id = Guid.NewGuid(), UserId = user.Id, User = user, AccountNumber = number, Currency = currency, Balance = balance, AccountType = AccountType.Checking, CreatedAtUtc = DateTime.UtcNow };
+        private static Account Account(User user, string number, string currency, decimal balance) => new() { Id = Guid.NewGuid(), UserId = user.Id, User = user, AccountNumber = number, Currency = currency, Balance = balance, AccountTypeId = BankingApp.Domain.Constants.AccountTypeCodes.CheckingId, CreatedAtUtc = DateTime.UtcNow };
         private static Transaction Transaction(Account account, string reference) => new() { Id = Guid.NewGuid(), AccountId = account.Id, Account = account, ReferenceNumber = reference, Amount = 10, Type = TransactionType.Transfer, Description = "Test", Status = TransactionStatus.Completed, CreatedAtUtc = DateTime.UtcNow };
         private static CardRequest Request(User user) => new() { Id = Guid.NewGuid(), UserId = user.Id, User = user, CardholderName = user.FirstName, Currency = "USD", DocumentNumber = "DOC", DeliveryAddress = "Address", Note = "", Status = CardRequestStatus.Pending, CreatedAtUtc = DateTime.UtcNow };
         private static LoanApplication Application(User user, Account account, LoanProduct product) => new() { Id = Guid.NewGuid(), UserId = user.Id, User = user, LoanProductId = product.Id, LoanProduct = product, DestinationAccountId = account.Id, DestinationAccount = account, Principal = 1000, Currency = "USD", AnnualInterestRateSnapshot = 5, TermMonths = 12, EstimatedMonthlyPayment = 90, EstimatedTotalInterest = 80, EstimatedTotalRepayment = 1080, Status = LoanApplicationStatus.Approved, SubmittedAtUtc = DateTime.UtcNow, ClientRequestId = Guid.NewGuid() };

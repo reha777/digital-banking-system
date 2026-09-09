@@ -55,6 +55,25 @@ class TransactionService {
     return MoneyTransferResult.fromJson(json);
   }
 
+  Future<BankTransaction> topUp({
+    required String token,
+    required String accountId,
+    required double amount,
+    required String currency,
+    required String sourceType,
+    required String sourceDescription,
+    required String clientRequestId,
+  }) async => BankTransaction.fromJson(
+    await _apiClient.postJson(MobileApiEndpoints.topUp, {
+      'accountId': accountId,
+      'amount': amount,
+      'currency': currency,
+      'sourceType': sourceType,
+      'sourceDescription': sourceDescription,
+      'clientRequestId': clientRequestId,
+    }, token: token),
+  );
+
   Future<MoneyTransferQuote> getTransferQuote({
     required String token,
     required String sourceAccountId,

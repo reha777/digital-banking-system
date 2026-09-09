@@ -37,6 +37,12 @@ namespace BankingApp.Domain.Entities
 
         public string? RiskModelVersion { get; set; }
 
+        public Guid? ClientRequestId { get; set; }
+
+        public string? TopUpSourceType { get; set; }
+
+        public string? TopUpSourceDescription { get; set; }
+
         public string? ReviewReason { get; set; }
 
         public string? DocumentsRequestNote { get; set; }

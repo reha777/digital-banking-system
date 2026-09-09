@@ -86,6 +86,7 @@ public class AdminLoanLifecycleReadTests
         public static async Task<Fixture> CreateAsync(bool admin = true)
         {
             var db = new BankingAppDbContext(new DbContextOptionsBuilder<BankingAppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+            db.SeedAccountTypes();
             var now = DateTime.UtcNow;
             var owner = new User { Id = Guid.NewGuid(), FirstName = "Amira", LastName = "Customer", Email = "amira@example.com", PhoneNumber = "1", PasswordHash = "hash", Role = AppRoles.Customer, Status = CustomerStatus.Active, CreatedAtUtc = now };
             var bam = Product("BAM Personal Loan", "BAM", now); var eur = Product("EUR Personal Loan", "EUR", now);
@@ -116,7 +117,7 @@ public class AdminLoanLifecycleReadTests
             return new Fixture(db, new AdminLoanService(db, new CurrentUser(admin), new LoanCalculationService()), completed);
         }
         private static LoanProduct Product(string name, string currency, DateTime now) => new() { Id = Guid.NewGuid(), Name = name, Description = "Test", Currency = currency, MinPrincipal = 1, MaxPrincipal = 10000, AnnualInterestRate = 5, MinTermMonths = 1, MaxTermMonths = 12, TermStepMonths = 1, IsActive = true, CreatedAtUtc = now, UpdatedAtUtc = now };
-        private static Account Account(User user, string number, string currency, DateTime now) => new() { Id = Guid.NewGuid(), UserId = user.Id, AccountNumber = number, Currency = currency, Balance = 5000, AccountType = AccountType.Checking, CreatedAtUtc = now };
+        private static Account Account(User user, string number, string currency, DateTime now) => new() { Id = Guid.NewGuid(), UserId = user.Id, AccountNumber = number, Currency = currency, Balance = 5000, AccountTypeId = BankingApp.Domain.Constants.AccountTypeCodes.CheckingId, CreatedAtUtc = now };
         private static LoanApplication Application(User user, Account account, LoanProduct product, DateTime submitted) => new() { Id = Guid.NewGuid(), UserId = user.Id, DestinationAccountId = account.Id, LoanProductId = product.Id, Principal = 1000, Currency = product.Currency, AnnualInterestRateSnapshot = 5, TermMonths = 1, EstimatedMonthlyPayment = 1050, EstimatedTotalInterest = 50, EstimatedTotalRepayment = 1050, Status = LoanApplicationStatus.Approved, SubmittedAtUtc = submitted, ReviewedAtUtc = submitted.AddDays(1), ClientRequestId = Guid.NewGuid(), AdminNote = "Approved" };
         private static Loan Loan(LoanApplication app, User user, Account account, LoanStatus status, DateTime start) => new() { Id = Guid.NewGuid(), LoanApplicationId = app.Id, UserId = user.Id, DestinationAccountId = account.Id, OriginalPrincipal = 1000, OutstandingPrincipal = 1000, Currency = app.Currency, AnnualInterestRate = 5, TermMonths = 1, MonthlyPayment = 1050, TotalRepayment = 1050, TotalPaid = 0, StartDateUtc = start, NextPaymentDateUtc = start.AddMonths(1), MaturityDateUtc = start.AddMonths(1), Status = status, CreatedAtUtc = start };
         public ValueTask DisposeAsync() => Db.DisposeAsync();
