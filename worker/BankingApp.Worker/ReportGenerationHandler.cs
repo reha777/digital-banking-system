@@ -4,6 +4,7 @@ using BankingApp.Application.Messaging;
 using BankingApp.Application.Reports;
 using BankingApp.Domain.Entities;
 using BankingApp.Domain.Enums;
+using BankingApp.Domain.Services;
 using BankingApp.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -55,7 +56,10 @@ public sealed class ReportGenerationHandler(BankingAppDbContext db, IReportPdfGe
         if (!string.IsNullOrWhiteSpace(filter.Currency)) query = query.Where(x => (x.TransferCurrency ?? x.Account.Currency) == filter.Currency);
         var values = await query.OrderByDescending(x => x.CreatedAtUtc).Take(configured.Value.MaxRows + 1).ToListAsync(token);
         EnsureLimit(values.Count);
-        var rows = values.Select(x => new TransactionReportRow(x.CreatedAtUtc, x.ReferenceNumber, $"{x.Account.User.FirstName} {x.Account.User.LastName}".Trim(), $"Account •••• {x.Account.AccountNumber[^Math.Min(4, x.Account.AccountNumber.Length)..]}", x.Type.ToString(), x.TransferAmount ?? x.Amount, x.TransferCurrency ?? x.Account.Currency, x.Status.ToString())).ToList();
+        // The table lists ledger entries, so a transfer keeps its debit and credit rows.
+        // Only the canonical row of each business transaction feeds the volume summary,
+        // so a transfer of 100 is reported as 100 rather than counted on both sides.
+        var rows = values.Select(x => new TransactionReportRow(x.CreatedAtUtc, x.ReferenceNumber, $"{x.Account.User.FirstName} {x.Account.User.LastName}".Trim(), $"Account •••• {x.Account.AccountNumber[^Math.Min(4, x.Account.AccountNumber.Length)..]}", x.Type.ToString(), x.TransferAmount ?? x.Amount, BusinessTransactionVolume.CurrencyOf(x.TransferCurrency, x.Account.Currency), x.Status.ToString(), BusinessTransactionVolume.IsCanonicalRow(x.AccountId, x.SourceAccountId))).ToList();
         return pdf.Transactions(rows, now);
     }
 

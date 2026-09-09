@@ -16,8 +16,7 @@ namespace BankingApp.Application.Cards
 
         public string CardholderName { get; set; } = string.Empty;
 
-        public string Cvv { get; set; } = string.Empty;
-
+        // No Cvv: it is not persisted and is only returned once at issuance.
         public DateTime ExpiryDate { get; set; }
 
         public CardBrand Brand { get; set; }

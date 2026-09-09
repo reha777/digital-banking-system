@@ -39,7 +39,6 @@ class _CardDetailsScreenState extends State<CardDetailsScreen> {
   bool _revealed = false;
   bool _busy = false;
   String? _number;
-  String? _cvv;
 
   Future<List<BankTransaction>> _loadRecent() async {
     if (widget.initialTransactions != null) return widget.initialTransactions!;
@@ -58,7 +57,6 @@ class _CardDetailsScreenState extends State<CardDetailsScreen> {
       return setState(() {
         _revealed = false;
         _number = null;
-        _cvv = null;
       });
     }
     final token = widget.session.token;
@@ -72,7 +70,6 @@ class _CardDetailsScreenState extends State<CardDetailsScreen> {
       if (mounted) {
         setState(() {
           _number = value.cardNumber;
-          _cvv = value.cvv;
           _revealed = true;
         });
       }
@@ -142,7 +139,6 @@ class _CardDetailsScreenState extends State<CardDetailsScreen> {
               card: _card,
               revealed: _revealed,
               sensitiveCardNumber: _number,
-              sensitiveCvv: _cvv,
             ),
           ),
           const SizedBox(height: 24),
@@ -164,7 +160,6 @@ class _CardDetailsScreenState extends State<CardDetailsScreen> {
                 'Card number',
                 _revealed ? (_number ?? '') : _card.maskedCardNumber,
               ),
-              _Info('CVV', _revealed ? (_cvv ?? '') : '•••'),
             ],
           ),
           const SizedBox(height: 24),

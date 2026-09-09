@@ -6,8 +6,10 @@ namespace BankingApp.Worker;
 
 public sealed class QuestPdfReportGenerator : IReportPdfGenerator
 {
+    // Counts describe ledger entries; the volume lines describe business transactions,
+    // so a transfer's debit and credit rows are listed but its amount is counted once.
     public byte[] Transactions(IReadOnlyList<TransactionReportRow> rows, DateTime generatedAtUtc) =>
-        Build("Transaction Report", generatedAtUtc, new[] { $"Total: {rows.Count}", $"Completed: {rows.Count(x => x.Status == "Completed")}", $"Pending: {rows.Count(x => x.Status == "Pending")}", $"Failed: {rows.Count(x => x.Status == "Failed")}" }.Concat(rows.Where(x => x.Status == "Completed").GroupBy(x => x.Currency).Select(x => $"Completed {x.Key}: {x.Sum(v => v.Amount):N2}")),
+        Build("Transaction Report", generatedAtUtc, new[] { $"Ledger entries: {rows.Count}", $"Completed: {rows.Count(x => x.Status == "Completed")}", $"Pending: {rows.Count(x => x.Status == "Pending")}", $"Failed: {rows.Count(x => x.Status == "Failed")}" }.Concat(rows.Where(x => x.Status == "Completed" && x.CountsTowardVolume).GroupBy(x => x.Currency).Select(x => $"Completed business volume {x.Key}: {x.Sum(v => Math.Abs(v.Amount)):N2}")),
             new[] { "Date", "Reference", "Customer", "Account", "Type", "Amount", "Status" },
             rows.Select(x => new[] { x.Date.ToString("yyyy-MM-dd HH:mm"), x.Reference, x.Customer, x.AccountSummary, x.Type, $"{x.Currency} {x.Amount:N2}", x.Status }));
 

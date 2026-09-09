@@ -12,8 +12,9 @@ namespace BankingApp.Domain.Entities
 
         public string CardholderName { get; set; } = string.Empty;
 
-        public string Cvv { get; set; } = string.Empty;
-
+        // The CVV is deliberately not persisted. It is generated during card
+        // issuance, returned once in the issue result, and is not retrievable
+        // afterwards. See CardIssueResult.
         public DateTime ExpiryDate { get; set; }
 
         public CardBrand Brand { get; set; }

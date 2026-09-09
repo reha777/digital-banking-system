@@ -4,6 +4,7 @@ using BankingApp.Application.Interfaces;
 using BankingApp.Application.Transactions;
 using BankingApp.Domain.Constants;
 using BankingApp.Domain.Enums;
+using BankingApp.Domain.Services;
 using BankingApp.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -44,17 +45,33 @@ public class AdminDashboardService(BankingAppDbContext dbContext) : IAdminDashbo
             })
             .SingleOrDefaultAsync(cancellationToken);
 
-        var transferredByCurrency = await dbContext.Transactions
+        // Business transfer volume, not gross ledger movement: a transfer is stored as
+        // a debit and a credit row, so only the canonical row of each business
+        // transaction is counted and a transfer of 100 reports 100, not 200.
+        var volumeRows = await dbContext.Transactions
             .AsNoTracking()
             .Where(value => value.Status == TransactionStatus.Completed)
-            .GroupBy(value => value.Account.Currency)
+            .Where(BusinessTransactionVolume.CanonicalRow)
+            .Select(value => new
+            {
+                value.Amount,
+                value.TransferAmount,
+                value.TransferCurrency,
+                AccountCurrency = value.Account.Currency
+            })
+            .ToListAsync(cancellationToken);
+
+        var transferredByCurrency = volumeRows
+            .GroupBy(value => BusinessTransactionVolume.CurrencyOf(
+                value.TransferCurrency, value.AccountCurrency))
             .Select(group => new CurrencyAmountResponse
             {
                 Currency = group.Key,
-                Amount = group.Sum(value => value.Amount < 0 ? -value.Amount : value.Amount)
+                Amount = group.Sum(value =>
+                    BusinessTransactionVolume.AmountOf(value.Amount, value.TransferAmount))
             })
             .OrderBy(value => value.Currency)
-            .ToListAsync(cancellationToken);
+            .ToList();
 
         var pendingCardRequests = await dbContext.CardRequests
             .AsNoTracking()

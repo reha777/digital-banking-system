@@ -8,6 +8,7 @@ using BankingApp.Application.Notifications;
 using BankingApp.Domain.Entities;
 using BankingApp.Domain.Constants;
 using BankingApp.Domain.Enums;
+using BankingApp.Domain.Services;
 using BankingApp.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -250,26 +251,24 @@ namespace BankingApp.Infrastructure.Services
                 Currency = request.Currency
             }, cancellationToken);
 
+            // TransferParticipantRules is the shared definition also revalidated by
+            // ApproveReviewAsync, so creation and approval cannot drift apart.
             var sourceAccount = await dbContext.Accounts
                 .Include(account => account.User)
+                .Where(TransferParticipantRules.ActiveParticipant)
                 .FirstOrDefaultAsync(
                     account =>
                         account.Id == request.SourceAccountId &&
-                        account.UserId == currentUserService.UserId &&
-                        account.Status == AccountStatus.Active &&
-                        !account.User.IsDeleted &&
-                        account.User.Status == CustomerStatus.Active,
+                        account.UserId == currentUserService.UserId,
                     cancellationToken)
                 ?? throw new NotFoundException("Racun sa kojeg saljete novac nije dostupan.");
 
             var destinationAccount = await dbContext.Accounts
                 .Include(account => account.User)
+                .Where(TransferParticipantRules.ActiveParticipant)
                 .FirstOrDefaultAsync(
                     account =>
-                        account.AccountNumber == request.DestinationAccountNumber.Trim() &&
-                        account.Status == AccountStatus.Active &&
-                        !account.User.IsDeleted &&
-                        account.User.Status == CustomerStatus.Active,
+                        account.AccountNumber == request.DestinationAccountNumber.Trim(),
                     cancellationToken)
                 ?? throw new NotFoundException("Racun primaoca nije dostupan.");
 
@@ -709,6 +708,39 @@ namespace BankingApp.Infrastructure.Services
             TransactionReviewRequest request,
             CancellationToken cancellationToken = default)
         {
+            // Same serializable boundary the original transfer used: re-read, validate,
+            // post and record all commit together, or nothing does.
+            var strategy = dbContext.Database.CreateExecutionStrategy();
+            return await strategy.ExecuteAsync(async () =>
+            {
+                await using var databaseTransaction = dbContext.Database.IsRelational()
+                    ? await dbContext.Database.BeginTransactionAsync(
+                        System.Data.IsolationLevel.Serializable,
+                        cancellationToken)
+                    : null;
+
+                try
+                {
+                    var result = await ApproveReviewCoreAsync(id, request, cancellationToken);
+                    if (databaseTransaction is not null)
+                        await databaseTransaction.CommitAsync(cancellationToken);
+                    return result;
+                }
+                catch
+                {
+                    if (databaseTransaction is not null)
+                        await databaseTransaction.RollbackAsync(cancellationToken);
+                    dbContext.ChangeTracker.Clear();
+                    throw;
+                }
+            });
+        }
+
+        private async Task<TransactionResponse> ApproveReviewCoreAsync(
+            Guid id,
+            TransactionReviewRequest request,
+            CancellationToken cancellationToken)
+        {
             var transaction = await GetReviewTransactionAsync(id, cancellationToken);
 
             if (transaction.Status is not (TransactionStatus.Pending or TransactionStatus.DocumentsRequested))
@@ -716,25 +748,40 @@ namespace BankingApp.Infrastructure.Services
                 throw new BusinessException("Samo transakcija koja ceka review moze biti odobrena.");
             }
 
+            // Re-read both participants together with their owners: the approval
+            // decision must be based on the current state of the system, not on the
+            // state that was valid when the transfer was submitted for review.
             var sourceAccount = await dbContext.Accounts
+                .Include(account => account.User)
                 .FirstOrDefaultAsync(account => account.Id == transaction.SourceAccountId, cancellationToken)
                 ?? throw new NotFoundException("Racun posiljaoca nije pronadjen.");
 
             var destinationAccount = await dbContext.Accounts
+                .Include(account => account.User)
                 .FirstOrDefaultAsync(account => account.Id == transaction.DestinationAccountId, cancellationToken)
                 ?? throw new NotFoundException("Racun primaoca nije pronadjen.");
 
-            if (sourceAccount.Status != AccountStatus.Active ||
-                destinationAccount.Status != AccountStatus.Active)
-                throw new BusinessException("Zatvoren racun ne moze ucestvovati u transakciji.");
+            // Same participant rules the transfer had to satisfy when it was created.
+            if (!TransferParticipantRules.AccountCanParticipate(sourceAccount))
+                throw new BusinessException("Source account is no longer active.");
+            if (!TransferParticipantRules.AccountCanParticipate(destinationAccount))
+                throw new BusinessException("Destination account is no longer active.");
+            if (!TransferParticipantRules.CustomerCanParticipate(sourceAccount.User))
+                throw new BusinessException("Source customer is no longer active.");
+            if (!TransferParticipantRules.CustomerCanParticipate(destinationAccount.User))
+                throw new BusinessException("Destination customer is no longer active.");
+
+            EnsureTransactionCurrenciesStillMatch(transaction, sourceAccount, destinationAccount);
 
             var amount = Math.Abs(transaction.Amount);
             var destinationAmount = transaction.DestinationAmount ?? amount;
             if (sourceAccount.Balance < amount)
             {
-                throw new BusinessException("Nedovoljno sredstava za odobrenje transakcije.");
+                throw new BusinessException("Source balance is no longer sufficient.");
             }
 
+            // Nothing above mutates state, so a failed revalidation leaves the
+            // transaction in its current review status and moves no money.
             sourceAccount.Balance -= amount;
             destinationAccount.Balance += destinationAmount;
 
@@ -781,6 +828,44 @@ namespace BankingApp.Infrastructure.Services
             response.ReviewedAtUtc = transaction.ReviewedAtUtc;
             response.Documents = transaction.Documents.Select(ToDocumentResponse).ToList();
             return response;
+        }
+
+        /// <summary>
+        /// Confirms the pricing the transfer was created with still holds against the
+        /// participants' current currencies. No new FX behaviour: the stored amounts are
+        /// simply recomputed from the original transfer amount and compared.
+        /// </summary>
+        private void EnsureTransactionCurrenciesStillMatch(
+            Transaction transaction,
+            Account sourceAccount,
+            Account destinationAccount)
+        {
+            var transferCurrency = transaction.TransferCurrency?.Trim();
+            if (string.IsNullOrWhiteSpace(transferCurrency) ||
+                transaction.TransferAmount is not { } transferAmount ||
+                transferAmount <= 0)
+            {
+                // Priced directly in the account currency; nothing to recompute.
+                return;
+            }
+
+            if (!currencyConversionService.IsSupported(transferCurrency) ||
+                !currencyConversionService.IsSupported(sourceAccount.Currency) ||
+                !currencyConversionService.IsSupported(destinationAccount.Currency))
+            {
+                throw new BusinessException("Transaction currency is no longer supported.");
+            }
+
+            var expectedDebit = currencyConversionService.Convert(
+                transferAmount, transferCurrency, sourceAccount.Currency);
+            var expectedCredit = currencyConversionService.Convert(
+                transferAmount, transferCurrency, destinationAccount.Currency);
+
+            if (expectedDebit != Math.Abs(transaction.Amount) ||
+                expectedCredit != (transaction.DestinationAmount ?? Math.Abs(transaction.Amount)))
+            {
+                throw new BusinessException("Account currencies no longer match the transaction.");
+            }
         }
 
         public async Task<TransactionResponse> RejectReviewAsync(
@@ -960,9 +1045,9 @@ namespace BankingApp.Infrastructure.Services
 
             if (currentUserService.IsAdmin)
             {
-                query = query.Where(transaction =>
-                    !transaction.SourceAccountId.HasValue ||
-                    transaction.AccountId == transaction.SourceAccountId.Value);
+                // One row per business transaction, so a transfer is neither listed nor
+                // totalled twice. Same shared rule the dashboard and PDF summary use.
+                query = query.Where(BusinessTransactionVolume.CanonicalRow);
             }
 
             if (request.AccountId.HasValue)

@@ -22,7 +22,7 @@ void main() {
                 cardNumber: '4562112245957852',
                 maskedCardNumber: '**** 7852',
                 cardholderName: 'Test Customer',
-                cvv: '123',
+
                 expiryDate: DateTime.utc(2030, 7),
                 brand: 'Visa',
                 status: 'Active',
@@ -136,7 +136,7 @@ BankCardModel _card(String id, String status) => BankCardModel(
   cardNumber: '',
   maskedCardNumber: '**** **** **** 0675',
   cardholderName: 'Customer',
-  cvv: '',
+
   expiryDate: DateTime.utc(2030),
   brand: 'Mastercard',
   status: status,

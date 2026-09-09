@@ -6,7 +6,6 @@ class BankCardModel {
     required this.cardNumber,
     required this.maskedCardNumber,
     required this.cardholderName,
-    required this.cvv,
     required this.expiryDate,
     required this.brand,
     required this.status,
@@ -22,7 +21,6 @@ class BankCardModel {
       cardNumber: json['cardNumber']?.toString() ?? '',
       maskedCardNumber: json['maskedCardNumber']?.toString() ?? '',
       cardholderName: json['cardholderName']?.toString() ?? '',
-      cvv: json['cvv']?.toString() ?? '',
       expiryDate:
           DateTime.tryParse(json['expiryDate']?.toString() ?? '') ??
           DateTime.now().toUtc(),
@@ -39,7 +37,6 @@ class BankCardModel {
   final String cardNumber;
   final String maskedCardNumber;
   final String cardholderName;
-  final String cvv;
   final DateTime expiryDate;
   final String brand;
   final String status;
@@ -50,21 +47,19 @@ class BankCardModel {
   bool get isFrozen => status == 'Blocked';
   bool get canTransfer => isActive;
 
-  BankCardModel copyWith({String? status, String? cardNumber, String? cvv}) =>
-      BankCardModel(
-        id: id,
-        accountId: accountId,
-        accountNumber: accountNumber,
-        cardNumber: cardNumber ?? this.cardNumber,
-        maskedCardNumber: maskedCardNumber,
-        cardholderName: cardholderName,
-        cvv: cvv ?? this.cvv,
-        expiryDate: expiryDate,
-        brand: brand,
-        status: status ?? this.status,
-        balance: balance,
-        currency: currency,
-      );
+  BankCardModel copyWith({String? status, String? cardNumber}) => BankCardModel(
+    id: id,
+    accountId: accountId,
+    accountNumber: accountNumber,
+    cardNumber: cardNumber ?? this.cardNumber,
+    maskedCardNumber: maskedCardNumber,
+    cardholderName: cardholderName,
+    expiryDate: expiryDate,
+    brand: brand,
+    status: status ?? this.status,
+    balance: balance,
+    currency: currency,
+  );
 }
 
 class CardRequestModel {

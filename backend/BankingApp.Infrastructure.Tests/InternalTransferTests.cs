@@ -222,7 +222,6 @@ public class InternalTransferTests
                     Account = source,
                     CardNumber = "4562000000000675",
                     CardholderName = "Owner Customer",
-                    Cvv = "123",
                     ExpiryDate = DateTime.UtcNow.AddYears(4),
                     Brand = CardBrand.Mastercard,
                     Status = CardStatus.Blocked,

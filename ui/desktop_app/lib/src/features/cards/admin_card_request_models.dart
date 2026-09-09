@@ -79,6 +79,7 @@ class AdminCardRequest {
     this.approvedCardStatus,
     this.approvedCardBrand,
     this.reviewedAtUtc,
+    this.issuedCard,
   });
 
   factory AdminCardRequest.fromJson(Map<String, dynamic> json) {
@@ -116,6 +117,9 @@ class AdminCardRequest {
           DateTime.tryParse(json['createdAtUtc']?.toString() ?? '') ??
           DateTime.now().toUtc(),
       reviewedAtUtc: DateTime.tryParse(json['reviewedAtUtc']?.toString() ?? ''),
+      issuedCard: json['issuedCard'] is Map<String, dynamic>
+          ? CardIssueResult.fromJson(json['issuedCard'] as Map<String, dynamic>)
+          : null,
     );
   }
 
@@ -140,6 +144,10 @@ class AdminCardRequest {
   final String? approvedCardBrand;
   final DateTime createdAtUtc;
   final DateTime? reviewedAtUtc;
+
+  /// Present only on the approval response that issues the card, so the
+  /// one-time CVV can be shown once. Always null when reading a request back.
+  final CardIssueResult? issuedCard;
 }
 
 class AdminIssuedCardPage {
@@ -286,4 +294,41 @@ String _statusLabel(int statusValue, Object? rawValue) {
     4 => 'Documents requested',
     _ => rawValue?.toString() ?? 'Unknown',
   };
+}
+
+/// One-time result of issuing a card.
+///
+/// The CVV is generated during issuance and never persisted, so this is the
+/// only moment it can be shown. It is not retrievable from any read endpoint.
+class CardIssueResult {
+  const CardIssueResult({
+    required this.cardId,
+    required this.cardNumber,
+    required this.expiryMonth,
+    required this.expiryYear,
+    required this.oneTimeCvv,
+    required this.warning,
+  });
+
+  factory CardIssueResult.fromJson(Map<String, dynamic> json) =>
+      CardIssueResult(
+        cardId: json['cardId']?.toString() ?? '',
+        cardNumber: json['cardNumber']?.toString() ?? '',
+        expiryMonth: _intValue(json['expiryMonth']),
+        expiryYear: _intValue(json['expiryYear']),
+        oneTimeCvv: json['oneTimeCvv']?.toString() ?? '',
+        warning:
+            json['warning']?.toString() ??
+            'CVV is shown only once and cannot be retrieved later.',
+      );
+
+  final String cardId;
+  final String cardNumber;
+  final int expiryMonth;
+  final int expiryYear;
+  final String oneTimeCvv;
+  final String warning;
+
+  String get formattedExpiry =>
+      '${expiryMonth.toString().padLeft(2, '0')}/$expiryYear';
 }

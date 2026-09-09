@@ -209,7 +209,7 @@ public class AdminCustomerDetailsTests
             var eur = Account(a, "A-EUR", "EUR", 200);
             var bam = Account(a, "A-BAM", "BAM", 300);
             var other = Account(b, "OTHER-ACCOUNT", "USD", 999);
-            var card = new BankCard { Id = Guid.NewGuid(), AccountId = usd.Id, Account = usd, CardNumber = "1234567890123456", CardholderName = "Alpha User", Cvv = "999", ExpiryDate = DateTime.UtcNow.AddYears(3), Brand = CardBrand.Mastercard, Status = CardStatus.Active, CreatedAtUtc = DateTime.UtcNow };
+            var card = new BankCard { Id = Guid.NewGuid(), AccountId = usd.Id, Account = usd, CardNumber = "1234567890123456", CardholderName = "Alpha User", ExpiryDate = DateTime.UtcNow.AddYears(3), Brand = CardBrand.Mastercard, Status = CardStatus.Active, CreatedAtUtc = DateTime.UtcNow };
             usd.Card = card;
             var product = new LoanProduct { Id = Guid.NewGuid(), Name = "Personal", Currency = "USD", AnnualInterestRate = 5, MinPrincipal = 100, MaxPrincipal = 10000, MinTermMonths = 6, MaxTermMonths = 24, TermStepMonths = 6, IsActive = true, CreatedAtUtc = DateTime.UtcNow };
             var appA = Application(a, usd, product);

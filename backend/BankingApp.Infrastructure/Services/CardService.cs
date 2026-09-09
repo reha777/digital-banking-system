@@ -10,6 +10,8 @@ using BankingApp.Domain.Entities;
 using BankingApp.Domain.Enums;
 using BankingApp.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
+using System.Security.Cryptography;
 
 namespace BankingApp.Infrastructure.Services
 {
@@ -55,11 +57,13 @@ namespace BankingApp.Infrastructure.Services
                     cancellationToken)
                 ?? throw new NotFoundException("Kartica nije pronadjena.");
 
+            // The CVV is intentionally not returned here. It is not persisted and
+            // is only ever available once, in the issue result at approval time.
             return new CardSensitiveDataResponse
             {
                 Id = card.Id,
                 CardNumber = card.CardNumber,
-                Cvv = card.Cvv
+                ExpiryDate = card.ExpiryDate
             };
         }
 
@@ -299,12 +303,34 @@ namespace BankingApp.Infrastructure.Services
         {
             var cardRequest = await GetRequestForReviewAsync(id, cancellationToken);
 
+            // Everything below revalidates the current state of the system. The request
+            // being valid when it was submitted is not enough to justify issuing an
+            // account and a card now.
             if (!CanReview(cardRequest.Status))
             {
                 throw new BusinessException("Samo zahtjev koji ceka odobrenje moze biti odobren.");
             }
 
-            var accountId = Guid.NewGuid();
+            // GetRequestForReviewAsync loaded the customer as part of this call, so this
+            // is their status right now, not at request time.
+            var customer = cardRequest.User;
+            if (customer.Role != AppRoles.Customer || customer.IsDeleted ||
+                customer.Status != CustomerStatus.Active)
+            {
+                throw new BusinessException("Customer is no longer active, so the card request cannot be approved.");
+            }
+
+            if (cardRequest.ApprovedAccountId is not null || cardRequest.ApprovedCardId is not null)
+            {
+                throw new BusinessException("Zahtjev za karticu vec ima izdan racun i karticu.");
+            }
+
+            if (!SupportedCurrencies.IsSupported(cardRequest.Currency))
+                throw new BusinessException("Valuta zahtjeva vise nije podrzana.");
+
+            var accountId = SecureIdentifierGenerator.NewGuid();
+            // Item 8: the CHECKING type is reference data and may have been deactivated
+            // since the request was created, so it is re-read and rechecked here.
             var accountType = await dbContext.AccountTypeDefinitions.SingleOrDefaultAsync(
                 value => value.Code == BankingApp.Domain.Constants.AccountTypeCodes.Checking && value.IsActive,
                 cancellationToken) ?? throw new BusinessException("Active CHECKING account type is not configured.");
@@ -323,16 +349,19 @@ namespace BankingApp.Infrastructure.Services
 
             var card = new BankCard
             {
-                Id = Guid.NewGuid(),
+                Id = SecureIdentifierGenerator.NewGuid(),
                 AccountId = account.Id,
                 CardNumber = await GenerateCardNumberAsync(cancellationToken),
                 CardholderName = cardRequest.CardholderName,
-                Cvv = GenerateCvv(),
                 ExpiryDate = DateTime.UtcNow.Date.AddYears(4),
                 Brand = CardBrand.Mastercard,
                 Status = CardStatus.Active,
                 CreatedAtUtc = DateTime.UtcNow
             };
+
+            // Generated for the one-time issue result only: it is never written to
+            // the card entity, the audit log, the notification or any log.
+            var oneTimeCvv = GenerateCvv();
 
             cardRequest.Status = CardRequestStatus.Approved;
             cardRequest.AdminNote = request.AdminNote?.Trim();
@@ -358,7 +387,17 @@ namespace BankingApp.Infrastructure.Services
 
             cardRequest.ApprovedAccount = account;
             cardRequest.ApprovedCard = card;
-            return ToRequestResponse(cardRequest);
+
+            var response = ToRequestResponse(cardRequest);
+            response.IssuedCard = new CardIssueResult
+            {
+                CardId = card.Id,
+                CardNumber = card.CardNumber,
+                ExpiryMonth = card.ExpiryDate.Month,
+                ExpiryYear = card.ExpiryDate.Year,
+                OneTimeCvv = oneTimeCvv
+            };
+            return response;
         }
 
         public async Task<CardRequestResponse> RejectAsync(
@@ -590,13 +629,16 @@ namespace BankingApp.Infrastructure.Services
             return cardRequest ?? throw new NotFoundException("Zahtjev za karticu nije pronadjen.");
         }
 
+        // Card numbers and security codes are drawn from the system CSPRNG
+        // (RandomNumberGenerator), never from Random/Random.Shared.
         private async Task<string> GenerateCardNumberAsync(CancellationToken cancellationToken)
         {
             string cardNumber;
 
             do
             {
-                cardNumber = $"4562{Random.Shared.NextInt64(100000000000, 999999999999)}";
+                // Unchanged format: the 4562 prefix plus 12 digits with a non-zero lead.
+                cardNumber = $"4562{RandomNumberGenerator.GetInt32(1, 10)}{SecureIdentifierGenerator.NewDigits(11)}";
             }
             while (await dbContext.BankCards.AnyAsync(
                 card => card.CardNumber == cardNumber,
@@ -605,9 +647,13 @@ namespace BankingApp.Infrastructure.Services
             return cardNumber;
         }
 
+        /// <summary>
+        /// Generates the one-time CVV handed back in <see cref="CardIssueResult"/>.
+        /// The value is never persisted, audited, logged or notified.
+        /// </summary>
         private static string GenerateCvv()
         {
-            return Random.Shared.Next(1000, 9999).ToString();
+            return RandomNumberGenerator.GetInt32(1000, 10000).ToString(CultureInfo.InvariantCulture);
         }
 
         private static CardResponse ToCardResponse(BankCard card)
@@ -620,7 +666,7 @@ namespace BankingApp.Infrastructure.Services
                 CardNumber = string.Empty,
                 MaskedCardNumber = MaskCardNumber(card.CardNumber),
                 CardholderName = card.CardholderName,
-                Cvv = string.Empty,
+
                 ExpiryDate = card.ExpiryDate,
                 Brand = card.Brand,
                 Status = card.Status,

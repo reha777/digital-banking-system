@@ -445,10 +445,6 @@ namespace BankingApp.Infrastructure.Persistence
                     .HasMaxLength(160)
                     .IsRequired();
 
-                entity.Property(card => card.Cvv)
-                    .HasMaxLength(4)
-                    .IsRequired();
-
                 entity.Property(card => card.Brand)
                     .HasConversion<string>()
                     .HasMaxLength(25)
@@ -885,7 +881,6 @@ namespace BankingApp.Infrastructure.Persistence
                     AccountId = checkingAccountId,
                     CardNumber = "4562112245957852",
                     CardholderName = "Demo Customer",
-                    Cvv = "6986",
                     ExpiryDate = new DateTime(2030, 6, 24, 0, 0, 0, DateTimeKind.Utc),
                     Brand = CardBrand.Mastercard,
                     Status = CardStatus.Active,
@@ -897,7 +892,6 @@ namespace BankingApp.Infrastructure.Persistence
                     AccountId = recipientSavingsAccountId,
                     CardNumber = "5425233430109911",
                     CardholderName = "Yamilet Recipient",
-                    Cvv = "519",
                     ExpiryDate = new DateTime(2030, 11, 24, 0, 0, 0, DateTimeKind.Utc),
                     Brand = CardBrand.Mastercard,
                     Status = CardStatus.Active,
@@ -909,7 +903,6 @@ namespace BankingApp.Infrastructure.Persistence
                     AccountId = savingsAccountId,
                     CardNumber = "4562444455550001",
                     CardholderName = "Demo Customer",
-                    Cvv = "315",
                     ExpiryDate = new DateTime(2030, 12, 24, 0, 0, 0, DateTimeKind.Utc),
                     Brand = CardBrand.Mastercard,
                     Status = CardStatus.Active,
@@ -921,7 +914,6 @@ namespace BankingApp.Infrastructure.Persistence
                     AccountId = recipientAccountId,
                     CardNumber = "5425233430109903",
                     CardholderName = "Yamilet Recipient",
-                    Cvv = "417",
                     ExpiryDate = new DateTime(2030, 9, 24, 0, 0, 0, DateTimeKind.Utc),
                     Brand = CardBrand.Mastercard,
                     Status = CardStatus.Active,

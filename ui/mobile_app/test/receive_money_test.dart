@@ -261,24 +261,22 @@ AuthSession _session() {
   return session;
 }
 
-final _cardOne = _card('card-1', _accountOne, '4111111111111111', '123');
-final _cardTwo = _card('card-2', _accountTwo, '5555555555554444', '456');
+final _cardOne = _card('card-1', _accountOne, '4111111111111111');
+final _cardTwo = _card('card-2', _accountTwo, '5555555555554444');
 
-BankCardModel _card(String id, Account account, String pan, String cvv) =>
-    BankCardModel(
-      id: id,
-      accountId: account.id,
-      accountNumber: account.accountNumber,
-      cardNumber: pan,
-      maskedCardNumber: '**** **** **** ${pan.substring(12)}',
-      cardholderName: 'Test Customer',
-      cvv: cvv,
-      expiryDate: DateTime.utc(2030),
-      brand: 'Mastercard',
-      status: 'Active',
-      balance: account.balance,
-      currency: account.currency,
-    );
+BankCardModel _card(String id, Account account, String pan) => BankCardModel(
+  id: id,
+  accountId: account.id,
+  accountNumber: account.accountNumber,
+  cardNumber: pan,
+  maskedCardNumber: '**** **** **** ${pan.substring(12)}',
+  cardholderName: 'Test Customer',
+  expiryDate: DateTime.utc(2030),
+  brand: 'Mastercard',
+  status: 'Active',
+  balance: account.balance,
+  currency: account.currency,
+);
 
 class _FakeTransactionService extends TransactionService {
   _FakeTransactionService() : super(ApiClient());

@@ -98,7 +98,7 @@ void main() {
       cardNumber: '',
       maskedCardNumber: '**** **** **** 2222',
       cardholderName: 'Test Customer',
-      cvv: '',
+
       expiryDate: DateTime.utc(2030, 7),
       brand: 'Mastercard',
       status: 'Blocked',
@@ -181,7 +181,7 @@ final testCard = BankCardModel(
   cardNumber: '',
   maskedCardNumber: '**** **** **** 7852',
   cardholderName: 'Test Customer',
-  cvv: '',
+
   expiryDate: DateTime.utc(2030, 7),
   brand: 'Mastercard',
   status: 'Active',

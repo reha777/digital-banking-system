@@ -36,7 +36,7 @@ final sourceCard = BankCardModel(
   cardNumber: '',
   maskedCardNumber: '**** **** **** 0675',
   cardholderName: 'Test Customer',
-  cvv: '',
+
   expiryDate: DateTime.utc(2030),
   brand: 'Mastercard',
   status: 'Active',

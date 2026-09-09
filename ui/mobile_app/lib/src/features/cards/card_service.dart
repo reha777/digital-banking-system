@@ -55,7 +55,11 @@ class CardService {
     return BankCardModel.fromJson(json);
   }
 
-  Future<({String cardNumber, String cvv})> revealSensitiveData({
+  /// Reveals the full card number for the authenticated owner.
+  ///
+  /// The CVV is deliberately not part of this response: it is never persisted
+  /// and is only shown once, at issuance, so it cannot be retrieved later.
+  Future<({String cardNumber, DateTime? expiryDate})> revealSensitiveData({
     required String token,
     required String cardId,
   }) async {
@@ -65,7 +69,7 @@ class CardService {
     );
     return (
       cardNumber: json['cardNumber']?.toString() ?? '',
-      cvv: json['cvv']?.toString() ?? '',
+      expiryDate: DateTime.tryParse(json['expiryDate']?.toString() ?? ''),
     );
   }
 

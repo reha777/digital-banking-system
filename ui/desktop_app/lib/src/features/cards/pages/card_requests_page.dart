@@ -16,6 +16,7 @@ import '../widgets/card_request_details_dialog.dart';
 import '../widgets/card_request_filters.dart';
 import '../widgets/card_request_summary_cards.dart';
 import '../widgets/card_requests_table.dart';
+import '../widgets/issued_card_once_dialog.dart';
 import '../widgets/issued_cards_view.dart';
 
 class CardRequestsPage extends StatefulWidget {
@@ -158,7 +159,7 @@ class _CardRequestsPageState extends State<CardRequestsPage> {
     final note = await _reviewNote(request, 'Approve card request', 'Approve');
     if (note == null) return false;
     try {
-      await _service.approve(
+      final approved = await _service.approve(
         token: widget.token,
         id: request.id,
         adminNote: note,
@@ -166,6 +167,10 @@ class _CardRequestsPageState extends State<CardRequestsPage> {
       if (mounted) {
         _message('Card request approved.');
         _refresh();
+        // The only moment the CVV exists: it is never persisted and cannot be
+        // fetched again once this dialog is closed.
+        final issued = approved.issuedCard;
+        if (issued != null) await IssuedCardOnceDialog.show(context, issued);
       }
       return true;
     } on ApiException catch (e) {

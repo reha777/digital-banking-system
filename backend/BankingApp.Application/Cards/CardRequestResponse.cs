@@ -50,5 +50,11 @@ namespace BankingApp.Application.Cards
 
         public IReadOnlyCollection<CardRequestDocumentResponse> Documents { get; set; } =
             [];
+
+        /// <summary>
+        /// Populated only by the approval response that issues the card, so the
+        /// one-time CVV can be shown once. Always null on any read endpoint.
+        /// </summary>
+        public CardIssueResult? IssuedCard { get; set; }
     }
 }

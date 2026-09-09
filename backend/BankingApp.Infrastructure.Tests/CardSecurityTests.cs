@@ -33,7 +33,7 @@ public class CardSecurityTests
         {
             Id = Guid.NewGuid(), AccountId = olderAccount.Id, Account = olderAccount,
             CardNumber = "4562000000000002", CardholderName = "Owner Customer",
-            Cvv = "456", ExpiryDate = DateTime.UtcNow.AddYears(3),
+            ExpiryDate = DateTime.UtcNow.AddYears(3),
             Brand = CardBrand.Mastercard, Status = CardStatus.Active,
             CreatedAtUtc = fixture.Card.CreatedAtUtc.AddDays(-1)
         };
@@ -317,7 +317,7 @@ public class CardSecurityTests
             {
                 Id = Guid.NewGuid(), AccountId = source.Id, Account = source,
                 CardNumber = "4562000000000675", CardholderName = "Owner Customer",
-                Cvv = "123", ExpiryDate = DateTime.UtcNow.AddYears(4),
+                ExpiryDate = DateTime.UtcNow.AddYears(4),
                 Brand = CardBrand.Mastercard, Status = CardStatus.Active,
                 CreatedAtUtc = DateTime.UtcNow
             };

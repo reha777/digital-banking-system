@@ -9,14 +9,12 @@ class BankCard extends StatelessWidget {
     this.card,
     this.revealed = false,
     this.sensitiveCardNumber,
-    this.sensitiveCvv,
     this.onTap,
   });
 
   final BankCardModel? card;
   final bool revealed;
   final String? sensitiveCardNumber;
-  final String? sensitiveCvv;
   final VoidCallback? onTap;
 
   @override
@@ -29,7 +27,6 @@ class BankCard extends StatelessWidget {
     final expiry = card == null
         ? 'MM/YYYY'
         : formatCardExpiry(card!.expiryDate);
-    final cvv = revealed ? (sensitiveCvv ?? card?.cvv ?? '•••') : '•••';
 
     return GestureDetector(
       onTap: onTap,
@@ -139,28 +136,8 @@ class BankCard extends StatelessWidget {
                   ),
                 ),
               ),
-              if (!isVisa) ...[
-                const Positioned(
-                  left: 112,
-                  bottom: 38,
-                  child: Text(
-                    'CVV',
-                    style: TextStyle(color: Color(0x99FFFFFF), fontSize: 11),
-                  ),
-                ),
-                Positioned(
-                  left: 112,
-                  bottom: 18,
-                  child: Text(
-                    cvv,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ],
+              // No CVV on the card face: it is never persisted and is only
+              // shown once, at issuance, so there is nothing to reveal here.
               Positioned(
                 right: 28,
                 bottom: isVisa ? 24 : 38,

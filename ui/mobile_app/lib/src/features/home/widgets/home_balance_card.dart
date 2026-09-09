@@ -176,7 +176,6 @@ class _HomeAccountCard extends StatelessWidget {
     final displayedExpiry = card == null
         ? '24/2000'
         : formatCardExpiry(card!.expiryDate);
-    final displayedCvv = card?.cvv ?? '6986';
 
     return AspectRatio(
       aspectRatio: 335 / 199,
@@ -270,26 +269,8 @@ class _HomeAccountCard extends StatelessWidget {
                 ),
               ),
             ),
-            const Positioned(
-              left: 112,
-              bottom: 38,
-              child: Text(
-                'CVV',
-                style: TextStyle(color: Color(0x99FFFFFF), fontSize: 11),
-              ),
-            ),
-            Positioned(
-              left: 112,
-              bottom: 18,
-              child: Text(
-                displayedCvv,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
+            // No CVV on the card face: it is never persisted and is only shown
+            // once, at issuance.
             Positioned(
               right: 26,
               bottom: 38,

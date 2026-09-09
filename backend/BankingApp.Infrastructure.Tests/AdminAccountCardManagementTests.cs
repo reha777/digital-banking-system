@@ -105,7 +105,7 @@ public class AdminAccountCardManagementTests
                 AccountNumber = "BA-ADMIN-TEST", AccountTypeId = BankingApp.Domain.Constants.AccountTypeCodes.CheckingId,
                 Status = AccountStatus.Active, Balance = balance, Currency = "EUR", CreatedAtUtc = DateTime.UtcNow };
             var card = new BankCard { Id = Guid.NewGuid(), AccountId = account.Id, Account = account,
-                CardNumber = "4562111122223333", CardholderName = "Demo Customer", Cvv = "123",
+                CardNumber = "4562111122223333", CardholderName = "Demo Customer",
                 Brand = CardBrand.Visa, Status = CardStatus.Active, ExpiryDate = DateTime.UtcNow.AddYears(2), CreatedAtUtc = DateTime.UtcNow };
             account.Card = card;
             db.AddRange(user, account, card); await db.SaveChangesAsync();
