@@ -9,6 +9,20 @@ class TransactionService {
 
   final ApiClient _apiClient;
 
+  /// Loads one transaction from `GET /api/transactions/{id}`, which returns the
+  /// full detail the history list does not carry. Ownership is enforced server
+  /// side, so a customer can only read their own transactions.
+  Future<BankTransaction> getTransactionById({
+    required String token,
+    required String id,
+  }) async {
+    final json = await _apiClient.getJson(
+      MobileApiEndpoints.transactionById(id),
+      token: token,
+    );
+    return BankTransaction.fromJson(json);
+  }
+
   Future<List<BankTransaction>> getRecentTransactions(String token) async {
     final page = await getTransactions(token: token, page: 1, pageSize: 4);
 

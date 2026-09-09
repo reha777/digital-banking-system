@@ -93,7 +93,7 @@ public class LoanService(
                 existing.Principal != request.Principal ||
                 existing.TermMonths != request.TermMonths)
                 throw new BusinessException("ClientRequestId je vec iskoristen za drugaciji Loan zahtjev.");
-            return ToApplicationResponse(existing);
+            return await WithDocumentsAsync(ToApplicationResponse(existing), cancellationToken);
         }
 
         var user = await dbContext.Users.AsNoTracking()
@@ -173,11 +173,11 @@ public class LoanService(
                 retry.DestinationAccountId == request.DestinationAccountId &&
                 retry.Principal == request.Principal &&
                 retry.TermMonths == request.TermMonths)
-                return ToApplicationResponse(retry);
+                return await WithDocumentsAsync(ToApplicationResponse(retry), cancellationToken);
             throw new BusinessException("Loan application nije moguce kreirati jer vec postoji aktivan zahtjev.");
         }
         var created = await ApplicationQuery().SingleAsync(value => value.Id == application.Id, cancellationToken);
-        return ToApplicationResponse(created);
+        return await WithDocumentsAsync(ToApplicationResponse(created), cancellationToken);
     }
 
     public async Task<LoanApplicationResponse?> GetCurrentApplicationAsync(
@@ -191,7 +191,7 @@ public class LoanService(
             .Where(value => value.UserId == currentUserService.UserId)
             .OrderByDescending(value => value.ReviewedAtUtc ?? value.SubmittedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
-        return application is null ? null : ToApplicationResponse(application);
+        return application is null ? null : await WithDocumentsAsync(ToApplicationResponse(application), cancellationToken);
     }
 
     public async Task<CustomerLoanResponse?> GetCurrentLoanAsync(CancellationToken cancellationToken = default)
@@ -237,7 +237,7 @@ public class LoanService(
                 EntityType = AuditEntityTypes.LoanApplication, EntityId = application.Id.ToString(),
                 Description = $"Uploaded loan document {validated.FileName}." }, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
-        return ToApplicationResponse(application);
+        return await WithDocumentsAsync(ToApplicationResponse(application), cancellationToken);
     }
 
     public async Task<LoanDocumentDownloadResponse> DownloadDocumentAsync(Guid applicationId, Guid documentId, CancellationToken cancellationToken = default)
@@ -252,7 +252,7 @@ public class LoanService(
 
     private async Task<LoanApplication> GetOwnedApplicationAsync(Guid id, CancellationToken cancellationToken) =>
         await dbContext.LoanApplications.Include(value => value.LoanProduct).Include(value => value.DestinationAccount)
-            .Include(value => value.LoanPurpose).Include(value => value.Documents).Include(value => value.User)
+            .Include(value => value.LoanPurpose).Include(value => value.User)
             .SingleOrDefaultAsync(value => value.Id == id && value.UserId == currentUserService.UserId, cancellationToken)
         ?? throw new NotFoundException("Loan application nije pronadjen.");
 
@@ -519,8 +519,8 @@ public class LoanService(
         .AsNoTracking()
         .Include(value => value.LoanProduct)
         .Include(value => value.DestinationAccount)
-        .Include(value => value.LoanPurpose)
-        .Include(value => value.Documents);
+        .Include(value => value.LoanPurpose);
+
 
     private IQueryable<Loan> LoanQuery() => dbContext.Loans
         .AsNoTracking()
@@ -611,6 +611,28 @@ public class LoanService(
         TransactionReference = value.Transaction.ReferenceNumber,
         PaidAtUtc = value.PaidAtUtc
     };
+
+    /// Loads document metadata for one application in a single projected query, so
+    /// the application queries never pull LoanDocument.Content blobs.
+    private async Task<LoanApplicationResponse> WithDocumentsAsync(
+        LoanApplicationResponse response,
+        CancellationToken cancellationToken)
+    {
+        response.Documents = await dbContext.LoanDocuments
+            .AsNoTracking()
+            .Where(document => document.LoanApplicationId == response.Id)
+            .OrderByDescending(document => document.UploadedAtUtc)
+            .Select(document => new LoanDocumentResponse
+            {
+                Id = document.Id,
+                FileName = document.FileName,
+                ContentType = document.ContentType,
+                SizeBytes = document.SizeBytes,
+                UploadedAtUtc = document.UploadedAtUtc
+            })
+            .ToListAsync(cancellationToken);
+        return response;
+    }
 
     private static LoanApplicationResponse ToApplicationResponse(LoanApplication value) => new()
     {

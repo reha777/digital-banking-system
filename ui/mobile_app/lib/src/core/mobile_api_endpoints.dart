@@ -6,6 +6,7 @@ class MobileApiEndpoints {
   static const cardRequests = '/api/cards/requests';
   static const myCardRequests = '/api/cards/requests/my';
   static const transactions = '/api/transactions';
+  static String transactionById(String id) => '/api/transactions/$id';
   static const statistics = '/api/transactions/statistics';
   static const sendMoney = '/api/transactions/send-money';
   static const topUp = '/api/transactions/top-up';

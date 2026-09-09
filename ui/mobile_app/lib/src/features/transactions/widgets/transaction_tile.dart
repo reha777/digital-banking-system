@@ -10,10 +10,14 @@ class TransactionHistoryTile extends StatelessWidget {
     super.key,
     required this.transaction,
     this.documentUploadAction,
+    this.onTap,
   });
 
   final BankTransaction transaction;
   final Widget? documentUploadAction;
+
+  /// Opens the transaction detail. When null the tile stays non-interactive.
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -22,6 +26,7 @@ class TransactionHistoryTile extends StatelessWidget {
     final tone = isIncoming ? AppTheme.primary : _transactionTone(transaction);
 
     return ListTile(
+      onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(vertical: 2),
       leading: CircleAvatar(
         radius: 18,

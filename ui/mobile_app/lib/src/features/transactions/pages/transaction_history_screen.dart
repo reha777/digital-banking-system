@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../core/api_client.dart';
 import '../../../widgets/mobile_shell.dart';
 import '../../auth/auth_session.dart';
+import 'transaction_details_page.dart';
 import '../transaction_models.dart';
 import '../transaction_service.dart';
 import '../widgets/transaction_document_upload.dart';
@@ -16,12 +17,14 @@ class TransactionHistoryScreen extends StatefulWidget {
     this.accountId,
     this.dateFrom,
     this.dateTo,
+    this.transactionService,
   });
 
   final AuthSession session;
   final String? accountId;
   final DateTime? dateFrom;
   final DateTime? dateTo;
+  final TransactionService? transactionService;
 
   @override
   State<TransactionHistoryScreen> createState() =>
@@ -44,7 +47,8 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   @override
   void initState() {
     super.initState();
-    _transactionService = TransactionService(ApiClient());
+    _transactionService =
+        widget.transactionService ?? TransactionService(ApiClient());
     _scrollController.addListener(_loadMoreIfNeeded);
     _loadFirstPage();
   }
@@ -214,11 +218,28 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
       );
     }
 
+    return _buildList();
+  }
+
+  Future<void> _openDetails(BankTransaction transaction) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => TransactionDetailsPage(
+          session: widget.session,
+          transactionId: transaction.id,
+          transactionService: _transactionService,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildList() {
     return TransactionList(
       transactions: _transactions,
       scrollController: _scrollController,
       isLoadingMore: _isLoadingMore,
       onRefresh: _loadFirstPage,
+      onOpenTransaction: _openDetails,
       documentUploadBuilder: (transaction) => TransactionDocumentUpload(
         transaction: transaction,
         token: widget.session.token,

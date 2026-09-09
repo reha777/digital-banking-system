@@ -1,3 +1,5 @@
+import '../../core/formatting/api_date_time.dart';
+
 class PagedTransactions {
   const PagedTransactions({
     required this.items,
@@ -84,9 +86,7 @@ class BankTransaction {
       currency: json['currency']?.toString().toUpperCase() ?? '',
       topUpSourceType: json['topUpSourceType']?.toString(),
       topUpSourceDescription: json['topUpSourceDescription']?.toString(),
-      createdAtUtc:
-          DateTime.tryParse(json['createdAtUtc']?.toString() ?? '') ??
-          DateTime.now().toUtc(),
+      createdAtUtc: _createdAt(json['createdAtUtc']?.toString()),
       type: _transactionType(json['type']),
     );
   }
@@ -267,4 +267,15 @@ class RecentRecipient {
       .map((value) => value[0].toUpperCase())
       .take(2)
       .join();
+}
+
+/// API timestamps arrive as UTC, sometimes without a zone designator, so they go
+/// through the shared parser rather than DateTime.parse (see item 7).
+DateTime _createdAt(String? value) {
+  if (value == null || value.trim().isEmpty) return DateTime.now().toUtc();
+  try {
+    return parseApiUtc(value);
+  } catch (_) {
+    return DateTime.now().toUtc();
+  }
 }

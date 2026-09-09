@@ -13,30 +13,99 @@ class NotificationsPage extends StatefulWidget {
     super.key,
     required this.session,
     this.onOpenTarget,
+    this.service,
+    this.pollInterval = const Duration(seconds: 25),
   });
   final AuthSession session;
   final ValueChanged<AppNotification>? onOpenTarget;
+  final NotificationService? service;
+
+  /// Matches the notification bell's cadence so the badge and this list stay in
+  /// step. Tests inject a much shorter interval.
+  final Duration pollInterval;
 
   @override
   State<NotificationsPage> createState() => _NotificationsPageState();
 }
 
-class _NotificationsPageState extends State<NotificationsPage> {
+class _NotificationsPageState extends State<NotificationsPage>
+    with WidgetsBindingObserver {
   late final NotificationService _service;
   List<AppNotification> _items = const [];
   List<SystemAnnouncement> _announcements = const [];
   bool _showAnnouncements = false;
   bool _loading = true, _busy = false;
   String? _error;
+  Timer? _timer;
+
+  /// Guards against a poll tick, a pull-to-refresh and a mark-as-read refresh
+  /// all firing the same fetch at once.
+  bool _inFlight = false;
+
+  /// Bumped whenever the user changes read state locally. A fetch that started
+  /// before the change discards its result instead of resurrecting the old
+  /// unread state; the next poll then applies the backend truth normally.
+  int _mutationVersion = 0;
 
   @override
   void initState() {
     super.initState();
-    _service = NotificationService(ApiClient(), widget.session);
+    WidgetsBinding.instance.addObserver(this);
+    _service =
+        widget.service ?? NotificationService(ApiClient(), widget.session);
     _load();
+    _startPolling();
+  }
+
+  void _startPolling() {
+    _timer?.cancel();
+    _timer = Timer.periodic(widget.pollInterval, (_) => _poll());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _poll();
+      _timer ??= Timer.periodic(widget.pollInterval, (_) => _poll());
+    } else {
+      _timer?.cancel();
+      _timer = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _timer = null;
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Silent background refresh. Never shows a loader, never empties the list and
+  /// never replaces the page with an error: a failed tick keeps what is on
+  /// screen and simply retries on the next one.
+  Future<void> _poll() async {
+    if (_inFlight || !mounted || !widget.session.isAuthenticated) return;
+    final version = _mutationVersion;
+    _inFlight = true;
+    try {
+      final result = await _service.getNotifications(pageSize: 100);
+      if (!mounted || version != _mutationVersion) return;
+      setState(() {
+        _items = result.items;
+        _error = null;
+      });
+    } catch (_) {
+      // Keep the current list and try again on the next tick.
+    } finally {
+      _inFlight = false;
+    }
   }
 
   Future<void> _load() async {
+    if (_inFlight) return;
+    _inFlight = true;
+    final version = _mutationVersion;
     if (mounted) {
       setState(() {
         _loading = true;
@@ -48,7 +117,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
         _service.getNotifications(pageSize: 100),
         _service.getAnnouncements(),
       ]);
-      if (mounted) {
+      if (mounted && version == _mutationVersion) {
         setState(() {
           _items = (values[0] as NotificationPageResult).items;
           _announcements = values[1] as List<SystemAnnouncement>;
@@ -59,7 +128,35 @@ class _NotificationsPageState extends State<NotificationsPage> {
         setState(() => _error = 'Notifications could not be loaded.');
       }
     } finally {
+      _inFlight = false;
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  /// Pull-to-refresh: refreshes both lists without blanking the page, since the
+  /// RefreshIndicator already shows its own progress.
+  Future<void> _manualRefresh() async {
+    if (_inFlight) return;
+    _inFlight = true;
+    final version = _mutationVersion;
+    try {
+      final values = await Future.wait([
+        _service.getNotifications(pageSize: 100),
+        _service.getAnnouncements(),
+      ]);
+      if (mounted && version == _mutationVersion) {
+        setState(() {
+          _items = (values[0] as NotificationPageResult).items;
+          _announcements = values[1] as List<SystemAnnouncement>;
+          _error = null;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = 'Notifications could not be loaded.');
+      }
+    } finally {
+      _inFlight = false;
     }
   }
 
@@ -68,11 +165,12 @@ class _NotificationsPageState extends State<NotificationsPage> {
       try {
         await _service.markRead(item.id);
         if (mounted) {
-          setState(
-            () => _items = _items
+          setState(() {
+            _mutationVersion++;
+            _items = _items
                 .map((x) => x.id == item.id ? x.asRead() : x)
-                .toList(),
-          );
+                .toList();
+          });
         }
       } catch (_) {}
     }
@@ -85,7 +183,10 @@ class _NotificationsPageState extends State<NotificationsPage> {
     try {
       await _service.markAllRead();
       if (mounted) {
-        setState(() => _items = _items.map((x) => x.asRead()).toList());
+        setState(() {
+          _mutationVersion++;
+          _items = _items.map((x) => x.asRead()).toList();
+        });
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -165,7 +266,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                         ),
                       )
                     : RefreshIndicator(
-                        onRefresh: _load,
+                        onRefresh: _manualRefresh,
                         child: ListView.separated(
                           padding: const EdgeInsets.all(16),
                           itemCount: _announcements.length,
@@ -218,7 +319,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                   ),
                 )
               : RefreshIndicator(
-                  onRefresh: _load,
+                  onRefresh: _manualRefresh,
                   child: ListView.separated(
                     padding: const EdgeInsets.all(16),
                     itemCount: _items.length,

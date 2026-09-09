@@ -280,7 +280,10 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
     ),
     AdminSection.referenceData => ReferenceDataPage(token: token),
     AdminSection.accountTypes => AccountTypesPage(token: token),
-    AdminSection.reports => ReportsPage(token: token),
+    AdminSection.reports => ReportsPage(
+      token: token,
+      dateFormatter: widget.settingsController.formatDateTime,
+    ),
     AdminSection.notifications => NotificationsPage(
       token: token,
       onTarget: _openNotificationTarget,

@@ -1,3 +1,5 @@
+import '../../core/api_date_time.dart';
+
 class ReportJobModel {
   const ReportJobModel({
     required this.id,
@@ -15,10 +17,10 @@ class ReportJobModel {
     type: json['type'].toString(),
     status: json['status'].toString(),
     requestedBy: json['requestedBy'] as String? ?? '',
-    requestedAtUtc: DateTime.parse(json['requestedAtUtc'] as String),
+    requestedAtUtc: parseApiUtc(json['requestedAtUtc'] as String),
     completedAtUtc: json['completedAtUtc'] == null
         ? null
-        : DateTime.parse(json['completedAtUtc'] as String),
+        : parseApiUtc(json['completedAtUtc'] as String),
     fileName: json['fileName'] as String?,
     downloadAvailable: json['downloadAvailable'] as bool? ?? false,
     errorMessage: json['errorMessage'] as String?,
@@ -33,6 +35,13 @@ class ReportJobModel {
       status == 'Processing' ||
       status == '1' ||
       status == '2';
+
+  /// Stable key for filtering, independent of the numeric or string enum form.
+  String get typeKey => switch (type) {
+    '1' || 'TransactionReport' => 'transactions',
+    '2' || 'LoanPortfolioReport' => 'loans',
+    _ => type.toLowerCase(),
+  };
   String get typeLabel => switch (type) {
     '1' => 'Transaction Report',
     '2' => 'Loan Portfolio Report',

@@ -14,6 +14,7 @@ class TransactionList extends StatelessWidget {
     required this.isLoadingMore,
     required this.onRefresh,
     required this.documentUploadBuilder,
+    this.onOpenTransaction,
   });
 
   final List<BankTransaction> transactions;
@@ -21,6 +22,7 @@ class TransactionList extends StatelessWidget {
   final bool isLoadingMore;
   final RefreshCallback onRefresh;
   final TransactionDocumentUploadBuilder documentUploadBuilder;
+  final ValueChanged<BankTransaction>? onOpenTransaction;
 
   @override
   Widget build(BuildContext context) {
@@ -41,6 +43,9 @@ class TransactionList extends StatelessWidget {
           final transaction = transactions[index];
           return TransactionHistoryTile(
             transaction: transaction,
+            onTap: onOpenTransaction == null
+                ? null
+                : () => onOpenTransaction!(transaction),
             documentUploadAction: transaction.requiresDocuments
                 ? documentUploadBuilder(transaction)
                 : null,

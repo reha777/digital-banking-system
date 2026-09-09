@@ -26,7 +26,7 @@ class AppNotification {
         entityType: json['entityType'] as String?,
         entityId: json['entityId'] as String?,
         isRead: json['isRead'] == true,
-        createdAtUtc: DateTime.parse(json['createdAtUtc'] as String).toUtc(),
+        createdAtUtc: parseApiUtc(json['createdAtUtc'] as String),
       );
 
   AppNotification asRead() => AppNotification(

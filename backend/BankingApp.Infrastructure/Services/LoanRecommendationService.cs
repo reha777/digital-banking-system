@@ -1,6 +1,7 @@
 using BankingApp.Application.Interfaces;
 using BankingApp.Application.Loans;
 using BankingApp.Domain.Enums;
+using BankingApp.Domain.Services;
 using BankingApp.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -54,18 +55,43 @@ public sealed class LoanRecommendationService(
             return new LoanRecommendationResponse { CanApply = true };
 
         var sinceUtc = DateTime.UtcNow.AddDays(-90);
-        var activity = await dbContext.Transactions.AsNoTracking()
+        var activityCounts = await dbContext.Transactions.AsNoTracking()
             .Where(transaction => transaction.Account.UserId == userId &&
                 transaction.Status == TransactionStatus.Completed &&
                 transaction.Type != TransactionType.TopUp &&
                 transaction.CreatedAtUtc >= sinceUtc)
             .GroupBy(transaction => transaction.Account.Currency)
-            .Select(group => new ActivitySignal(
-                group.Key.ToUpper(),
-                group.Count(),
-                group.Where(transaction => transaction.Amount > 0)
-                    .Sum(transaction => transaction.Amount)))
+            .Select(group => new { Currency = group.Key.ToUpper(), Count = group.Count() })
             .ToListAsync(cancellationToken);
+
+        // Inflow is a narrower signal than activity: only money that actually arrived
+        // from somebody else counts. Self-transfers and loan disbursements also write a
+        // positive credit leg, so the sign of the amount is not enough to identify income.
+        var ownAccountIds = await dbContext.Accounts.AsNoTracking()
+            .Where(account => account.UserId == userId)
+            .Select(account => account.Id)
+            .ToListAsync(cancellationToken);
+        var inflowTotals = await dbContext.Transactions.AsNoTracking()
+            .Where(transaction => transaction.Account.UserId == userId &&
+                transaction.CreatedAtUtc >= sinceUtc)
+            .Where(LoanRecommendationInflowRules.QualifyingCreditLeg)
+            .Where(LoanRecommendationInflowRules.FromExternalCounterparty(ownAccountIds))
+            .GroupBy(transaction => transaction.Account.Currency)
+            .Select(group => new
+            {
+                Currency = group.Key.ToUpper(),
+                Total = group.Sum(transaction => transaction.Amount)
+            })
+            .ToListAsync(cancellationToken);
+        var inflowByCurrency = inflowTotals.ToDictionary(
+            value => value.Currency, value => value.Total);
+
+        var activity = activityCounts
+            .Select(value => new ActivitySignal(
+                value.Currency,
+                value.Count,
+                inflowByCurrency.GetValueOrDefault(value.Currency)))
+            .ToList();
 
         var minimumRate = products.Min(product => product.AnnualInterestRate);
         var maximumRate = products.Max(product => product.AnnualInterestRate);
@@ -90,7 +116,7 @@ public sealed class LoanRecommendationService(
             if (signal is { IncomingTotal: > 0 })
             {
                 score += InflowWeight;
-                reasons.Add("Recent completed inflows were detected in this currency");
+                reasons.Add("Recent external inflows were detected in this currency");
             }
             if (account.Balance > 0) score += BalanceWeight;
 

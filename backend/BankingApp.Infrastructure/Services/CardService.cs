@@ -389,6 +389,7 @@ namespace BankingApp.Infrastructure.Services
             cardRequest.ApprovedCard = card;
 
             var response = ToRequestResponse(cardRequest);
+            await PopulateDocumentsAsync([response], cancellationToken);
             response.IssuedCard = new CardIssueResult
             {
                 CardId = card.Id,
@@ -431,7 +432,9 @@ namespace BankingApp.Infrastructure.Services
 
             await dbContext.SaveChangesAsync(cancellationToken);
 
-            return ToRequestResponse(cardRequest);
+            var rejectResponse = ToRequestResponse(cardRequest);
+            await PopulateDocumentsAsync([rejectResponse], cancellationToken);
+            return rejectResponse;
         }
 
         public async Task<CardRequestResponse> RequestDocumentsAsync(
@@ -464,7 +467,9 @@ namespace BankingApp.Infrastructure.Services
 
             await dbContext.SaveChangesAsync(cancellationToken);
 
-            return ToRequestResponse(cardRequest);
+            var documentsResponse = ToRequestResponse(cardRequest);
+            await PopulateDocumentsAsync([documentsResponse], cancellationToken);
+            return documentsResponse;
         }
 
         public async Task<CardRequestResponse> UploadDocumentAsync(
@@ -478,7 +483,6 @@ namespace BankingApp.Infrastructure.Services
                 .Include(item => item.User)
                 .Include(item => item.ApprovedAccount)
                 .Include(item => item.ApprovedCard)
-                .Include(item => item.Documents)
                 .FirstOrDefaultAsync(
                     item =>
                         item.Id == id &&
@@ -511,8 +515,9 @@ namespace BankingApp.Infrastructure.Services
                 await notificationWriter.AddForAdminsAsync(new NotificationCreate(Guid.Empty, NotificationType.CardDocumentsUploaded, "Card documents uploaded", "A customer uploaded documents for a card request.", NotificationEntityTypes.CardRequest, cardRequest.Id), cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
 
-            cardRequest.Documents.Add(document);
-            return ToRequestResponse(cardRequest);
+            var uploadResponse = ToRequestResponse(cardRequest);
+            await PopulateDocumentsAsync([uploadResponse], cancellationToken);
+            return uploadResponse;
         }
 
         public async Task<CardRequestDocumentDownloadResponse> DownloadDocumentAsync(
@@ -555,13 +560,62 @@ namespace BankingApp.Infrastructure.Services
                 .Take(request.PageSize)
                 .ToListAsync(cancellationToken);
 
+            var items = requests.Select(ToRequestResponse).ToList();
+            await PopulateDocumentsAsync(items, cancellationToken);
+
             return new PagedResult<CardRequestResponse>
             {
-                Items = requests.Select(ToRequestResponse).ToList(),
+                Items = items,
                 Page = request.Page,
                 PageSize = request.PageSize,
                 TotalCount = totalCount
             };
+        }
+
+        /// <summary>
+        /// Loads document metadata for the given card requests in a single projected
+        /// query. The request queries deliberately do not Include the Documents
+        /// navigation: <see cref="CardRequestDocument.Content"/> is a blob the metadata
+        /// contract never exposes, so including it would pull every uploaded file's
+        /// bytes out of the database for a paginated page.
+        /// </summary>
+        private async Task PopulateDocumentsAsync(
+            IReadOnlyCollection<CardRequestResponse> responses,
+            CancellationToken cancellationToken)
+        {
+            if (responses.Count == 0) return;
+            var requestIds = responses.Select(response => response.Id).Distinct().ToList();
+
+            var documents = await dbContext.CardRequestDocuments
+                .AsNoTracking()
+                .Where(document => requestIds.Contains(document.CardRequestId))
+                .OrderByDescending(document => document.UploadedAtUtc)
+                .Select(document => new
+                {
+                    document.CardRequestId,
+                    Metadata = new CardRequestDocumentResponse
+                    {
+                        Id = document.Id,
+                        FileName = document.FileName,
+                        ContentType = document.ContentType,
+                        SizeBytes = document.SizeBytes,
+                        UploadedAtUtc = document.UploadedAtUtc
+                    }
+                })
+                .ToListAsync(cancellationToken);
+
+            var byRequest = documents
+                .GroupBy(document => document.CardRequestId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.Select(document => document.Metadata).ToList());
+
+            foreach (var response in responses)
+            {
+                response.Documents = byRequest.TryGetValue(response.Id, out var metadata)
+                    ? metadata
+                    : [];
+            }
         }
 
         private IQueryable<CardRequest> BaseRequestQuery()
@@ -570,8 +624,7 @@ namespace BankingApp.Infrastructure.Services
                 .AsNoTracking()
                 .Include(cardRequest => cardRequest.User)
                 .Include(cardRequest => cardRequest.ApprovedAccount)
-                .Include(cardRequest => cardRequest.ApprovedCard)
-                .Include(cardRequest => cardRequest.Documents);
+                .Include(cardRequest => cardRequest.ApprovedCard);
         }
 
         private static IQueryable<CardRequest> ApplyQuery(
@@ -623,7 +676,6 @@ namespace BankingApp.Infrastructure.Services
                 .Include(request => request.User)
                 .Include(request => request.ApprovedAccount)
                 .Include(request => request.ApprovedCard)
-                .Include(request => request.Documents)
                 .FirstOrDefaultAsync(request => request.Id == id, cancellationToken);
 
             return cardRequest ?? throw new NotFoundException("Zahtjev za karticu nije pronadjen.");

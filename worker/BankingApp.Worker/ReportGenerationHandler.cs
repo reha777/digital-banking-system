@@ -71,9 +71,19 @@ public sealed class ReportGenerationHandler(BankingAppDbContext db, IReportPdfGe
         if (filter.DateTo.HasValue) query = query.Where(x => x.CreatedAtUtc <= filter.DateTo.Value);
         if (filter.Status.HasValue) query = query.Where(x => x.Status == filter.Status.Value);
         if (!string.IsNullOrWhiteSpace(filter.Currency)) query = query.Where(x => x.Currency == filter.Currency);
+        // OverdueOnly is part of the requested dataset, so it has to be a database
+        // predicate applied before Take/EnsureLimit. Filtering after materialization
+        // made the report fail on the total number of loans, including the ones the
+        // filter was about to discard. Same overdue definition as
+        // LoanOverdueCalculator: a pending installment whose due date has passed.
+        if (filter.OverdueOnly)
+        {
+            query = query.Where(x => x.Installments.Any(i =>
+                i.Status == LoanInstallmentStatus.Pending && i.DueDateUtc < now));
+        }
         var values = await query.OrderByDescending(x => x.CreatedAtUtc).Take(configured.Value.MaxRows + 1).ToListAsync(token);
         EnsureLimit(values.Count);
-        var rows = values.Select(x => { var overdueValues = x.Installments.Select(i => LoanOverdueCalculator.Calculate(i.Status, i.DueDateUtc, now)).Where(v => v.IsOverdue).ToList(); var days = overdueValues.Count == 0 ? 0 : overdueValues.Max(v => v.DaysOverdue); return new LoanReportRow(x.StartDateUtc, $"{x.User.FirstName} {x.User.LastName}".Trim(), x.LoanApplication.LoanProduct.Name, x.OriginalPrincipal, x.OutstandingPrincipal, x.AnnualInterestRate, x.MonthlyPayment, x.MaturityDateUtc, x.Currency, x.Status.ToString(), overdueValues.Count, overdueValues.Count > 0, days); }).Where(x => !filter.OverdueOnly || x.IsOverdue).ToList();
+        var rows = values.Select(x => { var overdueValues = x.Installments.Select(i => LoanOverdueCalculator.Calculate(i.Status, i.DueDateUtc, now)).Where(v => v.IsOverdue).ToList(); var days = overdueValues.Count == 0 ? 0 : overdueValues.Max(v => v.DaysOverdue); return new LoanReportRow(x.StartDateUtc, $"{x.User.FirstName} {x.User.LastName}".Trim(), x.LoanApplication.LoanProduct.Name, x.OriginalPrincipal, x.OutstandingPrincipal, x.AnnualInterestRate, x.MonthlyPayment, x.MaturityDateUtc, x.Currency, x.Status.ToString(), overdueValues.Count, overdueValues.Count > 0, days); }).ToList();
         return pdf.Loans(rows, now);
     }
 

@@ -31,7 +31,6 @@ namespace BankingApp.Infrastructure.Services
             var query = dbContext.Transactions
                 .AsNoTracking()
                 .Include(transaction => transaction.Account)
-                .Include(transaction => transaction.Documents)
                 .AsQueryable();
 
             query = ApplyQuery(request, query);
@@ -124,7 +123,6 @@ namespace BankingApp.Infrastructure.Services
                 {
                     var existing = await dbContext.Transactions
                         .Include(value => value.Account)
-                        .Include(value => value.Documents)
                         .SingleOrDefaultAsync(value => value.AccountId == request.AccountId &&
                             value.ClientRequestId == request.ClientRequestId &&
                             value.Type == TransactionType.TopUp, cancellationToken);
@@ -196,7 +194,6 @@ namespace BankingApp.Infrastructure.Services
                     dbContext.ChangeTracker.Clear();
                     var duplicate = await dbContext.Transactions.AsNoTracking()
                         .Include(value => value.Account)
-                        .Include(value => value.Documents)
                         .SingleOrDefaultAsync(value => value.AccountId == request.AccountId &&
                             value.ClientRequestId == request.ClientRequestId &&
                             value.Type == TransactionType.TopUp, cancellationToken);
@@ -826,7 +823,7 @@ namespace BankingApp.Infrastructure.Services
             var response = ToResponse(transaction, sourceAccount, destinationAccount);
             response.AdminNote = transaction.AdminNote;
             response.ReviewedAtUtc = transaction.ReviewedAtUtc;
-            response.Documents = transaction.Documents.Select(ToDocumentResponse).ToList();
+            await PopulateDocumentsAsync([response], cancellationToken);
             return response;
         }
 
@@ -956,7 +953,6 @@ namespace BankingApp.Infrastructure.Services
 
             var transaction = await dbContext.Transactions
                 .Include(item => item.Account)
-                .Include(item => item.Documents)
                 .FirstOrDefaultAsync(
                     item =>
                         item.Id == id &&
@@ -991,7 +987,6 @@ namespace BankingApp.Infrastructure.Services
                 await notificationWriter.AddForAdminsAsync(new NotificationCreate(Guid.Empty, NotificationType.TransactionDocumentsUploaded, "Transaction documents uploaded", "A customer uploaded documents for a transaction review.", NotificationEntityTypes.Transaction, transaction.Id), cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
 
-            transaction.Documents.Add(document);
             var response = ToResponse(transaction);
             await PopulateTransferDetailsAsync([response], cancellationToken);
             return response;
@@ -1002,10 +997,11 @@ namespace BankingApp.Infrastructure.Services
             Guid documentId,
             CancellationToken cancellationToken = default)
         {
+            // The only place the blob is read, and only ever for the one requested
+            // document. The ownership predicate stays part of the query, so the document
+            // id alone can never be used to reach somebody else's attachment.
             var query = dbContext.TransactionDocuments
                 .AsNoTracking()
-                .Include(document => document.Transaction)
-                .ThenInclude(transaction => transaction.Account)
                 .Where(document =>
                     document.Id == documentId &&
                     document.TransactionId == transactionId);
@@ -1016,18 +1012,16 @@ namespace BankingApp.Infrastructure.Services
                     document.Transaction.Account.UserId == currentUserService.UserId);
             }
 
-            var document = await query.FirstOrDefaultAsync(cancellationToken);
-            if (document is null)
-            {
-                throw new NotFoundException("Dokument nije pronadjen.");
-            }
+            var document = await query
+                .Select(item => new TransactionDocumentDownloadResponse
+                {
+                    FileName = item.FileName,
+                    ContentType = item.ContentType,
+                    Content = item.Content
+                })
+                .FirstOrDefaultAsync(cancellationToken);
 
-            return new TransactionDocumentDownloadResponse
-            {
-                FileName = document.FileName,
-                ContentType = document.ContentType,
-                Content = document.Content
-            };
+            return document ?? throw new NotFoundException("Dokument nije pronadjen.");
         }
 
         private IQueryable<Transaction> ApplyOwnershipFilter(IQueryable<Transaction> query)
@@ -1119,7 +1113,6 @@ namespace BankingApp.Infrastructure.Services
         private async Task<Transaction> GetOwnedTransactionAsync(Guid id, CancellationToken cancellationToken)
         {
             var transaction = await ApplyOwnershipFilter(dbContext.Transactions.Include(item => item.Account))
-                .Include(item => item.Documents)
                 .FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
 
             return transaction ?? throw new NotFoundException("Transakcija nije pronadjena.");
@@ -1136,7 +1129,6 @@ namespace BankingApp.Infrastructure.Services
 
             var transaction = await dbContext.Transactions
                 .Include(item => item.Account)
-                .Include(item => item.Documents)
                 .FirstOrDefaultAsync(
                     item =>
                         item.Id == id &&
@@ -1374,10 +1366,58 @@ namespace BankingApp.Infrastructure.Services
             return response;
         }
 
+        /// <summary>
+        /// Loads document metadata for the given responses in a single projected query.
+        /// The list and detail queries deliberately do not Include the Documents
+        /// navigation: <see cref="TransactionDocument.Content"/> is a blob the metadata
+        /// contract never exposes, so including it would pull every attachment's bytes
+        /// out of the database for a paginated page.
+        /// </summary>
+        private async Task PopulateDocumentsAsync(
+            IReadOnlyCollection<TransactionResponse> responses,
+            CancellationToken cancellationToken)
+        {
+            if (responses.Count == 0) return;
+            var transactionIds = responses.Select(response => response.Id).Distinct().ToList();
+
+            var documents = await dbContext.TransactionDocuments
+                .AsNoTracking()
+                .Where(document => transactionIds.Contains(document.TransactionId))
+                .OrderBy(document => document.UploadedAtUtc)
+                .Select(document => new
+                {
+                    document.TransactionId,
+                    Metadata = new TransactionDocumentResponse
+                    {
+                        Id = document.Id,
+                        FileName = document.FileName,
+                        ContentType = document.ContentType,
+                        SizeBytes = document.SizeBytes,
+                        UploadedAtUtc = document.UploadedAtUtc
+                    }
+                })
+                .ToListAsync(cancellationToken);
+
+            var byTransaction = documents
+                .GroupBy(document => document.TransactionId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.Select(document => document.Metadata).ToList());
+
+            foreach (var response in responses)
+            {
+                response.Documents = byTransaction.TryGetValue(response.Id, out var metadata)
+                    ? metadata
+                    : [];
+            }
+        }
+
         private async Task PopulateTransferDetailsAsync(
             IReadOnlyCollection<TransactionResponse> responses,
             CancellationToken cancellationToken)
         {
+            await PopulateDocumentsAsync(responses, cancellationToken);
+
             var accountIds = responses
                 .SelectMany(response => new[] { response.SourceAccountId, response.DestinationAccountId })
                 .Where(accountId => accountId.HasValue)

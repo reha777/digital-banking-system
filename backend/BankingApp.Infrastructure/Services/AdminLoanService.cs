@@ -255,7 +255,7 @@ public class AdminLoanService(
     {
         var value = await BaseQuery().SingleOrDefaultAsync(application => application.Id == id, cancellationToken)
             ?? throw new NotFoundException("Loan application nije pronadjen.");
-        return ToDetails(value);
+        return await WithDocumentsAsync(ToDetails(value), cancellationToken);
     }
 
     public async Task<AdminLoanApplicationDetailsResponse> RejectApplicationAsync(
@@ -294,7 +294,7 @@ public class AdminLoanService(
             dbContext.ChangeTracker.Clear();
             throw new BusinessException("Loan application je u medjuvremenu vec pregledan.");
         }
-        return ToDetails(application);
+        return await WithDocumentsAsync(ToDetails(application), cancellationToken);
     }
 
     public async Task<AdminLoanApplicationDetailsResponse> ApproveApplicationAsync(
@@ -409,7 +409,7 @@ public class AdminLoanService(
                 await dbContext.SaveChangesAsync(cancellationToken);
                 if (transaction is not null)
                     await transaction.CommitAsync(cancellationToken);
-                return ToDetails(application);
+                return await WithDocumentsAsync(ToDetails(application), cancellationToken);
             }
             catch (DbUpdateException)
             {
@@ -451,7 +451,7 @@ public class AdminLoanService(
                 EntityType = AuditEntityTypes.LoanApplication, EntityId = application.Id.ToString(),
                 Description = $"Requested loan document: {description}.", Reason = message }, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
-        return ToDetails(application);
+        return await WithDocumentsAsync(ToDetails(application), cancellationToken);
     }
 
     public async Task<IReadOnlyCollection<LoanDocumentResponse>> GetDocumentsAsync(Guid applicationId, CancellationToken cancellationToken = default)
@@ -523,20 +523,46 @@ public class AdminLoanService(
         }
     };
 
+    /// <summary>
+    /// Loads document metadata for one application in a single projected query. The
+    /// application queries deliberately do not Include the Documents navigation:
+    /// <see cref="LoanDocument.Content"/> is a blob the metadata contract never
+    /// exposes, so including it would pull every uploaded file out of the database.
+    /// </summary>
+    private async Task<AdminLoanApplicationDetailsResponse> WithDocumentsAsync(
+        AdminLoanApplicationDetailsResponse response,
+        CancellationToken cancellationToken)
+    {
+        response.Documents = await dbContext.LoanDocuments
+            .AsNoTracking()
+            .Where(document => document.LoanApplicationId == response.Id)
+            .OrderByDescending(document => document.UploadedAtUtc)
+            .Select(document => new LoanDocumentResponse
+            {
+                Id = document.Id,
+                FileName = document.FileName,
+                ContentType = document.ContentType,
+                SizeBytes = document.SizeBytes,
+                UploadedAtUtc = document.UploadedAtUtc
+            })
+            .ToListAsync(cancellationToken);
+        return response;
+    }
+
     private IQueryable<LoanApplication> BaseQuery() => dbContext.LoanApplications
         .AsNoTracking()
         .Include(value => value.User)
         .Include(value => value.LoanProduct)
         .Include(value => value.DestinationAccount).ThenInclude(value => value.AccountTypeDefinition)
-        .Include(value => value.LoanPurpose)
-        .Include(value => value.Documents);
+        .Include(value => value.LoanPurpose);
+
 
     private IQueryable<LoanApplication> MutableQuery() => dbContext.LoanApplications
         .Include(value => value.User)
         .Include(value => value.LoanProduct)
         .Include(value => value.DestinationAccount).ThenInclude(value => value.AccountTypeDefinition)
-        .Include(value => value.LoanPurpose)
-        .Include(value => value.Documents);
+        .Include(value => value.LoanPurpose);
+
 
     private void EnsureAdmin()
     {
