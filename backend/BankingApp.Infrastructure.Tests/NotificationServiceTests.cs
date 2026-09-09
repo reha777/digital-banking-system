@@ -69,6 +69,31 @@ public sealed class NotificationServiceTests
         await Assert.ThrowsAsync<NotFoundException>(() => service.MarkReadAsync(foreign.Id));
     }
 
+    [Theory]
+    [InlineData(NotificationType.LoanDocumentRequested)]
+    [InlineData(NotificationType.LoanDocumentUploaded)]
+    [InlineData(NotificationType.LoanApproved)]
+    [InlineData(NotificationType.LoanRejected)]
+    public async Task List_returns_each_loan_lifecycle_type_by_name(NotificationType type)
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        fixture.Db.Notifications.Add(new Notification
+        {
+            Id = Guid.NewGuid(), UserId = fixture.CustomerId, Type = type,
+            Title = "Loan notification", Message = "Loan lifecycle changed.",
+            EntityType = NotificationEntityTypes.LoanApplication, EntityId = Guid.NewGuid(),
+            CreatedAtUtc = DateTime.UtcNow
+        });
+        await fixture.Db.SaveChangesAsync();
+
+        var result = await new NotificationService(fixture.Db, new CurrentUser(fixture.CustomerId))
+            .GetAsync(new NotificationQuery { Page = 1, PageSize = 20 });
+
+        var notification = Assert.Single(result.Items);
+        Assert.Equal(type.ToString(), notification.Type);
+        Assert.Equal(NotificationEntityTypes.LoanApplication, notification.EntityType);
+    }
+
     private static Notification Notice(Guid userId, DateTime created) => new()
     {
         Id = Guid.NewGuid(), UserId = userId, Type = NotificationType.CardRequestApproved,

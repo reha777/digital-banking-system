@@ -30,4 +30,7 @@ public interface IAdminLoanService
     Task<PagedResult<AdminLoanListItemResponse>> GetLoansAsync(AdminLoanQueryRequest request, CancellationToken cancellationToken = default);
     Task<AdminLoanDetailsResponse> GetLoanDetailsAsync(Guid id, CancellationToken cancellationToken = default);
     Task<AdminLoansOverviewResponse> GetLoansOverviewAsync(CancellationToken cancellationToken = default);
+    Task<AdminLoanApplicationDetailsResponse> RequestDocumentAsync(Guid id, LoanDocumentRequest request, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<LoanDocumentResponse>> GetDocumentsAsync(Guid applicationId, CancellationToken cancellationToken = default);
+    Task<LoanDocumentDownloadResponse> DownloadDocumentAsync(Guid applicationId, Guid documentId, CancellationToken cancellationToken = default);
 }

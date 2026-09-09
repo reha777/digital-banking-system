@@ -64,7 +64,7 @@ public class AdminLoanService(
         return new AdminLoanSummaryResponse
         {
             TotalApplications = await query.CountAsync(cancellationToken),
-            PendingApplications = await query.CountAsync(value => value.Status == LoanApplicationStatus.Pending, cancellationToken),
+            PendingApplications = await query.CountAsync(value => value.Status == LoanApplicationStatus.Pending || value.Status == LoanApplicationStatus.DocumentsRequested, cancellationToken),
             ApprovedApplications = await query.CountAsync(value => value.Status == LoanApplicationStatus.Approved, cancellationToken),
             RejectedApplications = await query.CountAsync(value => value.Status == LoanApplicationStatus.Rejected, cancellationToken)
         };
@@ -231,7 +231,7 @@ public class AdminLoanService(
         return new AdminLoansOverviewResponse
         {
             TotalApplications = await applications.CountAsync(cancellationToken),
-            PendingApplications = await applications.CountAsync(value => value.Status == LoanApplicationStatus.Pending, cancellationToken),
+            PendingApplications = await applications.CountAsync(value => value.Status == LoanApplicationStatus.Pending || value.Status == LoanApplicationStatus.DocumentsRequested, cancellationToken),
             ActiveLoans = await loans.CountAsync(value => value.Status == LoanStatus.Active, cancellationToken),
             CompletedLoans = await loans.CountAsync(value => value.Status == LoanStatus.Completed, cancellationToken),
             LoansWithOverduePayments = await loans.CountAsync(value =>
@@ -426,6 +426,52 @@ public class AdminLoanService(
         });
     }
 
+    public async Task<AdminLoanApplicationDetailsResponse> RequestDocumentAsync(
+        Guid id, LoanDocumentRequest request, CancellationToken cancellationToken = default)
+    {
+        EnsureAdmin();
+        var description = request.Description?.Trim();
+        var message = request.Message?.Trim();
+        if (string.IsNullOrWhiteSpace(description) || string.IsNullOrWhiteSpace(message))
+            throw new BusinessException("Document description and message are required.");
+        var application = await MutableQuery().SingleOrDefaultAsync(value => value.Id == id, cancellationToken)
+            ?? throw new NotFoundException("Loan application nije pronadjen.");
+        EnsurePending(application);
+        application.Status = LoanApplicationStatus.DocumentsRequested;
+        application.DocumentRequestDescription = description;
+        application.DocumentRequestMessage = message;
+        application.DocumentRequestedAtUtc = DateTime.UtcNow;
+        if (notificationWriter is not null)
+            await notificationWriter.AddAsync(new NotificationCreate(application.UserId, NotificationType.LoanDocumentRequested,
+                "Additional document required", $"{description}: {message}", NotificationEntityTypes.LoanApplication, application.Id), cancellationToken);
+        if (auditLogService is not null)
+            await auditLogService.RecordAsync(new AuditLogRecordRequest { Action = AuditLogActions.LoanDocumentRequested,
+                EntityType = AuditEntityTypes.LoanApplication, EntityId = application.Id.ToString(),
+                Description = $"Requested loan document: {description}.", Reason = message }, cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return ToDetails(application);
+    }
+
+    public async Task<IReadOnlyCollection<LoanDocumentResponse>> GetDocumentsAsync(Guid applicationId, CancellationToken cancellationToken = default)
+    {
+        EnsureAdmin();
+        if (!await dbContext.LoanApplications.AnyAsync(value => value.Id == applicationId, cancellationToken))
+            throw new NotFoundException("Loan application nije pronadjen.");
+        return await dbContext.LoanDocuments.AsNoTracking().Where(value => value.LoanApplicationId == applicationId)
+            .OrderByDescending(value => value.UploadedAtUtc).Select(value => new LoanDocumentResponse
+            { Id = value.Id, FileName = value.FileName, ContentType = value.ContentType, SizeBytes = value.SizeBytes, UploadedAtUtc = value.UploadedAtUtc })
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<LoanDocumentDownloadResponse> DownloadDocumentAsync(Guid applicationId, Guid documentId, CancellationToken cancellationToken = default)
+    {
+        EnsureAdmin();
+        var value = await dbContext.LoanDocuments.AsNoTracking().SingleOrDefaultAsync(
+            document => document.Id == documentId && document.LoanApplicationId == applicationId, cancellationToken)
+            ?? throw new NotFoundException("Loan document nije pronadjen.");
+        return new LoanDocumentDownloadResponse { Content = value.Content, ContentType = value.ContentType, FileName = value.FileName };
+    }
+
     private static AdminLoanApplicationDetailsResponse ToDetails(LoanApplication value) => new()
     {
         Id = value.Id,
@@ -433,6 +479,11 @@ public class AdminLoanService(
         SubmittedAtUtc = value.SubmittedAtUtc,
         ReviewedAtUtc = value.ReviewedAtUtc,
         AdminNote = value.AdminNote,
+        DocumentRequestDescription = value.DocumentRequestDescription,
+        DocumentRequestMessage = value.DocumentRequestMessage,
+        DocumentRequestedAtUtc = value.DocumentRequestedAtUtc,
+        Documents = value.Documents.OrderByDescending(document => document.UploadedAtUtc).Select(document => new LoanDocumentResponse
+        { Id = document.Id, FileName = document.FileName, ContentType = document.ContentType, SizeBytes = document.SizeBytes, UploadedAtUtc = document.UploadedAtUtc }).ToList(),
         LoanPurposeId = value.LoanPurposeId,
         LoanPurposeName = value.LoanPurpose?.Name,
         Customer = new AdminLoanCustomerResponse
@@ -473,13 +524,15 @@ public class AdminLoanService(
         .Include(value => value.User)
         .Include(value => value.LoanProduct)
         .Include(value => value.DestinationAccount)
-        .Include(value => value.LoanPurpose);
+        .Include(value => value.LoanPurpose)
+        .Include(value => value.Documents);
 
     private IQueryable<LoanApplication> MutableQuery() => dbContext.LoanApplications
         .Include(value => value.User)
         .Include(value => value.LoanProduct)
         .Include(value => value.DestinationAccount)
-        .Include(value => value.LoanPurpose);
+        .Include(value => value.LoanPurpose)
+        .Include(value => value.Documents);
 
     private void EnsureAdmin()
     {

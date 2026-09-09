@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:desktop_app/src/features/admin_shell/admin_section.dart';
 import 'package:desktop_app/src/features/admin_shell/widgets/admin_sidebar.dart';
@@ -93,6 +94,7 @@ void main() {
     expect(find.text('Loan Application Details'), findsOneWidget);
     expect(find.text('Approve'), findsOneWidget);
     expect(find.text('Reject'), findsOneWidget);
+    expect(find.text('Request document'), findsOneWidget);
     await tester.ensureVisible(find.text('Approve'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Approve'));
@@ -325,6 +327,19 @@ class _FakeRepository implements AdminLoanRepository {
   int? lastStatus;
   int reviewCalls = 0;
   bool? lastOverdueOnly;
+  @override
+  Future<AdminLoanApplicationDetails> requestDocument({
+    required String token,
+    required String id,
+    required String description,
+    required String message,
+  }) async => _details(AdminLoanStatus.documentsRequested);
+  @override
+  Future<Uint8List> downloadDocument({
+    required String token,
+    required String applicationId,
+    required String documentId,
+  }) async => Uint8List(0);
   @override
   Future<AdminLoanPage> getLoans({
     required String token,

@@ -4,6 +4,7 @@ using BankingApp.Application.Common.Pagination;
 using BankingApp.Domain.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using BankingApp.Infrastructure.Services;
 
 namespace BankingApp.Api.Controllers;
 
@@ -60,6 +61,41 @@ public class LoansController(
     {
         var response = await loanService.GetRecentLoanAsync(cancellationToken);
         return response is null ? NoContent() : Ok(response);
+    }
+
+    [HttpGet("applications/{id:guid}/documents")]
+    public async Task<ActionResult<IReadOnlyCollection<LoanDocumentResponse>>> GetDocuments(Guid id, CancellationToken cancellationToken) =>
+        Ok(await loanService.GetDocumentsAsync(id, cancellationToken));
+
+    [HttpPost("applications/{id:guid}/documents")]
+    [RequestSizeLimit(FileValidationService.MaximumDocumentSizeBytes + 64 * 1024)]
+    public async Task<ActionResult<LoanApplicationResponse>> UploadDocument(Guid id, IFormFile file, CancellationToken cancellationToken)
+    {
+        if (file.Length == 0) return BadRequest(new { message = "Document cannot be empty." });
+        using var stream = new MemoryStream();
+        await file.CopyToAsync(stream, cancellationToken);
+        return Ok(await loanService.UploadDocumentAsync(id, new LoanDocumentUploadRequest
+        {
+            FileName = file.FileName, ContentType = ResolveDocumentContentType(file.FileName, file.ContentType), Content = stream.ToArray()
+        }, cancellationToken));
+    }
+
+    private static string ResolveDocumentContentType(string fileName, string contentType)
+    {
+        if (!string.IsNullOrWhiteSpace(contentType) && !contentType.Equals("application/octet-stream", StringComparison.OrdinalIgnoreCase))
+            return contentType;
+        return Path.GetExtension(fileName).ToLowerInvariant() switch
+        {
+            ".jpg" or ".jpeg" => "image/jpeg", ".png" => "image/png", ".pdf" => "application/pdf",
+            ".txt" => "text/plain", _ => "application/octet-stream"
+        };
+    }
+
+    [HttpGet("applications/{applicationId:guid}/documents/{documentId:guid}/download")]
+    public async Task<IActionResult> DownloadDocument(Guid applicationId, Guid documentId, CancellationToken cancellationToken)
+    {
+        var value = await loanService.DownloadDocumentAsync(applicationId, documentId, cancellationToken);
+        return File(value.Content, value.ContentType, value.FileName);
     }
 
     [HttpGet("{id:guid}")]

@@ -21,6 +21,8 @@ public static class AuditLogActions
     public const string AccountClosedByAdmin = nameof(AccountClosedByAdmin);
     public const string CardBlockedByAdmin = nameof(CardBlockedByAdmin);
     public const string CardUnblockedByAdmin = nameof(CardUnblockedByAdmin);
+    public const string LoanDocumentRequested = nameof(LoanDocumentRequested);
+    public const string LoanDocumentUploaded = nameof(LoanDocumentUploaded);
 }
 
 public static class AuditEntityTypes

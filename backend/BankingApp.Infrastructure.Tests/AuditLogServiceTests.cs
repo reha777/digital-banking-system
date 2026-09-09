@@ -74,6 +74,32 @@ public class AuditLogServiceTests
         Assert.True(all.Items.Zip(all.Items.Skip(1), (a, b) => a.CreatedAtUtc >= b.CreatedAtUtc).All(x => x));
     }
 
+    [Fact]
+    public async Task Customer_can_record_own_business_action_but_cannot_query_audit_log()
+    {
+        await using var db = new BankingAppDbContext(new DbContextOptionsBuilder<BankingAppDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var customer = Fixture.User("Customer", AppRoles.Customer);
+        db.Users.Add(customer);
+        await db.SaveChangesAsync();
+        var audit = new AuditLogService(db, new CurrentUser(customer.Id, false));
+
+        await audit.RecordAsync(new AuditLogRecordRequest
+        {
+            Action = AuditLogActions.LoanDocumentUploaded,
+            EntityType = AuditEntityTypes.LoanApplication,
+            EntityId = Guid.NewGuid().ToString(),
+            Description = "Uploaded requested loan document."
+        });
+        await db.SaveChangesAsync();
+
+        var record = await db.AuditLogs.SingleAsync();
+        Assert.Equal(AppRoles.Customer, record.ActorRole);
+        Assert.Equal("Customer User", record.ActorName);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            audit.GetAsync(new AuditLogQueryRequest()));
+    }
+
     private sealed class Fixture : IAsyncDisposable
     {
         private Fixture(BankingAppDbContext db, User customer, AuditLogService audit)
@@ -91,7 +117,7 @@ public class AuditLogServiceTests
             await db.SaveChangesAsync();
             return new Fixture(db, customer, new AuditLogService(db, new CurrentUser(admin.Id, true)));
         }
-        private static User User(string first, string role) => new()
+        internal static User User(string first, string role) => new()
         { Id = Guid.NewGuid(), FirstName = first, LastName = "User", Email = $"{Guid.NewGuid()}@example.com",
           PhoneNumber = "+38761000000", PasswordHash = "hash", Role = role,
           Status = CustomerStatus.Active, CreatedAtUtc = DateTime.UtcNow };

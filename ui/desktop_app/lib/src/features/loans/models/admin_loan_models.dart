@@ -1,4 +1,4 @@
-enum AdminLoanStatus { pending, approved, rejected }
+enum AdminLoanStatus { pending, approved, rejected, documentsRequested }
 
 int _integer(Object? value) =>
     value is int ? value : int.tryParse(value?.toString() ?? '') ?? 0;
@@ -9,12 +9,14 @@ AdminLoanStatus _status(Object? value) =>
     switch (value?.toString().toLowerCase()) {
       '2' || 'approved' => AdminLoanStatus.approved,
       '3' || 'rejected' => AdminLoanStatus.rejected,
+      '4' || 'documentsrequested' => AdminLoanStatus.documentsRequested,
       _ => AdminLoanStatus.pending,
     };
 String adminLoanStatusLabel(AdminLoanStatus value) => switch (value) {
   AdminLoanStatus.pending => 'Pending',
   AdminLoanStatus.approved => 'Approved',
   AdminLoanStatus.rejected => 'Rejected',
+  AdminLoanStatus.documentsRequested => 'Documents requested',
 };
 
 class AdminLoanApplicationPage {
@@ -118,31 +120,40 @@ class AdminLoanApplicationDetails {
     required this.product,
     required this.destinationAccount,
     required this.financials,
+    this.documentRequestDescription,
+    this.documentRequestMessage,
+    this.documents = const [],
   });
-  factory AdminLoanApplicationDetails.fromJson(Map<String, dynamic> json) =>
-      AdminLoanApplicationDetails(
-        id: json['id']?.toString() ?? '',
-        status: _status(json['status']),
-        submittedAtUtc:
-            DateTime.tryParse(json['submittedAtUtc']?.toString() ?? '') ??
-            DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
-        reviewedAtUtc: DateTime.tryParse(
-          json['reviewedAtUtc']?.toString() ?? '',
-        ),
-        adminNote: json['adminNote']?.toString(),
-        customer: AdminLoanCustomer.fromJson(
-          json['customer'] as Map<String, dynamic>? ?? {},
-        ),
-        product: AdminLoanProduct.fromJson(
-          json['product'] as Map<String, dynamic>? ?? {},
-        ),
-        destinationAccount: AdminLoanDestinationAccount.fromJson(
-          json['destinationAccount'] as Map<String, dynamic>? ?? {},
-        ),
-        financials: AdminLoanFinancials.fromJson(
-          json['financials'] as Map<String, dynamic>? ?? {},
-        ),
-      );
+  factory AdminLoanApplicationDetails.fromJson(
+    Map<String, dynamic> json,
+  ) => AdminLoanApplicationDetails(
+    id: json['id']?.toString() ?? '',
+    status: _status(json['status']),
+    submittedAtUtc:
+        DateTime.tryParse(json['submittedAtUtc']?.toString() ?? '') ??
+        DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+    reviewedAtUtc: DateTime.tryParse(json['reviewedAtUtc']?.toString() ?? ''),
+    adminNote: json['adminNote']?.toString(),
+    customer: AdminLoanCustomer.fromJson(
+      json['customer'] as Map<String, dynamic>? ?? {},
+    ),
+    product: AdminLoanProduct.fromJson(
+      json['product'] as Map<String, dynamic>? ?? {},
+    ),
+    destinationAccount: AdminLoanDestinationAccount.fromJson(
+      json['destinationAccount'] as Map<String, dynamic>? ?? {},
+    ),
+    financials: AdminLoanFinancials.fromJson(
+      json['financials'] as Map<String, dynamic>? ?? {},
+    ),
+    documentRequestDescription: json['documentRequestDescription']?.toString(),
+    documentRequestMessage: json['documentRequestMessage']?.toString(),
+    documents: (json['documents'] as List? ?? [])
+        .map(
+          (value) => AdminLoanDocument.fromJson(value as Map<String, dynamic>),
+        )
+        .toList(),
+  );
   final String id;
   final AdminLoanStatus status;
   final DateTime submittedAtUtc;
@@ -152,6 +163,31 @@ class AdminLoanApplicationDetails {
   final AdminLoanProduct product;
   final AdminLoanDestinationAccount destinationAccount;
   final AdminLoanFinancials financials;
+  final String? documentRequestDescription, documentRequestMessage;
+  final List<AdminLoanDocument> documents;
+}
+
+class AdminLoanDocument {
+  const AdminLoanDocument({
+    required this.id,
+    required this.fileName,
+    required this.contentType,
+    required this.sizeBytes,
+    required this.uploadedAtUtc,
+  });
+  factory AdminLoanDocument.fromJson(Map<String, dynamic> json) =>
+      AdminLoanDocument(
+        id: json['id']?.toString() ?? '',
+        fileName: json['fileName']?.toString() ?? '',
+        contentType: json['contentType']?.toString() ?? '',
+        sizeBytes: (json['sizeBytes'] as num? ?? 0).toInt(),
+        uploadedAtUtc:
+            DateTime.tryParse(json['uploadedAtUtc']?.toString() ?? '') ??
+            DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+      );
+  final String id, fileName, contentType;
+  final int sizeBytes;
+  final DateTime uploadedAtUtc;
 }
 
 class AdminLoanCustomer {

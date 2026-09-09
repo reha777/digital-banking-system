@@ -22,4 +22,8 @@ public class LoanApplicationResponse
     public DateTime SubmittedAtUtc { get; set; }
     public DateTime? ReviewedAtUtc { get; set; }
     public string? AdminNote { get; set; }
+    public string? DocumentRequestDescription { get; set; }
+    public string? DocumentRequestMessage { get; set; }
+    public DateTime? DocumentRequestedAtUtc { get; set; }
+    public IReadOnlyCollection<LoanDocumentResponse> Documents { get; set; } = [];
 }

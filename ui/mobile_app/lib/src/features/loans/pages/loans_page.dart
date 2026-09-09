@@ -8,6 +8,7 @@ import '../../auth/auth_session.dart';
 import '../loan_service.dart';
 import '../models/loan_models.dart';
 import '../widgets/loan_widgets.dart';
+import '../../../widgets/document_picker.dart';
 import 'loan_application_page.dart';
 import 'loan_details_page.dart';
 import 'loan_payment_page.dart';
@@ -58,6 +59,7 @@ class _LoansPageState extends State<LoansPage> {
   late final LoanRepository _repository;
   late Future<_LoansData> _future;
   bool _applyAgain = false;
+  bool _uploadingDocument = false;
   String get _token => widget.session.token ?? '';
   @override
   void initState() {
@@ -146,6 +148,35 @@ class _LoansPageState extends State<LoansPage> {
     await value;
   }
 
+  Future<void> _uploadLoanDocument(LoanApplicationModel application) async {
+    if (_uploadingDocument) return;
+    try {
+      final picked = await pickDocument();
+      if (picked == null) return;
+      setState(() => _uploadingDocument = true);
+      await _repository.uploadDocument(
+        _token,
+        application.id,
+        fileName: picked.fileName,
+        bytes: picked.bytes,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Loan document uploaded.')),
+        );
+        await _refresh();
+      }
+    } on Object catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingDocument = false);
+    }
+  }
+
   Future<void> _open(LoanProductModel product, List<Account> accounts) async {
     final submitted = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
@@ -182,7 +213,9 @@ class _LoansPageState extends State<LoansPage> {
         final data = snapshot.requireData;
         final application = data.application;
         final activeLoan = data.activeLoan;
-        final pendingApplication = application?.isPending == true;
+        final pendingApplication =
+            application?.isPending == true ||
+            application?.requiresDocuments == true;
         final completedLoan = data.recentLoan?.isCompleted == true
             ? data.recentLoan
             : null;
@@ -213,7 +246,13 @@ class _LoansPageState extends State<LoansPage> {
                   onPay: () => _pay(activeLoan, data.accounts),
                 ),
               ] else if (pendingApplication) ...[
-                LoanStatusCard(application: application!),
+                LoanStatusCard(
+                  application: application!,
+                  onUploadDocument:
+                      application.requiresDocuments && !_uploadingDocument
+                      ? () => _uploadLoanDocument(application)
+                      : null,
+                ),
               ] else if (showCompletedLoan) ...[
                 ActiveLoanCard(
                   loan: completedLoan,
@@ -227,7 +266,13 @@ class _LoansPageState extends State<LoansPage> {
                   label: const Text('Apply for another Loan'),
                 ),
               ] else if (!showProducts) ...[
-                LoanStatusCard(application: application!),
+                LoanStatusCard(
+                  application: application!,
+                  onUploadDocument:
+                      application.requiresDocuments && !_uploadingDocument
+                      ? () => _uploadLoanDocument(application)
+                      : null,
+                ),
                 if (application.isRejected) ...[
                   const SizedBox(height: 16),
                   FilledButton.icon(

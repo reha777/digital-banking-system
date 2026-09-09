@@ -89,7 +89,7 @@ namespace BankingApp.Infrastructure.Services
                 value => value.UserId == id && value.Status == LoanStatus.Active,
                 cancellationToken);
             var pendingLoanApplications = await dbContext.LoanApplications.CountAsync(
-                value => value.UserId == id && value.Status == LoanApplicationStatus.Pending,
+                value => value.UserId == id && (value.Status == LoanApplicationStatus.Pending || value.Status == LoanApplicationStatus.DocumentsRequested),
                 cancellationToken);
 
             return new AdminCustomerDetailsResponse

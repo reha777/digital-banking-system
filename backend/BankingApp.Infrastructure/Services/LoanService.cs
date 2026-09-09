@@ -3,6 +3,7 @@ using BankingApp.Application.Common.Pagination;
 using BankingApp.Application.Interfaces;
 using BankingApp.Application.Loans;
 using BankingApp.Application.Notifications;
+using BankingApp.Application.AuditLogs;
 using BankingApp.Domain.Entities;
 using BankingApp.Domain.Constants;
 using BankingApp.Domain.Enums;
@@ -16,7 +17,9 @@ public class LoanService(
     BankingAppDbContext dbContext,
     ICurrentUserService currentUserService,
     ILoanCalculationService calculationService,
-    INotificationWriter? notificationWriter = null) : ILoanService
+    INotificationWriter? notificationWriter = null,
+    IFileValidationService? fileValidationService = null,
+    IAuditLogService? auditLogService = null) : ILoanService
 {
     public async Task<PagedResult<LoanProductResponse>> GetActiveProductsAsync(
         PagedRequest request,
@@ -116,7 +119,7 @@ public class LoanService(
 
         if (await dbContext.LoanApplications.AsNoTracking().AnyAsync(value =>
             value.UserId == currentUserService.UserId &&
-            value.Status == LoanApplicationStatus.Pending, cancellationToken))
+            (value.Status == LoanApplicationStatus.Pending || value.Status == LoanApplicationStatus.DocumentsRequested), cancellationToken))
             throw new BusinessException("Vec postoji Loan application koji ceka pregled.");
         if (await dbContext.Loans.AsNoTracking().AnyAsync(value =>
             value.UserId == currentUserService.UserId &&
@@ -183,7 +186,7 @@ public class LoanService(
         EnsureCustomer();
         var pending = await ApplicationQuery().FirstOrDefaultAsync(value =>
             value.UserId == currentUserService.UserId &&
-            value.Status == LoanApplicationStatus.Pending, cancellationToken);
+            (value.Status == LoanApplicationStatus.Pending || value.Status == LoanApplicationStatus.DocumentsRequested), cancellationToken);
         var application = pending ?? await ApplicationQuery()
             .Where(value => value.UserId == currentUserService.UserId)
             .OrderByDescending(value => value.ReviewedAtUtc ?? value.SubmittedAtUtc)
@@ -199,6 +202,62 @@ public class LoanService(
             cancellationToken);
         return loan is null ? null : ToLoanResponse(loan);
     }
+
+    public async Task<IReadOnlyCollection<LoanDocumentResponse>> GetDocumentsAsync(Guid applicationId, CancellationToken cancellationToken = default)
+    {
+        EnsureCustomer();
+        await GetOwnedApplicationAsync(applicationId, cancellationToken);
+        return await dbContext.LoanDocuments.AsNoTracking()
+            .Where(value => value.LoanApplicationId == applicationId)
+            .OrderByDescending(value => value.UploadedAtUtc).Select(value => ToDocumentResponse(value))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<LoanApplicationResponse> UploadDocumentAsync(Guid applicationId, LoanDocumentUploadRequest request, CancellationToken cancellationToken = default)
+    {
+        EnsureCustomer();
+        var application = await GetOwnedApplicationAsync(applicationId, cancellationToken);
+        if (application.Status != LoanApplicationStatus.DocumentsRequested)
+            throw new BusinessException("Documents can only be uploaded when additional documentation is requested.");
+        var validated = (fileValidationService ?? new FileValidationService()).ValidateDocument(request.FileName, request.ContentType, request.Content);
+        dbContext.LoanDocuments.Add(new LoanDocument
+        {
+            Id = Guid.NewGuid(), LoanApplicationId = application.Id, UploadedByUserId = currentUserService.UserId,
+            FileName = validated.FileName, ContentType = validated.ContentType, SizeBytes = request.Content.LongLength,
+            Content = request.Content, UploadedAtUtc = DateTime.UtcNow
+        });
+        application.Status = LoanApplicationStatus.Pending;
+        if (notificationWriter is not null)
+            await notificationWriter.AddForAdminsAsync(new NotificationCreate(Guid.Empty, NotificationType.LoanDocumentUploaded,
+                "Loan document uploaded",
+                $"{application.User.FirstName} {application.User.LastName} uploaded {validated.FileName} for a loan application.",
+                NotificationEntityTypes.LoanApplication, application.Id), cancellationToken);
+        if (auditLogService is not null)
+            await auditLogService.RecordAsync(new AuditLogRecordRequest { Action = AuditLogActions.LoanDocumentUploaded,
+                EntityType = AuditEntityTypes.LoanApplication, EntityId = application.Id.ToString(),
+                Description = $"Uploaded loan document {validated.FileName}." }, cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return ToApplicationResponse(application);
+    }
+
+    public async Task<LoanDocumentDownloadResponse> DownloadDocumentAsync(Guid applicationId, Guid documentId, CancellationToken cancellationToken = default)
+    {
+        EnsureCustomer();
+        await GetOwnedApplicationAsync(applicationId, cancellationToken);
+        var document = await dbContext.LoanDocuments.AsNoTracking().SingleOrDefaultAsync(
+            value => value.Id == documentId && value.LoanApplicationId == applicationId, cancellationToken)
+            ?? throw new NotFoundException("Loan document nije pronadjen.");
+        return new LoanDocumentDownloadResponse { Content = document.Content, ContentType = document.ContentType, FileName = document.FileName };
+    }
+
+    private async Task<LoanApplication> GetOwnedApplicationAsync(Guid id, CancellationToken cancellationToken) =>
+        await dbContext.LoanApplications.Include(value => value.LoanProduct).Include(value => value.DestinationAccount)
+            .Include(value => value.LoanPurpose).Include(value => value.Documents).Include(value => value.User)
+            .SingleOrDefaultAsync(value => value.Id == id && value.UserId == currentUserService.UserId, cancellationToken)
+        ?? throw new NotFoundException("Loan application nije pronadjen.");
+
+    private static LoanDocumentResponse ToDocumentResponse(LoanDocument value) => new()
+    { Id = value.Id, FileName = value.FileName, ContentType = value.ContentType, SizeBytes = value.SizeBytes, UploadedAtUtc = value.UploadedAtUtc };
 
     public async Task<CustomerLoanResponse?> GetRecentLoanAsync(CancellationToken cancellationToken = default)
     {
@@ -460,7 +519,8 @@ public class LoanService(
         .AsNoTracking()
         .Include(value => value.LoanProduct)
         .Include(value => value.DestinationAccount)
-        .Include(value => value.LoanPurpose);
+        .Include(value => value.LoanPurpose)
+        .Include(value => value.Documents);
 
     private IQueryable<Loan> LoanQuery() => dbContext.Loans
         .AsNoTracking()
@@ -572,6 +632,10 @@ public class LoanService(
         SubmittedAtUtc = value.SubmittedAtUtc,
         ReviewedAtUtc = value.ReviewedAtUtc,
         AdminNote = value.AdminNote
+        ,DocumentRequestDescription = value.DocumentRequestDescription,
+        DocumentRequestMessage = value.DocumentRequestMessage,
+        DocumentRequestedAtUtc = value.DocumentRequestedAtUtc,
+        Documents = value.Documents.OrderByDescending(document => document.UploadedAtUtc).Select(ToDocumentResponse).ToList()
     };
 
     private static string MaskAccount(string value)

@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_app/src/features/accounts/account_models.dart';
@@ -13,6 +15,43 @@ import 'package:mobile_app/src/features/loans/pages/loans_page.dart';
 import 'package:mobile_app/src/features/loans/widgets/loan_widgets.dart';
 
 void main() {
+  testWidgets('requested loan document is visible with upload action', (
+    tester,
+  ) async {
+    var uploadPressed = false;
+    final application = _application(LoanApplicationStatus.documentsRequested);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: LoanStatusCard(
+            application: LoanApplicationModel(
+              id: application.id,
+              productId: application.productId,
+              productName: application.productName,
+              destinationAccountId: application.destinationAccountId,
+              destinationAccountNumber: application.destinationAccountNumber,
+              principal: application.principal,
+              currency: application.currency,
+              annualInterestRate: application.annualInterestRate,
+              termMonths: application.termMonths,
+              estimatedMonthlyPayment: application.estimatedMonthlyPayment,
+              estimatedTotalInterest: application.estimatedTotalInterest,
+              estimatedTotalRepayment: application.estimatedTotalRepayment,
+              status: LoanApplicationStatus.documentsRequested,
+              submittedAtUtc: application.submittedAtUtc,
+              documentRequestDescription: 'Proof of income',
+              documentRequestMessage: 'Upload latest salary statement.',
+            ),
+            onUploadDocument: () => uploadPressed = true,
+          ),
+        ),
+      ),
+    );
+    expect(find.text('Proof of income'), findsOneWidget);
+    expect(find.text('Upload latest salary statement.'), findsOneWidget);
+    await tester.tap(find.text('Choose and upload document'));
+    expect(uploadPressed, isTrue);
+  });
   const product = LoanProductModel(
     id: 'product',
     name: 'API Personal Loan',
@@ -694,4 +733,12 @@ class _FakeRepository implements LoanRepository {
     required String clientRequestId,
     String? loanPurposeId,
   }) async => _application(LoanApplicationStatus.pending);
+
+  @override
+  Future<LoanApplicationModel> uploadDocument(
+    String token,
+    String applicationId, {
+    required String fileName,
+    required Uint8List bytes,
+  }) async => current!;
 }

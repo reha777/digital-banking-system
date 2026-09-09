@@ -41,6 +41,10 @@ public class AdminLoanApplicationDetailsResponse
     public AdminLoanProductResponse Product { get; set; } = new();
     public AdminLoanDestinationAccountResponse DestinationAccount { get; set; } = new();
     public AdminLoanFinancialsResponse Financials { get; set; } = new();
+    public string? DocumentRequestDescription { get; set; }
+    public string? DocumentRequestMessage { get; set; }
+    public DateTime? DocumentRequestedAtUtc { get; set; }
+    public IReadOnlyCollection<LoanDocumentResponse> Documents { get; set; } = [];
 }
 
 public class AdminLoanCustomerResponse

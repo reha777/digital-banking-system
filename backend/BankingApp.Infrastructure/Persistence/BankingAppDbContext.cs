@@ -30,6 +30,7 @@ namespace BankingApp.Infrastructure.Persistence
         public DbSet<AdminUserPreferences> AdminUserPreferences => Set<AdminUserPreferences>();
         public DbSet<LoanProduct> LoanProducts => Set<LoanProduct>();
         public DbSet<LoanApplication> LoanApplications => Set<LoanApplication>();
+        public DbSet<LoanDocument> LoanDocuments => Set<LoanDocument>();
         public DbSet<Loan> Loans => Set<Loan>();
         public DbSet<LoanInstallment> LoanInstallments => Set<LoanInstallment>();
         public DbSet<LoanPayment> LoanPayments => Set<LoanPayment>();
@@ -54,10 +55,28 @@ namespace BankingApp.Infrastructure.Persistence
             ConfigureAccessTokenRevocations(modelBuilder);
             ConfigureSettings(modelBuilder);
             ConfigureLoans(modelBuilder);
+            ConfigureLoanDocuments(modelBuilder);
             ConfigureAuditLogs(modelBuilder);
             ConfigureReferenceData(modelBuilder);
             ConfigureReportJobs(modelBuilder);
             SeedData(modelBuilder);
+        }
+
+        private static void ConfigureLoanDocuments(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<LoanDocument>(entity =>
+            {
+                entity.ToTable("LoanDocuments");
+                entity.HasKey(value => value.Id);
+                entity.Property(value => value.FileName).HasMaxLength(180).IsRequired();
+                entity.Property(value => value.ContentType).HasMaxLength(120).IsRequired();
+                entity.Property(value => value.Content).IsRequired();
+                entity.HasIndex(value => new { value.LoanApplicationId, value.UploadedAtUtc });
+                entity.HasOne(value => value.LoanApplication).WithMany(value => value.Documents)
+                    .HasForeignKey(value => value.LoanApplicationId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(value => value.UploadedByUser).WithMany()
+                    .HasForeignKey(value => value.UploadedByUserId).OnDelete(DeleteBehavior.Restrict);
+            });
         }
 
         private static void ConfigureAuditLogs(ModelBuilder modelBuilder)
@@ -607,11 +626,13 @@ namespace BankingApp.Infrastructure.Persistence
                 entity.Property(value => value.EstimatedTotalInterest).HasPrecision(18, 2).IsRequired();
                 entity.Property(value => value.Status).HasConversion<string>().HasMaxLength(25).IsRequired();
                 entity.Property(value => value.AdminNote).HasMaxLength(500);
+                entity.Property(value => value.DocumentRequestDescription).HasMaxLength(120);
+                entity.Property(value => value.DocumentRequestMessage).HasMaxLength(500);
                 entity.Property(value => value.RowVersion).IsRowVersion();
                 entity.HasIndex(value => new { value.UserId, value.Status });
                 entity.HasIndex(value => new { value.Status, value.SubmittedAtUtc });
                 entity.HasIndex(value => new { value.UserId, value.ClientRequestId }).IsUnique();
-                entity.HasIndex(value => value.UserId).IsUnique().HasFilter("[Status] = N'Pending'");
+                entity.HasIndex(value => value.UserId).IsUnique().HasFilter("[Status] IN (N'Pending', N'DocumentsRequested')");
                 entity.HasOne(value => value.User).WithMany(value => value.LoanApplications)
                     .HasForeignKey(value => value.UserId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(value => value.LoanProduct).WithMany(value => value.Applications)

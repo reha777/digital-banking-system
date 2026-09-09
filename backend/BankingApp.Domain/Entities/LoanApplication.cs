@@ -21,6 +21,9 @@ public class LoanApplication
     public DateTime? ReviewedAtUtc { get; set; }
     public Guid? ReviewedByUserId { get; set; }
     public string? AdminNote { get; set; }
+    public string? DocumentRequestDescription { get; set; }
+    public string? DocumentRequestMessage { get; set; }
+    public DateTime? DocumentRequestedAtUtc { get; set; }
     public Guid ClientRequestId { get; set; }
     public byte[] RowVersion { get; set; } = [];
     public User User { get; set; } = null!;
@@ -28,4 +31,5 @@ public class LoanApplication
     public Account DestinationAccount { get; set; } = null!;
     public ReferenceDataItem? LoanPurpose { get; set; }
     public Loan? Loan { get; set; }
+    public ICollection<LoanDocument> Documents { get; set; } = new List<LoanDocument>();
 }

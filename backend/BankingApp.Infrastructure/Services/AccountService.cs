@@ -147,7 +147,7 @@ namespace BankingApp.Infrastructure.Services
                 cancellationToken);
             var hasPendingApplication = await dbContext.LoanApplications.AnyAsync(
                 application => application.DestinationAccountId == account.Id &&
-                    application.Status == LoanApplicationStatus.Pending,
+                    (application.Status == LoanApplicationStatus.Pending || application.Status == LoanApplicationStatus.DocumentsRequested),
                 cancellationToken);
             if (hasActiveLoan || hasPendingApplication)
                 throw new BusinessException("Racun sa aktivnim kreditom ili zahtjevom za kredit ne moze biti zatvoren.");

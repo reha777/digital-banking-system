@@ -56,4 +56,19 @@ public class AdminLoansController(IAdminLoanService loanService) : ControllerBas
         AdminLoanReviewRequest request,
         CancellationToken cancellationToken) =>
         Ok(await loanService.RejectApplicationAsync(id, request, cancellationToken));
+
+    [HttpPost("applications/{id:guid}/request-document")]
+    public async Task<ActionResult<AdminLoanApplicationDetailsResponse>> RequestDocument(Guid id, LoanDocumentRequest request, CancellationToken cancellationToken) =>
+        Ok(await loanService.RequestDocumentAsync(id, request, cancellationToken));
+
+    [HttpGet("applications/{id:guid}/documents")]
+    public async Task<ActionResult<IReadOnlyCollection<LoanDocumentResponse>>> GetDocuments(Guid id, CancellationToken cancellationToken) =>
+        Ok(await loanService.GetDocumentsAsync(id, cancellationToken));
+
+    [HttpGet("applications/{applicationId:guid}/documents/{documentId:guid}/download")]
+    public async Task<IActionResult> DownloadDocument(Guid applicationId, Guid documentId, CancellationToken cancellationToken)
+    {
+        var value = await loanService.DownloadDocumentAsync(applicationId, documentId, cancellationToken);
+        return File(value.Content, value.ContentType, value.FileName);
+    }
 }

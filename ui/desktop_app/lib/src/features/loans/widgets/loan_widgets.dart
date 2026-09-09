@@ -77,6 +77,7 @@ class LoanApplicationFilters extends StatelessWidget {
                 AppDropdownItem(value: 1, label: 'Pending'),
                 AppDropdownItem(value: 2, label: 'Approved'),
                 AppDropdownItem(value: 3, label: 'Rejected'),
+                AppDropdownItem(value: 4, label: 'Documents requested'),
               ],
               onChanged: onStatus,
             ),
@@ -367,11 +368,19 @@ class LoanApplicationDetailsDialog extends StatelessWidget {
     required this.dateFormatter,
     this.onApprove,
     this.onReject,
+    this.onRequestDocument,
+    this.onDownloadDocument,
   });
   final AdminLoanApplicationDetails details;
   final String Function(DateTime) dateFormatter;
   final Future<AdminLoanApplicationDetails> Function(String? note)? onApprove;
   final Future<AdminLoanApplicationDetails> Function(String note)? onReject;
+  final Future<AdminLoanApplicationDetails> Function(
+    String description,
+    String message,
+  )?
+  onRequestDocument;
+  final Future<void> Function(AdminLoanDocument document)? onDownloadDocument;
   @override
   Widget build(BuildContext context) => Dialog(
     child: ConstrainedBox(
@@ -475,6 +484,32 @@ class LoanApplicationDetailsDialog extends StatelessWidget {
                           _line('Admin note', details.adminNote!),
                       ],
                     ),
+                    _section(context, 'Documents', LucideIcons.files, [
+                      if (details.documentRequestDescription?.isNotEmpty ==
+                          true)
+                        _line('Requested', details.documentRequestDescription!),
+                      if (details.documentRequestMessage?.isNotEmpty == true)
+                        _line('Message', details.documentRequestMessage!),
+                      if (details.documents.isEmpty)
+                        const Text('No uploaded documents yet.'),
+                      ...details.documents.map(
+                        (document) => ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(LucideIcons.file),
+                          title: Text(document.fileName),
+                          subtitle: Text(
+                            '${document.contentType} · ${(document.sizeBytes / 1024).toStringAsFixed(1)} KB',
+                          ),
+                          trailing: IconButton(
+                            tooltip: 'Open document',
+                            onPressed: onDownloadDocument == null
+                                ? null
+                                : () => onDownloadDocument!(document),
+                            icon: const Icon(LucideIcons.eye),
+                          ),
+                        ),
+                      ),
+                    ]),
                     if (details.status == AdminLoanStatus.pending)
                       _review(context),
                   ],
@@ -553,6 +588,14 @@ class LoanApplicationDetailsDialog extends StatelessWidget {
                 label: const Text('Reject'),
               ),
               const SizedBox(width: 10),
+              OutlinedButton.icon(
+                onPressed: onRequestDocument == null
+                    ? null
+                    : () => _openRequestDocument(context),
+                icon: const Icon(LucideIcons.filePlus),
+                label: const Text('Request document'),
+              ),
+              const SizedBox(width: 10),
               FilledButton.icon(
                 onPressed: onApprove == null
                     ? null
@@ -587,6 +630,61 @@ class LoanApplicationDetailsDialog extends StatelessWidget {
       builder: (_) => _RejectLoanDialog(onSubmit: onReject!),
     );
     if (reviewed == true && context.mounted) Navigator.pop(context, true);
+  }
+
+  Future<void> _openRequestDocument(BuildContext context) async {
+    final description = TextEditingController(),
+        message = TextEditingController();
+    final submit = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Request document'),
+        content: SizedBox(
+          width: 440,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: description,
+                decoration: const InputDecoration(
+                  labelText: 'Document description',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: message,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'Message to customer',
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Send request'),
+          ),
+        ],
+      ),
+    );
+    if (submit == true && context.mounted) {
+      if (description.text.trim().isEmpty || message.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Description and message are required.'),
+          ),
+        );
+        return;
+      }
+      await onRequestDocument!(description.text.trim(), message.text.trim());
+      if (context.mounted) Navigator.pop(context, true);
+    }
   }
 }
 

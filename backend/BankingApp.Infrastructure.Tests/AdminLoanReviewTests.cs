@@ -30,6 +30,9 @@ public class AdminLoanReviewTests
         Assert.Empty(fixture.Db.Loans);
         Assert.Empty(fixture.Db.LoanInstallments);
         Assert.Empty(fixture.Db.Transactions);
+        var notification = await fixture.Db.Notifications.SingleAsync();
+        Assert.Equal(NotificationType.LoanRejected, notification.Type);
+        Assert.Equal(fixture.Owner.Id, notification.UserId);
     }
 
     [Fact]
@@ -72,6 +75,9 @@ public class AdminLoanReviewTests
         Assert.All(installments, value => Assert.Equal(LoanInstallmentStatus.Pending, value.Status));
         Assert.Equal(fixture.AdminId, application.ReviewedByUserId);
         Assert.NotNull(application.ReviewedAtUtc);
+        var notification = await fixture.Db.Notifications.SingleAsync();
+        Assert.Equal(NotificationType.LoanApproved, notification.Type);
+        Assert.Equal(fixture.Owner.Id, notification.UserId);
     }
 
     [Fact]
@@ -183,11 +189,18 @@ public class AdminLoanReviewTests
             var account = new Account { Id = Guid.NewGuid(), UserId = owner.Id, AccountNumber = "BA0000001234", AccountType = AccountType.Checking, Balance = 100, Currency = "BAM", CreatedAtUtc = DateTime.UtcNow };
             var quote = calculation.Calculate(1000, SnapshotRate, 6, DateTime.UtcNow.AddDays(-1));
             var application = new LoanApplication { Id = Guid.NewGuid(), UserId = owner.Id, LoanProductId = product.Id, DestinationAccountId = account.Id, Principal = quote.Principal, Currency = "BAM", AnnualInterestRateSnapshot = SnapshotRate, TermMonths = 6, EstimatedMonthlyPayment = quote.MonthlyPayment, EstimatedTotalInterest = quote.TotalInterest, EstimatedTotalRepayment = quote.TotalRepayment, Status = LoanApplicationStatus.Pending, SubmittedAtUtc = DateTime.UtcNow.AddDays(-1), ClientRequestId = Guid.NewGuid() };
-            db.AddRange(owner, product, account, application);
+            var adminId = Guid.NewGuid();
+            var reviewer = new User
+            {
+                Id = adminId, FirstName = "Loan", LastName = "Reviewer", Email = $"reviewer-{adminId:N}@example.com",
+                PhoneNumber = "+38761000001", PasswordHash = "hash", Role = admin ? AppRoles.Admin : AppRoles.Customer,
+                Status = CustomerStatus.Active, CreatedAtUtc = DateTime.UtcNow
+            };
+            db.AddRange(owner, reviewer, product, account, application);
             await db.SaveChangesAsync();
             db.ChangeTracker.Clear();
-            var adminId = Guid.NewGuid();
-            return new Fixture(db, new AdminLoanService(db, new CurrentUser(adminId, admin), calculation), adminId, owner, account, product, application);
+            return new Fixture(db, new AdminLoanService(db, new CurrentUser(adminId, admin), calculation,
+                notificationWriter: new NotificationWriter(db)), adminId, owner, account, product, application);
         }
 
         public async Task AddExistingActiveLoanAsync()

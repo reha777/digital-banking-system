@@ -134,21 +134,32 @@ class LoanAccountTile extends StatelessWidget {
 }
 
 class LoanStatusCard extends StatelessWidget {
-  const LoanStatusCard({super.key, required this.application});
+  const LoanStatusCard({
+    super.key,
+    required this.application,
+    this.onUploadDocument,
+  });
   final LoanApplicationModel application;
+  final VoidCallback? onUploadDocument;
   @override
   Widget build(BuildContext context) {
-    final status = application.isPending
+    final status = application.requiresDocuments
+        ? 'Documents requested'
+        : application.isPending
         ? 'Pending'
         : application.isRejected
         ? 'Rejected'
         : 'Approved';
-    final icon = application.isPending
+    final icon = application.requiresDocuments
+        ? LucideIcons.fileUp
+        : application.isPending
         ? LucideIcons.clock3
         : application.isRejected
         ? LucideIcons.circleAlert
         : LucideIcons.circleCheck;
-    final color = application.isPending
+    final color = application.requiresDocuments
+        ? Colors.orange
+        : application.isPending
         ? Colors.orange
         : application.isRejected
         ? Colors.red
@@ -176,7 +187,9 @@ class LoanStatusCard extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               Text(
-                application.isPending
+                application.requiresDocuments
+                    ? 'Additional documentation is required before a final decision.'
+                    : application.isPending
                     ? 'Your application is being reviewed.'
                     : application.isRejected
                     ? 'Your application was not approved.'
@@ -190,6 +203,21 @@ class LoanStatusCard extends StatelessWidget {
               ),
               _line('Destination', application.destinationAccountNumber),
               _line('Term', '${application.termMonths} months'),
+              if (application.requiresDocuments) ...[
+                const Divider(height: 28),
+                Text(
+                  application.documentRequestDescription ?? 'Required document',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                if (application.documentRequestMessage?.isNotEmpty == true)
+                  Text(application.documentRequestMessage!),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: onUploadDocument,
+                  icon: const Icon(LucideIcons.upload),
+                  label: const Text('Choose and upload document'),
+                ),
+              ],
               _line(
                 'Interest',
                 '${application.annualInterestRate.toStringAsFixed(2)}%',

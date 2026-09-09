@@ -1,6 +1,7 @@
 import '../../core/api_client.dart';
 import '../../core/mobile_api_endpoints.dart';
 import 'models/loan_models.dart';
+import 'dart:typed_data';
 
 abstract class LoanRepository {
   Future<List<LoanProductModel>> getProducts(String token);
@@ -41,6 +42,12 @@ abstract class LoanRepository {
     String loanId, {
     required String sourceAccountId,
     required String clientRequestId,
+  }) => throw UnimplementedError();
+  Future<LoanApplicationModel> uploadDocument(
+    String token,
+    String applicationId, {
+    required String fileName,
+    required Uint8List bytes,
   }) => throw UnimplementedError();
 }
 
@@ -131,6 +138,22 @@ class LoanService implements LoanRepository {
     );
     return json.isEmpty ? null : LoanModel.fromJson(json);
   }
+
+  @override
+  Future<LoanApplicationModel> uploadDocument(
+    String token,
+    String applicationId, {
+    required String fileName,
+    required Uint8List bytes,
+  }) async => LoanApplicationModel.fromJson(
+    await _client.postMultipartBytes(
+      '/api/loans/applications/$applicationId/documents',
+      fieldName: 'file',
+      fileName: fileName,
+      bytes: bytes,
+      token: token,
+    ),
+  );
 
   @override
   Future<LoanModel?> getRecentLoan(String token) async {

@@ -62,7 +62,7 @@ public class AdminDashboardService(BankingAppDbContext dbContext) : IAdminDashbo
                 value.Status == CardRequestStatus.DocumentsRequested, cancellationToken);
         var pendingLoanApplications = await dbContext.LoanApplications
             .AsNoTracking()
-            .CountAsync(value => value.Status == LoanApplicationStatus.Pending, cancellationToken);
+            .CountAsync(value => value.Status == LoanApplicationStatus.Pending || value.Status == LoanApplicationStatus.DocumentsRequested, cancellationToken);
         var activeLoans = await dbContext.Loans
             .AsNoTracking()
             .CountAsync(value => value.Status == LoanStatus.Active, cancellationToken);

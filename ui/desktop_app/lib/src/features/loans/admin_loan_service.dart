@@ -1,5 +1,6 @@
 import '../../core/api_client.dart';
 import 'models/admin_loan_models.dart';
+import 'dart:typed_data';
 
 abstract class AdminLoanRepository {
   Future<AdminLoanApplicationPage> getApplications({
@@ -47,6 +48,17 @@ abstract class AdminLoanRepository {
     required String id,
   });
   Future<AdminLoansOverview> getLoansOverview({required String token});
+  Future<AdminLoanApplicationDetails> requestDocument({
+    required String token,
+    required String id,
+    required String description,
+    required String message,
+  }) => throw UnimplementedError();
+  Future<Uint8List> downloadDocument({
+    required String token,
+    required String applicationId,
+    required String documentId,
+  }) => throw UnimplementedError();
 }
 
 class AdminLoanService implements AdminLoanRepository {
@@ -144,6 +156,30 @@ class AdminLoanService implements AdminLoanRepository {
     await _client.postJson('/api/admin/loans/applications/$id/reject', {
       'adminNote': adminNote,
     }, token: token),
+  );
+
+  @override
+  Future<AdminLoanApplicationDetails> requestDocument({
+    required String token,
+    required String id,
+    required String description,
+    required String message,
+  }) async => AdminLoanApplicationDetails.fromJson(
+    await _client.postJson(
+      '/api/admin/loans/applications/$id/request-document',
+      {'description': description, 'message': message},
+      token: token,
+    ),
+  );
+
+  @override
+  Future<Uint8List> downloadDocument({
+    required String token,
+    required String applicationId,
+    required String documentId,
+  }) => _client.getBytes(
+    '/api/admin/loans/applications/$applicationId/documents/$documentId/download',
+    token: token,
   );
 
   @override

@@ -14,12 +14,11 @@ public sealed class AuditLogService(BankingAppDbContext dbContext, ICurrentUserS
 {
     public async Task RecordAsync(AuditLogRecordRequest request, CancellationToken cancellationToken = default)
     {
-        if (!currentUser.IsAdmin) throw new UnauthorizedAccessException("Admin access is required.");
         var actor = await dbContext.Users.AsNoTracking()
-            .Where(user => user.Id == currentUser.UserId && user.Role == AppRoles.Admin)
+            .Where(user => user.Id == currentUser.UserId)
             .Select(user => new { user.FirstName, user.LastName, user.Role })
             .SingleOrDefaultAsync(cancellationToken)
-            ?? throw new NotFoundException("Administrator nije pronadjen.");
+            ?? throw new NotFoundException("Korisnik nije pronadjen.");
         dbContext.AuditLogs.Add(new AuditLog
         {
             Id = Guid.NewGuid(),

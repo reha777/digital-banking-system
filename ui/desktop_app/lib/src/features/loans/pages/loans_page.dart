@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/app_error_message.dart';
+import '../../../core/document_opener.dart';
 import '../../../core/api_client.dart';
 import '../../../widgets/app_page_header.dart';
 import '../../../widgets/app_page_states.dart';
@@ -266,6 +267,25 @@ class _LoansPageState extends State<LoansPage> {
               id: item.applicationId,
               adminNote: note,
             ),
+            onRequestDocument: (description, message) =>
+                _repository.requestDocument(
+                  token: widget.token,
+                  id: item.applicationId,
+                  description: description,
+                  message: message,
+                ),
+            onDownloadDocument: (document) async {
+              final bytes = await _repository.downloadDocument(
+                token: widget.token,
+                applicationId: item.applicationId,
+                documentId: document.id,
+              );
+              await openDocumentBytes(
+                bytes: bytes,
+                fileName: document.fileName,
+                contentType: document.contentType,
+              );
+            },
           );
         },
       ),

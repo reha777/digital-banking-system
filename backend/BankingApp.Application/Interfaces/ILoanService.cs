@@ -25,4 +25,7 @@ public interface ILoanService
     Task<LoanDetailsResponse> GetLoanDetailsAsync(Guid loanId, CancellationToken cancellationToken = default);
     Task<LoanPaymentQuoteResponse> GetPaymentQuoteAsync(Guid loanId, CancellationToken cancellationToken = default);
     Task<LoanPaymentResultResponse> PayInstallmentAsync(Guid loanId, LoanPaymentRequest request, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<LoanDocumentResponse>> GetDocumentsAsync(Guid applicationId, CancellationToken cancellationToken = default);
+    Task<LoanApplicationResponse> UploadDocumentAsync(Guid applicationId, LoanDocumentUploadRequest request, CancellationToken cancellationToken = default);
+    Task<LoanDocumentDownloadResponse> DownloadDocumentAsync(Guid applicationId, Guid documentId, CancellationToken cancellationToken = default);
 }

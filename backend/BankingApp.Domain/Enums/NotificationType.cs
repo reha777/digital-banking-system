@@ -6,5 +6,6 @@ public enum NotificationType
     TransactionApproved, TransactionRejected, TransactionDocumentsRequested,
     LoanApproved, LoanRejected, LoanPaymentOverdue,
     NewCardRequest, CardDocumentsUploaded, NewHighRiskTransaction,
-    TransactionDocumentsUploaded, NewLoanApplication
+    TransactionDocumentsUploaded, NewLoanApplication,
+    LoanDocumentRequested, LoanDocumentUploaded
 }

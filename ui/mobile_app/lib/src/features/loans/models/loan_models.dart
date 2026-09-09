@@ -1,4 +1,4 @@
-enum LoanApplicationStatus { pending, approved, rejected }
+enum LoanApplicationStatus { pending, approved, rejected, documentsRequested }
 
 class LoanPurposeModel {
   const LoanPurposeModel({
@@ -211,31 +211,40 @@ class LoanApplicationModel {
     required this.submittedAtUtc,
     this.reviewedAtUtc,
     this.adminNote,
+    this.documentRequestDescription,
+    this.documentRequestMessage,
+    this.documents = const [],
   });
-  factory LoanApplicationModel.fromJson(Map<String, dynamic> json) =>
-      LoanApplicationModel(
-        id: json['id']?.toString() ?? '',
-        productId: json['productId']?.toString() ?? '',
-        productName: json['productName']?.toString() ?? '',
-        destinationAccountId: json['destinationAccountId']?.toString() ?? '',
-        destinationAccountNumber:
-            json['destinationAccountNumber']?.toString() ?? '',
-        principal: _number(json, 'principal'),
-        currency: json['currency']?.toString() ?? '',
-        annualInterestRate: _number(json, 'annualInterestRate'),
-        termMonths: (json['termMonths'] as num? ?? 0).toInt(),
-        estimatedMonthlyPayment: _number(json, 'estimatedMonthlyPayment'),
-        estimatedTotalInterest: _number(json, 'estimatedTotalInterest'),
-        estimatedTotalRepayment: _number(json, 'estimatedTotalRepayment'),
-        status: _status(json['status']),
-        submittedAtUtc:
-            DateTime.tryParse(json['submittedAtUtc']?.toString() ?? '') ??
-            DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
-        reviewedAtUtc: DateTime.tryParse(
-          json['reviewedAtUtc']?.toString() ?? '',
-        ),
-        adminNote: json['adminNote']?.toString(),
-      );
+  factory LoanApplicationModel.fromJson(
+    Map<String, dynamic> json,
+  ) => LoanApplicationModel(
+    id: json['id']?.toString() ?? '',
+    productId: json['productId']?.toString() ?? '',
+    productName: json['productName']?.toString() ?? '',
+    destinationAccountId: json['destinationAccountId']?.toString() ?? '',
+    destinationAccountNumber:
+        json['destinationAccountNumber']?.toString() ?? '',
+    principal: _number(json, 'principal'),
+    currency: json['currency']?.toString() ?? '',
+    annualInterestRate: _number(json, 'annualInterestRate'),
+    termMonths: (json['termMonths'] as num? ?? 0).toInt(),
+    estimatedMonthlyPayment: _number(json, 'estimatedMonthlyPayment'),
+    estimatedTotalInterest: _number(json, 'estimatedTotalInterest'),
+    estimatedTotalRepayment: _number(json, 'estimatedTotalRepayment'),
+    status: _status(json['status']),
+    submittedAtUtc:
+        DateTime.tryParse(json['submittedAtUtc']?.toString() ?? '') ??
+        DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+    reviewedAtUtc: DateTime.tryParse(json['reviewedAtUtc']?.toString() ?? ''),
+    adminNote: json['adminNote']?.toString(),
+    documentRequestDescription: json['documentRequestDescription']?.toString(),
+    documentRequestMessage: json['documentRequestMessage']?.toString(),
+    documents: (json['documents'] as List? ?? [])
+        .map(
+          (value) => LoanDocumentModel.fromJson(value as Map<String, dynamic>),
+        )
+        .toList(),
+  );
   final String id,
       productId,
       productName,
@@ -252,15 +261,43 @@ class LoanApplicationModel {
   final DateTime submittedAtUtc;
   final DateTime? reviewedAtUtc;
   final String? adminNote;
+  final String? documentRequestDescription, documentRequestMessage;
+  final List<LoanDocumentModel> documents;
   bool get isPending => status == LoanApplicationStatus.pending;
   bool get isApproved => status == LoanApplicationStatus.approved;
   bool get isRejected => status == LoanApplicationStatus.rejected;
+  bool get requiresDocuments =>
+      status == LoanApplicationStatus.documentsRequested;
+}
+
+class LoanDocumentModel {
+  const LoanDocumentModel({
+    required this.id,
+    required this.fileName,
+    required this.contentType,
+    required this.sizeBytes,
+    required this.uploadedAtUtc,
+  });
+  factory LoanDocumentModel.fromJson(Map<String, dynamic> json) =>
+      LoanDocumentModel(
+        id: json['id']?.toString() ?? '',
+        fileName: json['fileName']?.toString() ?? '',
+        contentType: json['contentType']?.toString() ?? '',
+        sizeBytes: (json['sizeBytes'] as num? ?? 0).toInt(),
+        uploadedAtUtc:
+            DateTime.tryParse(json['uploadedAtUtc']?.toString() ?? '') ??
+            DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+      );
+  final String id, fileName, contentType;
+  final int sizeBytes;
+  final DateTime uploadedAtUtc;
 }
 
 LoanApplicationStatus _status(Object? raw) =>
     switch (raw?.toString().toLowerCase()) {
       '2' || 'approved' => LoanApplicationStatus.approved,
       '3' || 'rejected' => LoanApplicationStatus.rejected,
+      '4' || 'documentsrequested' => LoanApplicationStatus.documentsRequested,
       _ => LoanApplicationStatus.pending,
     };
 

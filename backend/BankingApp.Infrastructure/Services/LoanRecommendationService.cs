@@ -28,7 +28,7 @@ public sealed class LoanRecommendationService(
 
         if (await dbContext.LoanApplications.AsNoTracking().AnyAsync(
             application => application.UserId == userId &&
-                application.Status == LoanApplicationStatus.Pending,
+                (application.Status == LoanApplicationStatus.Pending || application.Status == LoanApplicationStatus.DocumentsRequested),
             cancellationToken))
             return Blocked("A new recommendation is unavailable while your application is pending.");
 
